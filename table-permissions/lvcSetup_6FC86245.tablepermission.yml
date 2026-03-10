@@ -1,0 +1,10 @@
+adx_append: false
+adx_appendto: false
+adx_create: false
+adx_delete: false
+adx_entitylogicalname: lv_lvcompcommissionsetup
+adx_entityname: lvcSetup
+adx_entitypermissionid: 30203cdd-fa15-f011-9989-002248045044
+adx_read: true
+adx_scope: 756150000
+adx_write: true

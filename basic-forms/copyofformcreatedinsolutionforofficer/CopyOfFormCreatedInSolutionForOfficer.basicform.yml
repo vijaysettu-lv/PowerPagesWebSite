@@ -1,0 +1,17 @@
+adx_attachfilestoragelocation: 756150000
+adx_captcharequired: false
+adx_containername: ''
+adx_entityformid: a1e7ef6b-890f-4962-8245-2ebbe8f9b7a6
+adx_entityname: lv_lvcomploanofficer
+adx_entitypermissionsenabled: true
+adx_entitysourcetype: 756150001
+adx_formname: FormCreatedInSolutionForOfficer
+adx_hideformonsuccess: true
+adx_maximumnooffiles: 5
+adx_mode: 100000001
+adx_name: CopyOfFormCreatedInSolutionForOfficer
+adx_onsuccess: 756150001
+adx_recordidquerystringparametername: id
+adx_redirectwebpage: bc5cb3c0-d9a9-5307-6549-e3b12b00e1f7
+adx_showcaptchaforauthenticatedusers: false
+adx_storageaccountname: ''

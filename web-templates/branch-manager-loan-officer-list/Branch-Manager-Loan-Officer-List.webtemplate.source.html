@@ -1,0 +1,179 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Tue Sep 02 5:41PM -->
+<!-- Last modified Tue Sep 02 5:29PM -->
+<!-- Last modified Tue Sep 02 1727 -->
+<!-- ENTER: Branch-Manager-Loan-Officer-List -->
+
+{% comment %} This template builds a pipe-delimited list of loan officer codes that Branch Managers can access {% endcomment %}
+{% comment %} It uses the exact same logic as the Branch-Loan-Officers template to ensure consistency {% endcomment %}
+
+{% comment %} Initialize variables {% endcomment %}
+{% assign branchManagerOfficerCodes = "" %}
+{% assign branchManagerOfficerNames = "" %}
+{% assign hasOfficers = false %}
+
+{% comment %} Set role variables that may not be available in template context {% endcomment %}
+{% assign is_admin = user | has_role: 'Administrators' %}
+{% assign is_BranchManager = user | has_role: 'Branch Manager' %}
+
+
+
+{% comment %} ADMIN LOGIC: Admin users should see ALL loan officers for the selected branch {% endcomment %}
+{% if is_admin == true %}
+{% comment %} For Admin users, collect loan officers from commission data for the selected branch {% endcomment %}
+{% for row in allLoanBasedCommissions.results.entities %}
+	{% assign includeThisCommission = false %}
+	
+	{% comment %} Admin users see all commissions, but filter by selected branch {% endcomment %}
+	{% if currentBranch != "ALL_BRANCHES" %}
+		{% comment %} Specific branch selected - filter by that branch {% endcomment %}
+		{% if row.lv_xbranchcode == currentBranch.lv_code %}
+			{% assign includeThisCommission = true %}
+		{% endif %}
+	{% else %}
+		{% comment %} All branches - include all commissions {% endcomment %}
+		{% assign includeThisCommission = true %}
+	{% endif %}
+	
+	{% comment %} Add unique loan officer codes {% endcomment %}
+	{% if includeThisCommission and row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+		{% assign checkCode = "|" | append: row.lv_xloanofficercode | append: "|" %}
+		{% unless branchManagerOfficerCodes contains checkCode %}
+			{% if branchManagerOfficerCodes == "" %}
+				{% assign branchManagerOfficerCodes = row.lv_xloanofficercode %}
+			{% else %}
+				{% assign branchManagerOfficerCodes = branchManagerOfficerCodes | append: "|" | append: row.lv_xloanofficercode %}
+			{% endif %}
+			{% assign hasOfficers = true %}
+		{% endunless %}
+	{% endif %}
+{% endfor %}
+
+{% comment %} BRANCH MANAGER LOGIC: Simplified commission-based filtering using branch CODES {% endcomment %}
+{% elsif is_BranchManager == true %}
+
+{% comment %} PASS 1: Collect unique loan officers from commission records {% endcomment %}
+{% comment %} Use the same filtered data as the Branch page tables {% endcomment %}
+{% for row in allLoanBasedCommissions.results.entities %}
+	{% assign includeThisCommission = false %}
+
+	{% comment %} BRANCH MANAGER FILTERING: Include commissions from managed branches or assigned loan officers {% endcomment %}
+	{% if is_admin %}
+		{% assign includeThisCommission = true %}
+	{% else %}
+		{% comment %} Branch Manager access: Check if commission's branch code is in user's branch code list {% endcomment %}
+		{% if row.lv_xbranchcode and row.lv_xbranchcode != blank %}
+			{% assign branchCheckString = "|" | append: row.lv_xbranchcode | append: "|" %}
+			{% if userBranchCodeList contains branchCheckString %}
+				{% assign includeThisCommission = true %}
+			{% endif %}
+		{% endif %}
+		
+		{% comment %} Loan Officer Oversight access: Check if loan officer is assigned to user {% endcomment %}
+		{% if row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+			{% assign officerCheckString = "|" %}
+			{% assign officerCheckString = officerCheckString | append: row.lv_xloanofficercode %}
+			{% assign officerCheckString = officerCheckString | append: "|" %}
+			{% if userLoanOfficerList contains officerCheckString %}
+				{% assign includeThisCommission = true %}
+			{% endif %}
+		{% endif %}
+	{% endif %}
+	
+	{% comment %} OPTIMIZATION: Removed redundant branch filtering - already done above {% endcomment %}
+	
+	{% if includeThisCommission %}
+		{% comment %} Add to unique LO code list if not already present {% endcomment %}
+		{% if row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+			{% assign loCheckCode = "|" %}
+			{% assign loCheckCode = loCheckCode | append: row.lv_xloanofficercode %}
+			{% assign loCheckCode = loCheckCode | append: "|" %}
+			{% unless branchManagerOfficerCodes contains loCheckCode %}
+				{%- comment -%} Check if this loan officer is excluded using NEW per-user exclusion list {%- endcomment -%}
+				{%- assign isExcluded = false -%}
+				{%- if userExclusionLOList != blank and userExclusionLOList != "" -%}
+					{%- assign exclusionCheckString = "|" | append: row.lv_xloanofficercode | append: "|" -%}
+					{%- if userExclusionLOList contains exclusionCheckString -%}
+						{%- assign isExcluded = true -%}
+					{%- endif -%}
+				{%- endif -%}
+
+				{%- unless isExcluded -%}
+					{% assign branchManagerOfficerCodes = branchManagerOfficerCodes | append: row.lv_xloanofficercode | append: "|" %}
+					{% assign branchManagerOfficerNames = branchManagerOfficerNames | append: row.lv_xloanofficername | append: "|" %}
+					{% assign hasOfficers = true %}
+				{%- endunless -%}
+			{% endunless %}
+		{% endif %}
+	{% endif %}
+{% endfor %}
+
+
+{% comment %} PASS 1B: Also collect unique loan officers from adjustments {% endcomment %}
+{% for row in allPeriodBasedCommissions.results.entities %}
+	{% assign includeThisAdjustment = false %}
+	
+	{% comment %} BRANCH MANAGER FILTERING: Include adjustments from managed branches or assigned loan officers {% endcomment %}
+	{% if is_admin %}
+		{% assign includeThisAdjustment = true %}
+	{% else %}
+		{% comment %} Branch Manager access: Check if adjustment's branch code is in user's branch code list {% endcomment %}
+		{% if row.lv_xbranchcode and row.lv_xbranchcode != blank %}
+			{% assign branchCheckString = "|" | append: row.lv_xbranchcode | append: "|" %}
+			{% if userBranchCodeList contains branchCheckString %}
+				{% assign includeThisAdjustment = true %}
+			{% endif %}
+		{% endif %}
+		
+		{% comment %} Loan Officer Oversight access: Check if loan officer is assigned to user {% endcomment %}
+		{% if row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+			{% assign officerCheckString = "|" %}
+			{% assign officerCheckString = officerCheckString | append: row.lv_xloanofficercode %}
+			{% assign officerCheckString = officerCheckString | append: "|" %}
+			{% if userLoanOfficerList contains officerCheckString %}
+				{% assign includeThisAdjustment = true %}
+			{% endif %}
+		{% endif %}
+	{% endif %}
+	
+	{% comment %} OPTIMIZATION: Removed redundant branch filtering - already done above {% endcomment %}
+	
+	{% if includeThisAdjustment %}
+		{% comment %} Add to unique LO code list if not already present {% endcomment %}
+		{% if row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+			{% assign loCheckCode = "|" %}
+			{% assign loCheckCode = loCheckCode | append: row.lv_xloanofficercode %}
+			{% assign loCheckCode = loCheckCode | append: "|" %}
+			{% unless branchManagerOfficerCodes contains loCheckCode %}
+				{%- comment -%} Check if this loan officer is excluded using NEW per-user exclusion list {%- endcomment -%}
+				{%- assign isExcluded = false -%}
+				{%- if userExclusionLOList != blank and userExclusionLOList != "" -%}
+					{%- assign exclusionCheckString = "|" | append: row.lv_xloanofficercode | append: "|" -%}
+					{%- if userExclusionLOList contains exclusionCheckString -%}
+						{%- assign isExcluded = true -%}
+					{%- endif -%}
+				{%- endif -%}
+
+				{%- unless isExcluded -%}
+					{% assign branchManagerOfficerCodes = branchManagerOfficerCodes | append: row.lv_xloanofficercode | append: "|" %}
+					{% assign branchManagerOfficerNames = branchManagerOfficerNames | append: row.lv_xloanofficername | append: "|" %}
+					{% assign hasOfficers = true %}
+				{%- endunless -%}
+			{% endunless %}
+		{% endif %}
+	{% endif %}
+{% endfor %}
+
+{% comment %} Output the results for use by other templates {% endcomment %}
+{% comment %} These variables can now be used by the Loan Officer dropdown template {% endcomment %}
+
+{% else %}
+{% endif %}
+{% comment %} End Branch Manager only logic {% endcomment %}
+
+<!-- LEAVE: Branch-Manager-Loan-Officer-List -->
+
+<!-- Last modified Tue Sep 02 1727 -->
+<!-- Last modified Tue Sep 02 5:29PM -->
+<!-- Last modified Tue Sep 02 5:41PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

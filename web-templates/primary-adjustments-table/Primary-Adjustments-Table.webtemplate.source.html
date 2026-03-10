@@ -1,0 +1,568 @@
+<!-- Last modified Fri Oct 24 3:24PM -->
+<!-- Last modified Fri Oct 24 3:11PM -->
+<!-- Last modified Fri Oct 24 3:01PM -->
+<!-- Last modified fri day 2025-10-24  -->
+<!-- Last modified Sat Sep 13 8:05AM -->
+<!-- Last modified Tue Sep 02 11:27AM -->
+<!-- Last modified Tue Sep 02 11:27AM -->
+<!-- Last modified Tue Sep 02 11:20AM -->
+
+
+
+<!-- ENTER: Web Template: Primary Adjustments Table 250721 1935 -->
+<script>console.log('🕐 Primary-Adjustments-Table deployed: 2025-10-24 15:23:00 - AJAX fallback fix');</script>
+
+{% comment  %} This template relies on CSS in Primary-Commissions-Table {% endcomment  %}
+
+{% assign isMgmt = false %}
+{% if page.title == 'Branch' or page.title == 'Accounting' %}
+	{% assign isMgmt = true %}
+{% elsif page.title == 'Loan Officer' and is_OnlyLoanOfficer == false %}
+	{% assign isMgmt = true %}
+{% endif %}
+
+{% assign adjustmentCount = allPeriodBasedCommissions.results.entities.size | integer %}
+{% comment %} Use filtered count from Commission-Filter snippet {% endcomment %}
+{% assign permittedAdjustmentCount = cpAdjuCount %}
+
+
+<div class="adjustments-section">
+	<h3>Adjustments <span id="adjustment-count-display">{% if page.title == 'Accounting' and totalAdjustmentCount.results.entities.size > 0 %}({{ totalAdjustmentCount.results.entities.first.totaladjcount }}){% elsif permittedAdjustmentCount or permittedAdjustmentCount == 0 %}({{ permittedAdjustmentCount }}){% endif %}</span></h3>
+	
+	{% comment %} DEBUG: Adjustment filtering info available via debug mode {% endcomment %}
+
+	{% if permittedAdjustmentCount > 0 %}
+		<table class="data-table data-table-action">
+			<thead class="data-table-head">
+				<tr>
+					<th>Calculation Date</th>
+					<th data-label="Amount" data-label="Amount">Amount</th>
+					<th> Description</th>
+					<th data-label="BPSCalc" title="Basis (0.01%) Points for commission calculation">BPS Calc</th>
+					<th data-label="CommBaseAmount" title="Capped Commission Base Amount">Capped Base Amount</th>
+					{% if isMgmt %}
+						<th>Branch</th>
+						<th>Loan Officer</th>
+					{% endif %}
+				</tr>
+			</thead>
+
+			<tbody class="data-table-body" id="table-adjustment">
+				{% for row in allPeriodBasedCommissions.results.entities %}
+					{% assign includeThisAdjustment = false %}
+					
+					{% comment %} ACCOUNTING PAGE: No filtering - show all adjustments {% endcomment %}
+					{% if page.title == 'Accounting' %}
+						{% assign includeThisAdjustment = true %}
+					{% else %}
+						{% comment %} ADMIN USERS: Skip permission checks but still apply page-specific filters {% endcomment %}
+						{% if is_admin %}
+							{% assign includeThisAdjustment = true %}
+						{% else %}
+							{% comment %} Permission check: Branch Manager access using branch codes {% endcomment %}
+							{% if row.lv_xbranchcode and row.lv_xbranchcode != blank %}
+								{% comment %} Check if user manages the branch this adjustment is located in {% endcomment %}
+								{% for branch in branchQuery.results.entities %}
+									{% if branch.lv_code == row.lv_xbranchcode %}
+										{% assign adjustmentBranchId = branch.lv_lvcompbranchid %}
+										{% assign branchCheckString = "|" %}
+										{% assign branchCheckString = branchCheckString | append: adjustmentBranchId %}
+										{% assign branchCheckString = branchCheckString | append: "|" %}
+										{% if userBranchList contains branchCheckString %}
+											{% assign includeThisAdjustment = true %}
+											{% break %}
+										{% endif %}
+									{% endif %}
+								{% endfor %}
+							{% endif %}
+							
+							{% comment %} Permission check: Loan Officer Oversight access {% endcomment %}
+							{% if row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+								{% assign officerCheckString = "|" %}
+								{% assign officerCheckString = officerCheckString | append: row.lv_xloanofficercode %}
+								{% assign officerCheckString = officerCheckString | append: "|" %}
+								{% if userLoanOfficerList contains officerCheckString %}
+									{% assign includeThisAdjustment = true %}
+								{% endif %}
+								
+								{% comment  %} Permission check: Branch Manager LO-branch mapping access (missing logic from Commission-Filter) {% endcomment  %}
+								{% unless includeThisAdjustment  %}
+									{% if is_BranchManager and userBranchList != "" and userBranchList != "|"  %}
+										{% assign officerLookupKey = "|"  %}
+										{% assign officerLookupKey = officerLookupKey | append: row.lv_xloanofficercode  %}
+										{% assign officerLookupKey = officerLookupKey | append: ":"  %}
+										{% if officerCodeToBranchMap contains officerLookupKey  %}
+											{% assign mapStartPos = officerCodeToBranchMap | split: officerLookupKey | first | size  %}
+											{% assign mapStartPos = mapStartPos | plus: officerLookupKey.size  %}
+											{% assign mapRemainder = officerCodeToBranchMap | slice: mapStartPos, 50  %}
+											{% assign loBranchId = mapRemainder | split: "|" | first  %}
+											{% assign branchCheckString = "|"  %}
+											{% assign branchCheckString = branchCheckString | append: loBranchId  %}
+											{% assign branchCheckString = branchCheckString | append: "|"  %}
+											{% if userBranchList contains branchCheckString  %}
+												{% assign includeThisAdjustment = true  %}
+											{% endif  %}
+										{% endif  %}
+									{% endif  %}
+								{% endunless  %}
+							{% endif  %}
+							
+							{% comment  %} Permission check: Simple loan officer viewing their own adjustments {% endcomment  %}
+							{% if user.lv_loanofficer and user.lv_loanofficer.lv_code != blank  %}
+								{% if row.lv_xloanofficercode == user.lv_loanofficer.lv_code  %}
+									{% assign includeThisAdjustment = true  %}
+								{% endif  %}
+							{% endif  %}
+						{% endif %}
+					{% endif %}
+					
+					{% comment  %} Page-specific filter: Branch selection (only on Branch and Region pages) {% endcomment  %}
+					{% if (page.title == 'Branch') and includeThisAdjustment  %}
+						{% if currentBranch != "ALL_BRANCHES"  %}
+							{% comment  %} Specific branch selected - filter by that branch for everyone including admins {% endcomment  %}
+							{% comment  %} Use branch code for comparison - this is the reliable field for filtering {% endcomment  %}
+							{% if row.lv_xbranchcode != currentBranch.lv_code  %}
+								{% assign includeThisAdjustment = false  %}
+							{% endif  %}
+						{% else  %}
+							{% comment  %} ALL_BRANCHES selected - only filter by managed branches for non-admins {% endcomment  %}
+							{% unless is_admin  %}
+								{% if row.lv_xbranchcode and row.lv_xbranchcode != blank  %}
+									{% comment  %} Check if user manages the branch this adjustment is located in {% endcomment  %}
+									{% for branch in branchQuery.results.entities  %}
+										{% if branch.lv_code == row.lv_xbranchcode  %}
+											{% assign adjTableBranchId = branch.lv_lvcompbranchid  %}
+											{% assign branchCheckString = "|"  %}
+											{% assign branchCheckString = branchCheckString | append: adjTableBranchId  %}
+											{% assign branchCheckString = branchCheckString | append: "|"  %}
+											{% unless userBranchList contains branchCheckString  %}
+												{% assign includeThisAdjustment = false  %}
+											{% endunless  %}
+											{% break %}
+										{% endif  %}
+									{% endfor  %}
+								{% endif  %}
+							{% endunless  %}
+						{% endif %}
+					{% endif %}
+					
+					{% comment %} Page-specific filter: Loan Officer selection (only on Loan Officer page) {% endcomment %}
+					{% if page.title == 'Loan Officer' and includeThisAdjustment and sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code %}
+						{% comment %} DEBUG: Add debug output before LO filtering {% endcomment %}
+						{% comment %} Specific loan officer selected - filter by that officer for everyone including admins {% endcomment %}
+						{% if row.lv_xloanofficercode != sqRecLOBeingViewed.lv_code %}
+							{% assign includeThisAdjustment = false %}
+						{% endif %}
+
+						{% comment %} BRANCH MANAGER AUTHORITY CHECK: Branch managers can only see adjustments with branches they manage {% endcomment %}
+						{% comment %} EXCEPTION: If user IS the loan officer themselves, allow all their adjustments regardless of branch {% endcomment %}
+						{% assign isViewingOwnData = false %}
+						{% if directOfficerCode and directOfficerCode != blank and directOfficerCode != "" %}
+							{% if row.lv_xloanofficercode == directOfficerCode %}
+								{% assign isViewingOwnData = true %}
+							{% endif %}
+						{% endif %}
+
+						{% if includeThisAdjustment and is_BranchManager and is_admin == false and isViewingOwnData == false %}
+							{% if row.lv_xbranchcode and row.lv_xbranchcode != blank %}
+								{% comment %} Adjustment has a branch - verify branch manager has authority over it {% endcomment %}
+								{% assign hasBranchAuthority = false %}
+								{% for branch in branchQuery.results.entities %}
+									{% if branch.lv_code == row.lv_xbranchcode %}
+										{% assign adjustmentBranchId = branch.lv_lvcompbranchid %}
+										{% assign branchCheckString = "|" | append: adjustmentBranchId | append: "|" %}
+										{% if userBranchList contains branchCheckString %}
+											{% assign hasBranchAuthority = true %}
+											{% break %}
+										{% endif %}
+									{% endif %}
+								{% endfor %}
+								{% unless hasBranchAuthority %}
+									{% assign includeThisAdjustment = false %}
+								{% endunless %}
+							{% else %}
+								{% comment %} Adjustment has NO branch - exclude for branch managers (unless they are the LO themselves) {% endcomment %}
+								{% assign includeThisAdjustment = false %}
+							{% endif %}
+						{% endif %}
+					{% endif %}
+					
+					{%- comment -%} EXCLUSION CHECK: Filter out excluded loan officers {%- endcomment -%}
+                    {%- if includeThisAdjustment and is_admin == false -%}
+                        {%- if userExclusionLOList != blank and userExclusionLOList != "" -%}
+                            {%- if row.lv_xloanofficercode and row.lv_xloanofficercode != blank -%}
+                                {%- assign adjExclusionCheckString = "|" -%}
+                                {%- assign adjExclusionCheckString = adjExclusionCheckString | append: row.lv_xloanofficercode -%}
+                                {%- assign adjExclusionCheckString = adjExclusionCheckString | append: "|" -%}
+                                {%- if userExclusionLOList contains adjExclusionCheckString -%}
+                                    {%- assign includeThisAdjustment = false -%}
+                                {%- endif -%}
+                            {%- endif -%}
+                        {%- endif -%}
+                    {%- endif -%}
+				
+					{% if includeThisAdjustment %}
+					<!-- START ROW {{ forloop.index }} -->
+					<tr {% if user | has_role: 'LoanVision'  %} title="{{ row.lv_compositekey | default: 'No Composite Key' }}"{% endif  %}>
+						<!-- FIRST TD {{ forloop.index }} -->
+						<td data-label="Date">{{ row.lv_calculationdate | date: 'MM/dd/yy' }}</td>
+						<td data-label="Amount">{{ row.lv_amount | format: 'C' }}</td>
+						<td data-label="Description">{{ row.lv_description }}</td>
+						<td data-label="BPSCalc">{{ row.lv_bpscalculated | default: 0 | round: 2 }}</td>
+						<td data-label="CommBaseAmount">{{ row.lv_cappedcommissionbaseamount | format: 'C' }}</td>
+
+						{% if isMgmt %}						
+							<td data-label="Branch">{{ row.lv_xbranchname | default: "No Branch" }}</td>
+							<td data-label="Loan Officer">
+								{% comment %} Look up loan officer name if the denormalized field is empty {% endcomment %}
+								{% if row.lv_xloanofficername and row.lv_xloanofficername != blank %}
+									{{ row.lv_xloanofficername }}
+								{% elsif row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+									{% comment %} Look up by code from allLoanOfficers {% endcomment %}
+									{% assign foundOfficerName = "" %}
+									{% for officer in allLoanOfficers.results.entities %}
+										{% if officer.lv_code == row.lv_xloanofficercode %}
+											{% assign foundOfficerName = officer.lv_name %}
+											{% break %}
+										{% endif %}
+									{% endfor %}
+									{{ foundOfficerName | default: "Unknown Officer" }}
+								{% else %}
+									<!-- No LO data available -->
+								{% endif %}
+							</td>
+						{% endif %}
+						<!-- END ROW {{ forloop.index }} -->
+					</tr>
+					{% endif %}
+				{% endfor %}
+			</tbody>
+		</table>
+
+		{% comment %} Always show pagination controls - JavaScript will hide them if not needed {% endcomment %}
+		<div class="pagination-details" id="adjustment-pagination-details">
+			<span>Page <span id="currentPageAdjustment">1</span> of <span id="totalPagesAdjustment">1</span></span>
+		</div>
+		<div class="pagination-container" id="adjustment-pagination-container">
+			<button id="prevBtn-adjustment">Previous</button>
+			<button id="nextBtn-adjustment">Next</button>
+		</div>
+	{% else %}
+		<p>No adjustments for this period</p>
+	{% endif %}
+</div>
+
+{% comment %}  Compare with similar javascript in Primary-Commissions-Table. Have to ensure that variable names do not conflict  {% endcomment %} 
+<script id="prim_adj_table">
+	// Initialize variables - will be set properly in DOMReady
+	let rowsPerPageAdjustment = 10; // Default
+	let currentPageAdjustment = 1;
+	let $tableAdjustment, $rowsAdjustment, totalPagesAdjustment;
+	let isAccountingPage = false;
+
+	function showPageAdjustment(page) {
+		const isAccountingPage = window.location.pathname.includes('/Accounting');
+		// If AJAX failed, fall back to LIQUID mode (don't try AJAX pagination)
+		if (isAccountingPage && window.accountingPagination && !adjustmentAjaxFailed) {
+			if (adjustmentDataLoaded) {
+				// AJAX MODE: Use full dataset for client-side pagination (Accounting page only)
+				updateAdjustmentTable(allAdjustmentData, page);
+			} else if (page === 1) {
+				// Page 1: Show server-rendered data (first 10 records) immediately
+				$rowsAdjustment.hide();
+				$rowsAdjustment.slice(0, rowsPerPageAdjustment).show();
+				currentPageAdjustment = page;
+				updateAdjustmentPaginationControls();
+			} else {
+				// Page 2+: Data not ready - show loading indicator and poll
+				showAdjustmentLoadingState(page);
+				pollForAdjustmentData(page);
+			}
+		} else {
+			// LIQUID MODE: Use existing client-side pagination
+			// Used when: (1) Not accounting page, OR (2) AJAX failed and fell back to server data
+			$rowsAdjustment.hide();
+			const startIndex = (page - 1) * rowsPerPageAdjustment;
+			const endIndex = startIndex + rowsPerPageAdjustment;
+			$rowsAdjustment.slice(startIndex, endIndex).show();
+			currentPageAdjustment = page;
+			updateAdjustmentPaginationControls();
+		}
+	}
+	
+	function showAdjustmentLoadingState(page) {
+		// Show loading message in table
+		const loadingHtml = `
+			<tr>
+				<td colspan="7" style="text-align: center; padding: 20px;">
+					<i class="fas fa-spinner fa-spin"></i> Loading adjustment data, please wait...
+				</td>
+			</tr>
+		`;
+		$tableAdjustment.html(loadingHtml);
+		
+		// Update pagination to show requested page
+		currentPageAdjustment = page;
+		updateAdjustmentPaginationControls();
+	}
+	
+	function pollForAdjustmentData(page) {
+		const maxPolls = 40; // 10 seconds max (40 * 250ms)
+		let pollCount = 0;
+		
+		const pollInterval = setInterval(() => {
+			pollCount++;
+			
+			if (adjustmentDataLoaded) {
+				// Data is ready - proceed with page display
+				clearInterval(pollInterval);
+				updateAdjustmentTable(allAdjustmentData, page);
+			} else if (pollCount >= maxPolls) {
+				// Timeout - fall back to server data
+				clearInterval(pollInterval);
+				console.warn('⚠️ Adjustment AJAX loading timeout, falling back to server data');
+				
+				// IMPORTANT: Even when falling back to server data, use server-side total count for pagination
+				// This ensures pagination works correctly even when AJAX fails
+				if (window.accountingPagination && window.accountingPagination.totalAdjustments) {
+					const totalAdjustmentsCount = window.accountingPagination.totalAdjustments;
+					totalPagesAdjustment = Math.ceil(totalAdjustmentsCount / rowsPerPageAdjustment);
+					$('#totalPagesAdjustment').text(totalPagesAdjustment);
+					console.log('📊 ADJUSTMENT: Using server-side total count for pagination:', totalAdjustmentsCount, 'pages:', totalPagesAdjustment);
+				}
+				
+				$rowsAdjustment.hide();
+				const startIndex = (page - 1) * rowsPerPageAdjustment;
+				const endIndex = startIndex + rowsPerPageAdjustment;
+				$rowsAdjustment.slice(startIndex, endIndex).show();
+				currentPageAdjustment = page;
+				updateAdjustmentPaginationControls();
+			}
+		}, 250);
+	}
+	
+	function updateAdjustmentPaginationControls() {
+		$('#currentPageAdjustment').text(currentPageAdjustment);
+		$('#prevBtn-adjustment').prop('disabled', currentPageAdjustment === 1);
+		$('#nextBtn-adjustment').prop('disabled', currentPageAdjustment === totalPagesAdjustment);
+	}
+
+	function prevPageAdjustment() {
+		if (currentPageAdjustment > 1) {
+			currentPageAdjustment--;
+			showPageAdjustment(currentPageAdjustment);
+		}
+	}
+
+	function nextPageAdjustment() {
+		if (currentPageAdjustment < totalPagesAdjustment) {
+			currentPageAdjustment++;
+			showPageAdjustment(currentPageAdjustment);
+		}
+	}
+
+	// AJAX FOR ADJUSTMENTS - Only on Accounting page due to high volume (593+ records)
+	// Other pages use simple client-side pagination with Liquid-rendered data
+	
+	// Global variable to store all adjustment data
+	let allAdjustmentData = [];
+	let adjustmentDataLoaded = false;
+	let adjustmentAjaxFailed = false; // Flag to indicate AJAX failed, use LIQUID mode fallback
+	
+	// AJAX function to load ALL adjustment records for the period
+	function loadAllAdjustmentData() {
+		if (!window.accountingPagination || adjustmentDataLoaded) return;
+		
+		const periodNo = window.accountingPagination.currentPeriod;
+	
+		// Build OData query for adjustments
+		const query = `/_api/lv_lvcompcommissions?` +
+			`$filter=lv_type eq 'Period Based' and lv_periodno eq ${periodNo}` +
+			`&$select=lv_calculationdate,lv_amount,lv_description,lv_bpscalculated,lv_cappedcommissionbaseamount,lv_xbranchname,lv_xprofile,lv_xloanofficer,lv_xloanofficername,lv_xloanofficercode,lv_compositekey` +
+			`&$orderby=lv_xbranchname,lv_xloanofficername,lv_calculationdate`;
+		
+		fetch(query)
+			.then(response => {
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+				}
+				return response.json();
+			})
+			.then(data => {
+				allAdjustmentData = data.value;
+				adjustmentDataLoaded = true;
+				
+				// Calculate adjustment total from full AJAX dataset
+				const adjustmentTotal = allAdjustmentData.reduce((sum, record) => sum + (record.lv_amount || 0), 0);
+				
+				// Update global adjustment total for dashboard updates
+				window.globalAdjustmentTotal = adjustmentTotal;
+				
+				// Update dashboard adjustment card if function exists
+				if (typeof window.updateDashboardTotals === 'function') {
+					// Try to get current commission values from the dashboard to recalculate total
+					const commissionElement = document.querySelector('#cardCommissionTotal');
+					if (commissionElement) {
+						const currentCommissionText = commissionElement.textContent.replace(/[^0-9.-]/g, '');
+						const currentCommissionTotal = parseFloat(currentCommissionText) || 0;
+						// Only update adjustment card specifically
+						const adjustmentElement = document.querySelector('#cardAdjustmentTotal');
+						if (adjustmentElement) {
+							const oldValue = adjustmentElement.textContent;
+							const newValue = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(adjustmentTotal);
+							adjustmentElement.textContent = newValue;
+						}
+						// Update total card too
+						const totalElement = document.querySelector('#cardCommTotal');
+						if (totalElement) {
+							const oldTotalValue = totalElement.textContent;
+							const newTotalValue = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(currentCommissionTotal + adjustmentTotal);
+							totalElement.textContent = newTotalValue;
+						}
+					}
+				}
+				
+				// Log timing for AJAX data loading completion
+				logWrite('AdjustmentDataReady', `AJAX mode: ${allAdjustmentData.length} records loaded, total: $${adjustmentTotal.toFixed(2)}`);
+				
+				// Update pagination based on full dataset
+				const newTotalPages = Math.ceil(allAdjustmentData.length / rowsPerPageAdjustment);
+				$('#totalPagesAdjustment').text(newTotalPages);
+				
+			})
+			.catch(error => {
+				console.error('❌ AJAX adjustment loading failed:', error);
+				// Fall back to server-loaded data
+				console.log('📄 Falling back to server-loaded adjustment data');
+				adjustmentAjaxFailed = true; // Signal to use LIQUID mode instead of AJAX
+
+				// CRITICAL: Update totalPagesAdjustment to use actual server-rendered row count
+				totalPagesAdjustment = Math.ceil($rowsAdjustment.length / rowsPerPageAdjustment);
+
+				// Update pagination controls and show first page
+				updateAdjustmentPaginationControls();
+				showPageAdjustment(1);
+			});
+	}
+
+	function updateAdjustmentTable(allAdjustments, page) {
+		if (!window.accountingPagination) return;
+		
+		// Client-side pagination of AJAX-loaded data
+		const startIndex = (page - 1) * rowsPerPageAdjustment;
+		const endIndex = startIndex + rowsPerPageAdjustment;
+		const pageAdjustments = allAdjustments.slice(startIndex, endIndex);
+		
+		let html = '';
+		
+		pageAdjustments.forEach(row => {
+			// Format currency values
+			const amount = row.lv_amount ? 
+				new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(row.lv_amount) :
+				'$0.00';
+			const cappedBase = row.lv_cappedcommissionbaseamount ? 
+				new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(row.lv_cappedcommissionbaseamount) :
+				'$0.00';
+			
+			// Format date
+			const calcDate = row.lv_calculationdate ? 
+				new Date(row.lv_calculationdate).toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: '2-digit'}) :
+				'No Date';
+			
+			html += `
+				<tr>
+					<td data-label="Date">${calcDate}</td>
+					<td data-label="Amount">${amount}</td>
+					<td data-label="Description">${row.lv_description || ''}</td>
+					<td data-label="BPSCalc">${row.lv_bpscalculated || 0}</td>
+					<td data-label="CommBaseAmount">${cappedBase}</td>
+					<td data-label="Branch">${row.lv_xbranchname || 'No Branch'}</td>
+					<td data-label="Loan Officer">${row.lv_xloanofficername || 'No LO'}</td>
+				</tr>
+			`;
+		});
+		
+		$tableAdjustment.html(html);
+		currentPageAdjustment = page;
+		updateAdjustmentPaginationControls();
+	}
+
+	document.addEventListener("LVGlobalDOCReady", function() {		
+		
+		// Try to read pageSize from URL if accountingPagination is not available
+		if (!window.accountingPagination) {
+			const urlParams = new URLSearchParams(window.location.search);
+			const urlPageSize = urlParams.get('pageSize');
+			if (urlPageSize && !isNaN(urlPageSize)) {
+				rowsPerPageAdjustment = parseInt(urlPageSize);
+			} else {
+				rowsPerPageAdjustment = 10;
+			}
+		} else {
+			rowsPerPageAdjustment = (window.accountingPagination && window.accountingPagination.pageSize) ? window.accountingPagination.pageSize : 10;
+		}
+		
+		// ADJUSTMENTS: Dual mode - AJAX for Accounting page, CLIENT-SIDE for others
+		$tableAdjustment = $('#table-adjustment');
+		$rowsAdjustment = $tableAdjustment.find('tr');
+
+		// Update adjustment count in header to match actual displayed rows
+		const actualAdjustmentCount = $rowsAdjustment.length;
+		$('#adjustment-count-display').text('(' + actualAdjustmentCount + ')');
+
+		// Calculate total pages
+		const isAccountingPage = window.location.pathname.includes('/Accounting');
+		if (isAccountingPage && window.accountingPagination) {
+			// Accounting page always uses server-side total count (even when AJAX fails)
+			const totalAdjustmentsCount = window.accountingPagination.totalAdjustments;
+			totalPagesAdjustment = Math.ceil(totalAdjustmentsCount / rowsPerPageAdjustment);
+		} else {
+			// Other pages use client-side row count
+			totalPagesAdjustment = Math.ceil($rowsAdjustment.length / rowsPerPageAdjustment);
+		}
+		
+		// Update pagination display
+		$('#totalPagesAdjustment').text(totalPagesAdjustment);
+		
+		// Hide pagination controls if only one page
+		// BUT: On Accounting page with AJAX mode, don't hide yet - wait for AJAX data to load
+		const shouldHidePagination = totalPagesAdjustment <= 1 && !(isAccountingPage && window.accountingPagination);
+		if (shouldHidePagination) {
+			$('#adjustment-pagination-details').hide();
+			$('#adjustment-pagination-container').hide();
+		}
+		
+		// Show first page
+		showPageAdjustment(1);
+		
+		// Add event handlers for pagination buttons
+		$('#prevBtn-adjustment').on('click', prevPageAdjustment);
+		$('#nextBtn-adjustment').on('click', nextPageAdjustment);
+		
+		// Initialize table controls
+		updateAdjustmentPaginationControls();
+		
+		// AJAX Mode: Start background loading of all adjustment records (Accounting page only)
+		if (isAccountingPage && window.accountingPagination) {
+			setTimeout(loadAllAdjustmentData, 200); // Small delay after commission loading
+		} else {
+			// Log timing for non-AJAX (LIQUID) mode - data is already available
+			logWrite('AdjustmentDataReady', `LIQUID mode: ${$rowsAdjustment.length} records available`);
+		}
+		
+	});
+</script>
+
+{% include 'snippet' snippet_name:'Excel Export' %}
+
+<!-- LEAVE: Primary Adjustments Table -->
+
+<!-- Last modified Tue Sep 02 11:20AM -->
+<!-- Last modified Tue Sep 02 11:27AM -->
+<!-- Last modified Sat Sep 13 8:05AM -->
+<!-- Last modified Mon Oct 06 3:20PM -->
+ <!-- Last modified fri day 2025-10-24  -->
+
+<!-- Last modified Fri Oct 24 3:01PM -->
+<!-- Last modified Fri Oct 24 3:11PM -->
+<!-- Last modified Fri Oct 24 3:24PM -->

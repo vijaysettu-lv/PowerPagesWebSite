@@ -1,0 +1,13 @@
+adx_append: true
+adx_appendto: true
+adx_create: true
+adx_delete: true
+adx_entitylogicalname: lv_log
+adx_entityname: lvcLog
+adx_entitypermission_webrole:
+- 3a36c49c-a610-42e9-b1d7-0dcfd8c9aa24
+- e1e17fc7-e0e5-4803-b01b-0ba213d4c790
+adx_entitypermissionid: 7c4815ce-fb15-f011-9989-002248045044
+adx_read: true
+adx_scope: 756150000
+adx_write: true

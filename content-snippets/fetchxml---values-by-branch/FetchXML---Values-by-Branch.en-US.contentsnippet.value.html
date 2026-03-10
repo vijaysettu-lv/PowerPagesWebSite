@@ -1,0 +1,21 @@
+<!-- bogus -->
+{% fetchxml valuesByBranchQuery %}
+<fetch aggregate="true">
+  <entity name="lv_lvcompcommissionvalue">
+    <attribute name="lv_amount" alias="total" aggregate="sum" />
+    <attribute name="lv_description" alias="desc" groupby="true" />
+    <attribute name="lv_branchlookup" alias="branch_id" groupby="true" />
+    <filter type="and">
+		  <condition attribute="lv_regionlookup" operator="eq" value="{{currentRegion.accountid}}" />
+      <condition attribute="lv_periodno" operator="eq" value="{{sqUISelPeriodNo}}" />
+    </filter>
+    <link-entity name="lv_lvcompbranch" from="lv_lvcompbranchid" to="lv_branchlookup" link-type="inner" alias="branch">
+			<attribute name="lv_code" alias="code" groupby="true"/>
+			<attribute name="lv_name" alias="name" groupby="true"/>
+		</link-entity>
+  </entity>
+</fetch>
+{% endfetchxml %}
+{% assign valuesByBranch = valuesByBranchQuery.results.entities %}
+<!-- bogus -->
+

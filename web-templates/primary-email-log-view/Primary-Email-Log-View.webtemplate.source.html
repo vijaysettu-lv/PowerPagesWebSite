@@ -1,0 +1,219 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- email::2504011731-->
+ 
+{% fetchxml emailLogs %}
+	<fetch>
+		<entity name="lv_lvcompemaillog">
+			<attribute name="lv_lvcompemaillogid" />
+			<attribute name="lv_branch" />
+			<attribute name="createdon" />
+			<attribute name="lv_loanno" />
+			<attribute name="lv_logno" />
+			<attribute name="lv_kind" />
+			<attribute name="lv_subject" />
+
+			<filter type="and">
+				<condition attribute="lv_contact" operator="eq" value="{{user.id}}" />
+			</filter>
+
+			<order attribute="createdon" descending="true" />
+		</entity>
+	</fetch>
+{% endfetchxml %}
+
+{% assign logCount = emailLogs.results.entities.size | integer %}
+{% assign rowsPerPage = 100 %}
+{% if logCount > 0 %}
+	<div class="data-table-wrapper">
+		<table class="data-table data-table-action">
+			<thead class="data-table-head">
+				<tr>
+					<th>Created</th>
+					<th>Loan No</th>
+					<th>Branch</th>
+					<th>Kind</th>
+					<th>subject</th>
+				</tr>
+			</thead>
+			<tbody class="data-table-body" id="table-email">
+				{% for e in emailLogs.results.entities %}
+					<tr>
+						<td class="timestamp" data-utc="{{ e.createdon }}">{{ e.createdon | date: 'd MMM yyyy h:mm' }}</td>
+						<td>{{ e.lv_loanno }}</td>
+						<td>{{ e.lv_branch }}</td>
+						<td>{{ e.lv_kind }}</td>
+						<td>{{ e.lv_subject }}</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+
+	{% if logCount > rowsPerPage %}
+		<div class="pagination-container">
+			<div class="pagination-details">
+				<span>Page <span id="currentPageEmail">1</span> of <span id="totalPagesEmail">1</span></span>
+			</div>
+			<button onclick="prevPageEmail()" id="prevBtn-Email">Previous</button>
+			<button onclick="nextPageEmail()" id="nextBtn-Email">Next</button>
+		</div>
+	{% endif %}
+{% else %}
+	<p>You do not yet have any logged emails</p>
+{% endif %}
+
+<script>
+	const rowsEmail = {{rowsPerPage}};
+	let currentPageEmail = 1;
+	const tableEmail = document.getElementById('table-email');
+	const rows = tableEmail.getElementsByTagName('tr');
+	const totalPages = Math.ceil(rows.length / rowsEmail);
+
+	function showPageEmail(page) {
+		for (let i = 0; i < rows.length; i++) {
+			rows[i].style.display = 'none';
+		}
+		for (let i = (page - 1) * rowsEmail; i < page * rowsEmail && i < rows.length; i++) {
+			rows[i].style.display = '';
+		}
+		document.getElementById('currentPageEmail').textContent = currentPageEmail;
+		document.getElementById('totalPagesEmail').textContent = totalPages;
+		document.getElementById('prevBtn-Email').disabled = page === 1;
+		document.getElementById('nextBtn-Email').disabled = page === totalPages;
+	}
+
+	function prevPageEmail() {
+		if (currentPageEmail > 1) {
+			currentPageEmail--;
+			showPageEmail(currentPageEmail);
+		}
+	}
+
+	function nextPageEmail() {
+		if (currentPageEmail < totalPages) {
+			currentPageEmail++;
+			showPageEmail(currentPageEmail);
+		}
+	}
+
+	showPageEmail(currentPageEmail);
+</script>
+
+<!-- Separate script for timezone conversion -->
+<script>
+	// Convert UTC timestamps to local timezone
+	function convertUtcToLocalTimezone() {
+		//console.log("Browser timezone:", Intl.DateTimeFormat().resolvedOptions().timeZone);
+		//console.log("Browser locale:", navigator.language);
+
+		const timestampElements = document.querySelectorAll('.timestamp');
+		
+		timestampElements.forEach(element => {
+			const utcDateString = element.getAttribute('data-utc');
+			if (!utcDateString) {
+				console.log("Missing data-utc attribute on element:", element);
+				return;
+			}
+			
+			//console.log("Processing UTC date:", utcDateString);
+			
+			// Parse the date string, assuming it's in UTC but in a format like "3/19/2025 12:17:09 AM"
+			const parsed = parseUTCDateString(utcDateString);
+			if (!parsed.success) {
+				console.error("Could not parse UTC date:", utcDateString, parsed.error);
+				element.textContent = utcDateString; // Keep original if parsing fails
+				return;
+			}
+			
+			// Create a date object using UTC values
+			const utcDate = new Date(Date.UTC(
+				parsed.year, 
+				parsed.month - 1, // JS months are 0-based
+				parsed.day,
+				parsed.hours,
+				parsed.minutes,
+				parsed.seconds
+			));
+			
+			//console.log("UTC date:", utcDate.toUTCString());
+			//console.log("Local date:", utcDate.toString());
+			
+			// Format the date in local timezone
+			const day = utcDate.getDate();
+			const month = utcDate.toLocaleString('en-US', { month: 'short' });
+			const year = utcDate.getFullYear();
+			
+			// Format time with AM/PM
+			let hours = utcDate.getHours();
+			const minutes = utcDate.getMinutes().toString().padStart(2, '0');
+			const ampm = hours >= 12 ? 'p' : 'a';
+			hours = hours % 12;
+			hours = hours ? hours : 12; // Convert 0 to 12
+			
+			const formattedDate = `${day} ${month} ${year} ${hours}:${minutes}${ampm}`;
+			//console.log("Formatted local date:", formattedDate);
+			
+			// Update the element's content
+			element.textContent = formattedDate;
+		});
+	}
+	
+	// Helper function to parse date strings in the format "M/D/YYYY h:mm:ss AM/PM"
+	function parseUTCDateString(dateStr) {
+		const result = {
+			success: false,
+			year: 0,
+			month: 0,
+			day: 0,
+			hours: 0,
+			minutes: 0,
+			seconds: 0,
+			error: ""
+		};
+		
+		try {
+			// Try regex pattern matching first
+			const datePattern = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})\s+(AM|PM)$/i;
+			const match = dateStr.match(datePattern);
+			
+			if (match) {
+				result.month = parseInt(match[1], 10);
+				result.day = parseInt(match[2], 10);
+				result.year = parseInt(match[3], 10);
+				
+				let hours = parseInt(match[4], 10);
+				const ampm = match[7].toUpperCase();
+				
+				// Convert 12-hour to 24-hour format
+				if (ampm === "PM" && hours < 12) {
+					hours += 12;
+				} else if (ampm === "AM" && hours === 12) {
+					hours = 0;
+				}
+				
+				result.hours = hours;
+				result.minutes = parseInt(match[5], 10);
+				result.seconds = parseInt(match[6], 10);
+				
+				result.success = true;
+			} else {
+				result.error = "Date string does not match expected pattern";
+			}
+		} catch (err) {
+			result.error = err.message;
+		}
+		
+		return result;
+	}
+
+	// Use both DOMContentLoaded and immediate execution to ensure it runs
+	if (document.readyState === 'loading') {
+		document.addEventListener('LVGlobalDOCReady', convertUtcToLocalTimezone);
+	} else {
+		// DOM already loaded, run the function now
+		convertUtcToLocalTimezone();
+	}
+</script>
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

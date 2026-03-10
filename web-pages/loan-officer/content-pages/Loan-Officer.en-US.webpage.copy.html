@@ -1,0 +1,1391 @@
+<!-- Last modified Fri Oct 24 4:07PM -->
+<!-- Last modified Mon Oct 06 3:20PM -->
+<!-- Last modified Thu Oct 02 12:20PM -->
+<!-- Last modified Thu Oct 02 12:15PM -->
+<!-- Last modified Wed Oct 01 4:00PM -->
+<!-- Last modified Wed Oct 01 3:16PM -->
+<!-- Last modified Tue Sep 02 11:20AM -->
+<!-- Last modified Tue Sep 02 10:36AM -->
+<!-- Last modified Sun Aug 31 5:00PM -->
+<!-- Last modified Sat Aug 30 12:12PM -->
+
+<!-- Loan Officer Page -->
+
+{% comment %} ~LoanOfficerPage PERFORMANCE OPTIMIZATION: Check if loan officer is specified to suppress unnecessary queries {% endcomment %}
+{% assign hasLoanOfficerParam = false %}
+{% if request.params.officer and request.params.officer != "" and request.params.officer != "all" %}
+	{% assign hasLoanOfficerParam = true %}
+{% endif %}
+
+{% include 'snippet' snippet_name:'FetchXML - SetupQuery' %}
+
+{%- comment -%} NOTE: Exclusions are now handled via userExclusionLOList from SetupQuery {%- endcomment -%}
+
+{% comment %} Run period filtering query if officer param exists OR if user is simple loan officer {% endcomment %}
+{% if hasLoanOfficerParam or is_OnlyLoanOfficer %}
+	{% include 'snippet' snippet_name:'FetchXML - BranchQuery' %}
+
+	{% comment %} PERIOD FILTERING: Get distinct periods where selected loan officer has commission data {% endcomment %}
+	{% fetchxml periodsWithData %}
+		<fetch aggregate="true">
+			<entity name="lv_lvcompcommission">
+				<attribute name="lv_periodno" alias="period_number" groupby="true" />
+				<filter type="and">
+					<condition attribute="lv_xloanofficercode" operator="eq" value="{{sqRecLOBeingViewed.lv_code}}" />
+				</filter>
+			</entity>
+		</fetch>
+	{% endfetchxml %}
+
+		{% comment %} DEBT BALANCE: Get debt log entries server-side, pass to JavaScript for math {% endcomment %}
+	{%- fetchxml debtLogEntries -%}
+		<fetch>
+			<entity name="lv_debtlogvalueentry">
+				<attribute name="lv_identifiercode" />
+				<attribute name="lv_entrydate" />
+				<attribute name="lv_amount" />
+				<attribute name="lv_description" />
+				<filter type="and">
+					<condition attribute="lv_loanofficercode" operator="eq" value="{{sqRecLOBeingViewed.lv_code}}" />
+				</filter>
+				<order attribute="lv_entrydate" descending="true" />
+			</entity>
+		</fetch>
+	{%- endfetchxml -%}
+{% endif %}
+
+{% comment %} Loan Officer page is accessible to ALL authenticated users {% endcomment %}
+{% comment %} Security is handled by what loan officers they can see, not page access {% endcomment %}
+
+{% if user %}
+
+<div class="row sectionBlockLayout text-start" style="display: flex; flex-wrap: wrap; margin: 0px; min-height: auto; padding: 8px;">
+    <div class="container" style="display: flex; flex-wrap: wrap;">
+        <div class="col-lg-12 columnBlockLayout email-modal-container" style="flex-grow: 1; display: flex; flex-direction: column; min-width: 250px; word-break: break-word; padding: 16px; margin: 60px 0px;">
+
+
+			{% if is_OnlyLoanOfficer %}
+				<h1>
+					{{sqRecLOBeingViewed.lv_name}}
+					<span id=spanOfficerId class="d-none">({{sqRecLOBeingViewed.lv_lvcomploanofficerid}})</span>
+					<span id="spanPeriodCode" class="d-none">[{{sqRecUISelPeriod.lv_periodcode}}]
+				</h1>
+
+				<div class="admin-panel">
+					<div style="display: flex; flex-direction: column; gap: 1rem;">
+						{% include 'snippet' snippet_name:'Current Period Selection' %}
+					</div>
+				</div>
+			{% else %}
+				{% comment %}       include 'Loan Officer Dropdown', parmFoo: 'Asia', parmBar: 'Ursa'                        {% endcomment %} 
+
+				<div class="admin-panel">
+					<div style="display: flex; flex-direction: column; gap: 1rem;">
+
+						{% comment %} Pass current selection to dropdown {% endcomment %}
+						{% comment %} CRITICAL: Only set dropdown value if officer was explicitly selected via parameter {% endcomment %}
+						{% if hasLoanOfficerParam %}
+							{% if sqLOViewMode == "ALL_LOAN_OFFICERS" %}
+								{% assign dropdownCurrentValue = "all" %}
+							{% elsif sqRecLOBeingViewed.lv_lvcomploanofficerid %}
+								{% assign dropdownCurrentValue = sqRecLOBeingViewed.lv_lvcomploanofficerid %}
+							{% else %}
+								{% assign dropdownCurrentValue = "" %}
+							{% endif %}
+						{% else %}
+							{% assign dropdownCurrentValue = "" %}
+						{% endif %}
+
+
+
+
+
+						{%- unless is_OnlyLoanOfficer -%}
+							{%- comment -%} PERFORMANCE FIX: Build dropdown list from userLoanOfficerList with exclusion filtering {%- endcomment -%}
+
+							{%- comment -%} Build branchManagerOfficerCodes for dropdown population {%- endcomment -%}
+							{%- assign branchManagerOfficerCodes = "" -%}
+							{%- assign branchManagerOfficerNames = "" -%}
+							{%- assign hasOfficers = false -%}
+
+							{%- if is_admin -%}
+								{%- comment -%} ADMIN: See ALL loan officers (no exclusions for admins) {%- endcomment -%}
+								{%- if allLoanOfficers.results.entities -%}
+									{%- for officer in allLoanOfficers.results.entities -%}
+										{%- if officer.lv_code and officer.lv_code != blank -%}
+											{%- if branchManagerOfficerCodes == "" -%}
+												{%- assign branchManagerOfficerCodes = officer.lv_code -%}
+											{%- else -%}
+												{%- assign branchManagerOfficerCodes = branchManagerOfficerCodes | append: "|" | append: officer.lv_code -%}
+											{%- endif -%}
+											{%- assign hasOfficers = true -%}
+										{%- endif -%}
+									{%- endfor -%}
+								{%- endif -%}
+							{%- else -%}
+								{%- comment -%} NON-ADMIN: Use userLoanOfficerList from SetupQuery with exclusion filtering {%- endcomment -%}
+								{%- if userLoanOfficerList and userLoanOfficerList != "" and userLoanOfficerList != "|" -%}
+									{%- comment -%} Extract codes from userLoanOfficerList (format: |name|code|name|code|) {%- endcomment -%}
+									{%- assign parts = userLoanOfficerList | split: "|" -%}
+									{%- assign partIndex = 0 -%}
+									{%- for part in parts -%}
+										{%- assign partIndex = partIndex | plus: 1 -%}
+										{%- assign isEvenIndex = partIndex | modulo: 2 -%}
+										{%- if isEvenIndex == 0 and part != "" -%}
+											{%- comment -%} This is a loan officer code - check if excluded {%- endcomment -%}
+											{%- assign loCode = part -%}
+											{%- assign isExcluded = false -%}
+
+											{%- comment -%} EXCLUSION CHECK: Only for branch managers using userExclusionLOList from SetupQuery {%- endcomment -%}
+											{%- if is_BranchManager -%}
+												{%- if userExclusionLOList != blank and userExclusionLOList != "" -%}
+													{%- assign exclusionCheckString = "|" | append: loCode | append: "|" -%}
+													{%- if userExclusionLOList contains exclusionCheckString -%}
+														{%- assign isExcluded = true -%}
+													{%- endif -%}
+												{%- endif -%}
+											{%- endif -%}
+
+											{%- unless isExcluded -%}
+												{%- if branchManagerOfficerCodes == "" -%}
+													{%- assign branchManagerOfficerCodes = loCode -%}
+												{%- else -%}
+													{%- assign branchManagerOfficerCodes = branchManagerOfficerCodes | append: "|" | append: loCode -%}
+												{%- endif -%}
+												{%- assign hasOfficers = true -%}
+											{%- endunless -%}
+										{%- endif -%}
+									{%- endfor -%}
+								{%- endif -%}
+							{%- endif -%}
+						{%- endunless -%}
+
+						{% comment %} CORRECT ORDER: Loan Officer dropdown FIRST {% endcomment %}
+						{% include 'Loan Officer Dropdown', parmCurrentValue: dropdownCurrentValue %}
+
+						{% comment %} CORRECT ORDER: Period dropdown SECOND {% endcomment %}
+						{% include 'snippet' snippet_name:'Current Period Selection' %}
+
+
+
+
+
+
+						
+					</div>
+				</div>
+			{% endif %}
+
+			{% if hasLoanOfficerParam or is_OnlyLoanOfficer %}
+				{% include 'snippet' snippet_name:'Commission Filter' %}                               {% comment %} CENTRALIZED FILTERING: applies all permission and page-specific filters, sets cpCommCount, cpCommTotal, cpAdjuCount, cpAdjuTotal {% endcomment %}
+				{% include 'snippet' snippet_name:'FetchXML - Current Period' %}
+			{% else %}
+				{% comment %} PERFORMANCE OPTIMIZATION: No loan officer selected - skip heavy data queries {% endcomment %}
+				{% assign cpCommCount = 0 %}
+				{% assign cpCommTotal = 0 %}
+				{% assign cpAdjuCount = 0 %}
+				{% assign cpAdjuTotal = 0 %}
+				{% assign cpCommValueRowCount = 0 %}
+				{% assign cpLoanCount = 0 %}
+				{% assign cpLoanTotal = 0 %}
+			{% endif %}
+
+            
+            {% if cpCommValueRowCount > 0 %}                            {% comment %}     cpCommValueRowCount is set in FetchXml-Current-Period    {% endcomment %} 
+
+				<!-- JavaScript-based arithmetic to avoid DotLiquid bug -->
+				{% assign rawSetting = settings['LV/NumApprovalPeriods'] %}
+				{% if rawSetting == blank or rawSetting == empty or rawSetting == "" or rawSetting == nil %}
+					{% assign rawSetting = "0" %}
+				{% endif %}
+				
+				<script>
+					// Calculate minPeriodAllowedForApprovals using JavaScript
+					const settingNum = parseInt("{{rawSetting}}") || 0;
+					const sqNum = parseInt("{{sqAcctgPeriodNo}}") || 0;
+					const minPeriodAllowedForApprovals = sqNum - settingNum;
+					
+					// Store in window for use in conditional logic
+					window.minPeriodAllowedForApprovals = minPeriodAllowedForApprovals;
+					
+					// Debug output
+					console.log('JS Arithmetic:', {
+						rawSetting: "{{rawSetting}}",
+						settingNum: settingNum,
+						sqAcctgPeriodNo: "{{sqAcctgPeriodNo}}",
+						sqNum: sqNum,
+						minPeriodAllowedForApprovals: minPeriodAllowedForApprovals
+					});
+				</script>
+				
+				<!-- Set Liquid variable from JavaScript calculation -->
+				{% assign minPeriodAllowedForApprovals = -999 %}
+				{% comment %} This will be overridden by JavaScript {% endcomment %}
+
+
+
+				
+				<script>
+					// JavaScript-controlled approval section display
+					document.addEventListener('DOMContentLoaded', function() {
+						const sqUsingApprovals = {{sqUsingApprovals}};
+						const sqRecUISelPeriodNo = {{sqRecUISelPeriod.lv_periodno}};
+						const sqLOViewMode = "{{sqLOViewMode}}";
+						const minPeriodAllowedForApprovals = window.minPeriodAllowedForApprovals;
+						
+						console.log('Approval Check:', {
+							sqUsingApprovals: sqUsingApprovals,
+							sqRecUISelPeriodNo: sqRecUISelPeriodNo,
+							sqLOViewMode: sqLOViewMode,
+							minPeriodAllowedForApprovals: minPeriodAllowedForApprovals
+						});
+						
+						// Show or hide approval section based on conditions
+						const approvalDiv = document.getElementById('approvalSectionWrapper');
+						const condition1 = sqUsingApprovals === true;
+						const condition2 = sqRecUISelPeriodNo >= minPeriodAllowedForApprovals;
+						const condition3 = sqLOViewMode !== "ALL_LOAN_OFFICERS";
+						const allConditionsMet = condition1 && condition2 && condition3;
+						
+						
+						if (allConditionsMet) {
+										approvalDiv.style.display = 'block';
+						} else {
+										approvalDiv.style.display = 'none';
+						}
+					});
+				</script>
+				
+				<div id="approvalSectionWrapper" style="display: none;">
+				{% comment %} This div will be shown/hidden by JavaScript {% endcomment %}
+					
+					
+					<!-- Step 1: Check if user has direct LO assignment (yes we are using approvals) -->
+					{% assign userHasDirectLO = false %}
+					{% if user.lv_loanofficer.id %}
+						{% if user.lv_loanofficer.id != blank %}
+							{% if user.lv_loanofficer.id != "" %}
+								{% assign userHasDirectLO = true %}
+							{% endif %}
+						{% endif %}
+					{% endif %}
+					
+					<!-- Step 2: Check if we have a selected LO -->
+					{% assign hasSelectedLO = false %}
+					{% if sqRecLOBeingViewed.lv_lvcomploanofficerid %}
+						{% if sqRecLOBeingViewed.lv_lvcomploanofficerid != blank %}
+							{% if sqRecLOBeingViewed.lv_lvcomploanofficerid != "" %}
+								{% assign hasSelectedLO = true %}
+							{% endif %}
+						{% endif %}
+					{% endif %}
+					
+					<!-- Step 3: Check if LO IDs match -->
+					{% assign loanOfficerMatch = false %}
+					{% if userHasDirectLO == true %}
+						{% if hasSelectedLO == true %}
+							{% if user.lv_loanofficer.id == sqRecLOBeingViewed.lv_lvcomploanofficerid %}
+								{% assign loanOfficerMatch = true %}
+							{% endif %}
+						{% endif %}
+					{% endif %}
+					
+					<!-- APPROVAL LOGIC -->
+					<!-- Determine if we should show approval section and what type -->
+					{% assign showApprovalSection = false %}
+					{% assign allowApprovalAction = false %}
+					{% assign approvalViewMode = "none" %}
+					
+					<!-- Step 4: Determine approval view mode based on configuration and user role -->
+					{% if sqApprovalType == "" or sqApprovalType == "None" %}
+						{% assign approvalViewMode = "none" %}
+					{% elsif sqApprovalType == "LoanOfficer" %}
+						{% if loanOfficerMatch == true %}
+							{% assign showApprovalSection = true %}
+							{% assign allowApprovalAction = true %}
+							{% assign approvalViewMode = "loan_officer_own" %}
+						{% elsif canApproveCommissions == true %}
+							{% assign showApprovalSection = true %}
+							{% assign allowApprovalAction = false %}
+							{% assign approvalViewMode = "branch_manager_view_only" %}
+						{% endif %}
+					{% elsif sqApprovalType == "BranchManager" %}
+						{% if loanOfficerMatch == true %}
+							{% assign showApprovalSection = true %}
+							{% assign allowApprovalAction = false %}
+							{% assign approvalViewMode = "loan_officer_view_only" %}
+						{% elsif canApproveCommissions == true %}
+							{% assign showApprovalSection = true %}
+							{% assign allowApprovalAction = true %}
+							{% assign approvalViewMode = "branch_manager_can_approve" %}
+						{% endif %}
+					{% elsif sqApprovalType == "BothRequired" %}
+						{% if loanOfficerMatch == true %}
+							{% assign showApprovalSection = true %}
+							{% assign allowApprovalAction = true %}
+							{% assign approvalViewMode = "loan_officer_own_both_required" %}
+						{% elsif canApproveCommissions == true %}
+							{% assign showApprovalSection = true %}
+							{% assign allowApprovalAction = false %}
+							{% assign approvalViewMode = "branch_manager_view_only" %}
+						{% endif %}
+					{% elsif sqApprovalType == "EitherOr" %}
+						{% if loanOfficerMatch == true %}
+							{% assign showApprovalSection = true %}
+							{% assign allowApprovalAction = true %}
+							{% assign approvalViewMode = "loan_officer_own_either" %}
+						{% elsif canApproveCommissions == true %}
+							{% assign showApprovalSection = true %}
+							{% assign allowApprovalAction = true %}
+							{% assign approvalViewMode = "branch_manager_can_approve_either" %}
+						{% endif %}
+					{% endif %}
+					
+					<!-- Set canApprove for compatibility -->
+					{% assign canApprove = showApprovalSection %}
+					
+					
+					<!-- lodd:appr00 -->
+					{% if canApprove == true %}
+						<!-- lodd:appr00.a -->
+						<div id="divApproval" class="approval-section" style="margin: 20px 0;">
+							<div id="approvalLoading">
+								<div style="display: flex; align-items: center;">
+									<span style="margin-right: 10px;">Checking approval status...</span>
+									<div class="spinner-border spinner-border-sm" role="status">
+										<span class="sr-only">Loading...</span>
+									</div>
+								</div>
+							</div>
+							
+							<!-- Hidden data for JavaScript -->
+							<script type="text/javascript">
+								window.APPROVAL_VIEW_MODE = "{{approvalViewMode}}";
+								window.ALLOW_APPROVAL_ACTION = {{allowApprovalAction}};
+								window.LOAN_OFFICER_NAME = "{{sqRecLOBeingViewed.lv_name}}";
+								window.IS_BRANCH_MANAGER = {{is_BranchManager}};
+								window.CAN_APPROVE_COMMISSIONS = {{canApproveCommissions}};
+								window.IS_OWN_COMMISSIONS = {% if user.lv_loanofficer.id == sqRecLOBeingViewed.lv_lvcomploanofficerid %}true{% else %}false{% endif %};
+							</script>
+							
+							{% comment %}  Approved state (hidden initially)   {% endcomment %} 
+							<div id="approvalComplete" style="display: none;">
+								<div id="approvalStatusMessage" style="color: green; font-weight: bold; margin-bottom: 10px;">
+									<!-- Status message will be populated by JavaScript -->
+								</div>
+							</div>
+
+							{% comment %}   Not yet approved state (hidden initially)   {% endcomment %} 
+							<div id="approvalRequired" style="display: none;">
+								<div style="display: flex; align-items: center;">
+									<span id="spanApprove" style="margin-left: 20px; margin-right: 10px; background-color: transparent;">
+										<!-- Message will be populated by JavaScript based on approval mode -->
+									</span>
+									<input id="btnApprove" type="button" value="Approve" 
+										onclick="return btnApproveClick();" class="btn" 
+										style="background-color: var(--portalThemeColor10); color: var(--portalThemeColor5); border: none; border-radius: 8px; padding: 10px 15px; display: none;" />
+								</div>
+							</div>
+							
+							{% comment %}   View-only state for Branch Managers   {% endcomment %} 
+							<div id="approvalViewOnly" style="display: none;">
+								<div id="viewOnlyStatusMessage" style="color: #666; margin-bottom: 10px;">
+									<!-- View-only status message will be populated by JavaScript -->
+								</div>
+							</div>
+						</div>
+					{% else %}
+						<!-- lodd:appr00.b -->
+					{% endif %}
+				</div>
+				<!-- End of JavaScript-controlled approval section -->
+				
+				<!-- Bulk approval functionality has been moved to the /Branch page -->
+				
+				<div id="approvalSectionElse" style="display: none;">
+					<!-- lodd:appr00.else Either we are NOT using approvals at all, or, the current period '{{sqRecUISelPeriod.lv_periodno}}' is not the open periodno '{{ sqAcctgPeriodNo }}' -->
+				</div>
+				
+				<script>
+					// Also handle the "else" case for approval section
+					document.addEventListener('DOMContentLoaded', function() {
+						const sqUsingApprovals = {{sqUsingApprovals}};
+						const sqRecUISelPeriodNo = {{sqRecUISelPeriod.lv_periodno}};
+						const sqLOViewMode = "{{sqLOViewMode}}";
+						const minPeriodAllowedForApprovals = window.minPeriodAllowedForApprovals;
+						
+						const approvalElseDiv = document.getElementById('approvalSectionElse');
+						
+						// Show else section if conditions are NOT met
+						if (!(sqUsingApprovals === true && 
+							  sqRecUISelPeriodNo >= minPeriodAllowedForApprovals && 
+							  sqLOViewMode !== "ALL_LOAN_OFFICERS")) {
+							approvalElseDiv.style.display = 'block';
+						}
+					});
+				</script>
+				
+				<!-- Bulk approval JavaScript has been moved to the /Branch page -->
+
+                <div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 15px;"></div>
+                
+                {% comment %} PERFORMANCE OPTIMIZATION: Only load heavy components when commission data exists {% endcomment %}
+                {% if cpCommValueRowCount > 0 %}
+                    {% include 'snippet' snippet_name:'Dashboard Details' %}
+
+					                    {% comment %} DEBT BALANCE - Server-side data passed to JavaScript for math {% endcomment %}
+                    <!-- DEBUG:DEBTLOG: sqRecLOBeingViewed.lv_code="{{sqRecLOBeingViewed.lv_code}}" -->
+                    <!-- DEBUG:DEBTLOG: debtLogEntries.results.entities.size={{debtLogEntries.results.entities.size}} -->
+                    <!-- DEBUG:DEBTLOG: hasLoanOfficerParam={{hasLoanOfficerParam}} is_OnlyLoanOfficer={{is_OnlyLoanOfficer}} -->
+                    <script>
+                        // Server-rendered debt log entries (FetchXML query, no AJAX needed)
+                        // Math (summing) is done in JavaScript to avoid Liquid arithmetic issues
+                        // DEBUG: LO Code = "{{sqRecLOBeingViewed.lv_code}}", Entry count = {{debtLogEntries.results.entities.size | default: 0}}
+                        window.DEBT_LOG_ENTRIES = [
+                            {%- for entry in debtLogEntries.results.entities -%}
+                            {
+                                identifierCode: "{{ entry.lv_identifiercode }}",
+                                date: "{{ entry.lv_entrydate | date: 'yyyy-MM-dd' }}",
+                                amount: {{ entry.lv_amount | default: 0 }},
+                                description: "{{ entry.lv_description | replace: '"', '\\"' | replace: '\n', ' ' | replace: '\r', '' }}"
+                            }{%- unless forloop.last -%},{%- endunless -%}
+                            {%- endfor -%}
+                        ];
+                        console.log('DEBT BALANCE: Server-rendered', window.DEBT_LOG_ENTRIES.length, 'entries');
+
+                        /**
+                         * GetDebtLogEntries - Returns server-rendered debt log entries (no AJAX)
+                         * Data is fetched server-side via FetchXML query
+                         * @returns {Array} Array of debt log entry objects
+                         */
+                        function GetDebtLogEntries() {
+                            return window.DEBT_LOG_ENTRIES || [];
+                        }
+
+                        /**
+                         * Calculate total from debt log entries
+                         */
+                        function calculateDebtBalanceTotal(entries) {
+                            return entries.reduce((sum, entry) => sum + entry.amount, 0);
+                        }
+
+                        /**
+                         * Format currency value
+                         */
+                        function formatDebtCurrency(amount) {
+                            const formatted = new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD'
+                            }).format(Math.abs(amount));
+
+                            return amount < 0 ? '-' + formatted : formatted;
+                        }
+
+                        /**
+                         * Format date for display
+                         */
+                        function formatDebtDate(dateStr) {
+                            if (!dateStr) return '';
+                            const date = new Date(dateStr + 'T00:00:00');
+                            return date.toLocaleDateString('en-US', {
+                                month: '2-digit',
+                                day: '2-digit',
+                                year: '2-digit'
+                            });
+                        }
+
+                        /**
+                         * Toggle detail panel visibility (card stays in grid)
+                         */
+                        function toggleDebtBalanceDetail() {
+                            const detail = document.getElementById('debtBalanceDetail');
+
+                            if (detail.style.display === 'none' || detail.style.display === '') {
+                                detail.style.display = 'block';
+                            } else {
+                                detail.style.display = 'none';
+                            }
+                        }
+
+                        /**
+                         * Render debt balance card and detail table
+                         * Uses server-rendered data (no AJAX), JavaScript does the math
+                         */
+                        function renderDebtBalance() {
+                            const amountEl = document.getElementById('debtBalanceAmount');
+                            const hintEl = document.getElementById('debtBalanceHint');
+
+                            try {
+                                const entries = GetDebtLogEntries();  // Sync - data is pre-loaded
+                                const total = calculateDebtBalanceTotal(entries);  // JavaScript does the math
+
+                                // Update card amount
+                                amountEl.textContent = formatDebtCurrency(total);
+                                if (total < 0) {
+                                    amountEl.classList.add('negative');
+                                } else {
+                                    amountEl.classList.remove('negative');
+                                }
+
+                                // Update detail table
+                                const tbody = document.getElementById('debtBalanceTableBody');
+                                if (entries.length === 0) {
+                                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #888;">No debt log entries found</td></tr>';
+                                    hintEl.style.display = 'none';
+                                } else {
+                                    tbody.innerHTML = entries.map(entry => {
+                                        const amountClass = entry.amount >= 0 ? 'amount-positive' : 'amount-negative';
+                                        return `
+                                            <tr>
+                                                <td>${entry.identifierCode}</td>
+                                                <td>${formatDebtDate(entry.date)}</td>
+                                                <td style="text-align: right;" class="${amountClass}">${formatDebtCurrency(entry.amount)}</td>
+                                                <td>${entry.description}</td>
+                                            </tr>
+                                        `;
+                                    }).join('');
+                                }
+
+                                // Update detail total
+                                const totalEl = document.getElementById('debtBalanceTotalDetail');
+                                totalEl.textContent = formatDebtCurrency(total);
+                                if (total < 0) {
+                                    totalEl.classList.add('negative');
+                                } else {
+                                    totalEl.classList.remove('negative');
+                                }
+
+                            } catch (error) {
+                                console.error('DEBT BALANCE: Error rendering:', error);
+                                amountEl.textContent = 'Error';
+                                amountEl.style.color = '#c0392b';
+                            }
+                        }
+
+                        // Initialize debt balance on page load
+                        // Data is already server-rendered, just need to calculate totals and render
+                        document.addEventListener('DOMContentLoaded', function() {
+                            renderDebtBalance();
+                        });
+                    </script>
+
+
+                    {% comment %} Parse pageSize parameter with default of 10 for table pagination {% endcomment %}
+                    {% assign cfPageSize = 10 %}
+                    {% if request.params.pageSize and request.params.pageSize != "" %}
+                        {% assign cfPageSize = request.params.pageSize | times: 1 %}
+                        {% if cfPageSize < 1 %}
+                            {% assign cfPageSize = 10 %}
+                        {% endif %}
+                    {% endif %}
+
+                    <div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 25px;"></div>
+                    
+                    <div class="ppFlexContainer" style="display: flex; align-items: center; padding: 8px 0 8px 0;"> <!-- Buttons: Print, Email, Profile -->
+
+                        {% if cfgPrintEnabled %}                  {% comment %}      TODO8: this logic is duplicated across /web-pages/Accounting|Region|Branch|LoanOfficer                tag=2504021442              {% endcomment %} 
+                            <div onclick="printpage()" data-component-theme="portalThemeColor10" class="ppFlexContainer" style="display: flex; border-radius: 8px 8px 8px 8px; padding: 4px 14px 4px 14px; align-items: center; justify-content: space-between; max-width: auto; width: auto; height: 45px; flex-grow: 0; flex-shrink: 0; flex-basis: 135px; flex-direction: row;cursor: pointer;">
+                                <p style="text-align: left; color: var(--portalThemeColor5); font-size: 18px;">​
+                                    <b aria-label="Text Commission Profile" style="position: relative;">
+                                        Print
+                                    </b>
+                                </p>
+                                <img src="/icon-print.png" alt="icon-print" name="icon-print.png" style="width: 28.67%; height: 28px; max-width: 100%;">
+                            </div>
+                        {% endif %}
+                        
+                        <div id="email_btn" data-component-theme="portalThemeColor10" class="ppFlexContainer email-modal-open" style="display: flex; cursor: pointer; border-radius: 8px 8px 8px 8px; padding: 4px 14px 4px 14px; align-items: center; justify-content: space-between; max-width: auto; width: auto; height: 45px; flex-grow: 0; flex-shrink: 0; flex-basis: 135px; flex-direction: row;">
+                            <p style="text-align: left; color: var(--portalThemeColor5); font-size: 18px;">
+                                ​<b aria-label="Text Print" style="position: relative;">
+                                    Email
+                                </b>
+                            </p>
+                            <img src="/icon-email.png" alt="icon-email" name="icon-email.png" style="width: 28.67%; height: 28px; max-width: 100%;">
+                        </div>
+                    </div>
+                    
+                    <div id="divPrimaryCommissionsTable" class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 25px;"></div>
+                    {% include 'Primary Commissions Table' %}
+
+                    <div id="divPrimaryAdjustmentsTable" class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 25px;"></div>
+                    {% include 'Primary Adjustments Table' %}
+
+                    {% include 'snippet' snippet_name:'Email Dialog' %}
+
+                    {% include 'Email Modal' %}
+                {% endif %}
+
+			{% else %}                {% comment %}                         cpCommValueRowCount is 0                               {% endcomment %}
+
+
+				{% comment %} ADMIN OVERRIDE: Administrators can access all data {% endcomment %}
+				{% comment %} CRITICAL: Check is_admin FIRST before any permission restrictions {% endcomment %}
+				{% if is_admin %}
+					{% comment %} Admin users always have access - show appropriate message {% endcomment %}
+					{% if is_OnlyLoanOfficer %}
+						{% if sqRecLOBeingViewed and sqRecLOBeingViewed.lv_name and sqRecLOBeingViewed.lv_name != "" %}
+							<div class="grid-container">
+								<h3><span style="color: blue">{{sqRecLOBeingViewed.lv_name}}</span> has no commission values for period <span style="color: blue;">{{sqRecUISelPeriod.lv_name}}</span></h3>
+							</div>
+						{% else %}
+							<div class="grid-container">
+								<h3>No loan officer selected</h3>
+							</div>
+						{% endif %}
+					{% else %}
+						<div class="grid-container">
+							{% if sqRecLOBeingViewed and sqRecLOBeingViewed.lv_name and sqRecLOBeingViewed.lv_name != "" %}
+								<h3><span style="color: blue">{{sqRecLOBeingViewed.lv_name}}</span> has no commission values for period <span style="color: blue;">{{sqRecUISelPeriod.lv_name}}</span></h3>
+							{% else %}
+								<h3>Please select a loan officer from the dropdown above to view commission data</h3>
+							{% endif %}
+						</div>
+					{% endif %}
+				{% elsif is_BranchManager %}
+					{% comment %} Branch managers always have access - show selection message {% endcomment %}
+					<div class="grid-container">
+						{% if hasLoanOfficerParam and sqRecLOBeingViewed and sqRecLOBeingViewed.lv_name and sqRecLOBeingViewed.lv_name != "" %}
+							<h3><span style="color: blue">{{sqRecLOBeingViewed.lv_name}}</span> has no commission values for period <span style="color: blue;">{{sqRecUISelPeriod.lv_name}}</span></h3>
+						{% else %}
+							<h3 style="text-align: center; color: #666; padding: 40px;">
+								<i class="fas fa-user-tie" style="margin-right: 10px;"></i>
+								Please select a loan officer from the dropdown above to view commission data.
+							</h3>
+						{% endif %}
+					</div>
+				{% elsif userLoanOfficerList != "" and userLoanOfficerList != "|" %}
+					{% comment %} User has loan officer assignments - show appropriate content based on selection {% endcomment %}
+					{% if is_OnlyLoanOfficer %}
+						{% if sqRecLOBeingViewed and sqRecLOBeingViewed.lv_name and sqRecLOBeingViewed.lv_name != "" %}
+							<div class="grid-container">
+								<h3><span style="color: blue">{{sqRecLOBeingViewed.lv_name}}</span> has no commission values for period <span style="color: blue;">{{sqRecUISelPeriod.lv_name}}</span></h3>
+							</div>
+						{% else %}
+							<div class="grid-container">
+								<h3>No loan officer selected</h3>
+							</div>
+						{% endif %}
+					{% else %}
+						<div class="grid-container">
+							{% comment %} FIXED: Only show "no commission values" message when officer was explicitly selected via URL parameter {% endcomment %}
+							{% if hasLoanOfficerParam and sqRecLOBeingViewed and sqRecLOBeingViewed.lv_name and sqRecLOBeingViewed.lv_name != "" %}
+								<h3><span style="color: blue">{{sqRecLOBeingViewed.lv_name}}</span> has no commission values for period <span style="color: blue;">{{sqRecUISelPeriod.lv_name}}</span></h3>
+							{% else %}
+								<h3 style="text-align: center; color: #666; padding: 40px;">
+									<i class="fas fa-user-tie" style="margin-right: 10px;"></i>
+									Please select a loan officer from the dropdown above to view commission data.
+								</h3>
+							{% endif %}
+						</div>
+					{% endif %}
+				{% else %}
+					{% comment %} User has NO access - show error message {% endcomment %}
+					<div class="grid-container">
+						<h3>No Loan Officer Access</h3>
+						<p>You do not have access to view any loan officer commission data.</p>
+						<p>To gain access, contact your system administrator to request:</p>
+						<ul>
+							<li>A direct loan officer assignment, OR</li>
+							<li>Loan officer oversight assignments, OR</li>
+							<li>Branch manager assignments</li>
+						</ul>
+					</div>
+				{% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% else %}
+	{% comment %} Auto-redirect unauthenticated users to sign-in page {% endcomment %}
+	<script>
+		// Clear any query parameters and redirect to sign-in
+		window.location.href = '/Account/Login/';
+	</script>
+	<div class="container">
+		<h1>Redirecting to Sign In...</h1>
+		<p>Please wait while we redirect you to the sign-in page.</p>
+	</div>
+{% endif %}
+
+<script>
+
+function btnCommProfile_Click() {
+	writeToLogTable("Click", "btnCommProfile");
+}
+
+{% if sqUsingApprovals == true %}
+	// todo8: using approvals: YES
+	
+	// BULK APPROVAL HELPER FUNCTIONS
+	
+	// Parse userLoanOfficerList into array of officer objects
+	function parseUserLoanOfficerList() {
+		const userPermissionList = "{{userLoanOfficerList}}";
+			
+		
+		if (!userPermissionList || userPermissionList.trim() === '' || userPermissionList === '|') {
+			return [];
+		}
+		
+		const officers = [];
+		// Format is "|name|code|name|code|" - split and group pairs
+		const parts = userPermissionList.split('|').filter(part => part.trim() !== '');
+		
+		for (let i = 0; i < parts.length; i += 2) {
+			if (i + 1 < parts.length) {
+				const name = parts[i];
+				const code = parts[i + 1];
+				
+				officers.push({
+					name: name,
+					code: code
+				});
+			}
+		}
+		
+			return officers;
+	}
+	
+	// Get commission total for a specific officer using pre-calculated server-side data
+	function getOfficerCommissionTotal(officerCode) {
+			
+		// Use the pre-calculated data from server
+		if (window.bulkApprovalOfficerData) {
+			const officerData = window.bulkApprovalOfficerData.find(officer => officer.code === officerCode);
+			if (officerData) {
+				const formattedTotal = new Intl.NumberFormat('en-US', {
+					style: 'currency',
+					currency: 'USD'
+				}).format(officerData.total);
+				
+					
+				return {
+					total: officerData.total,
+					formattedTotal: formattedTotal,
+					recordCount: officerData.count
+				};
+			}
+		}
+		
+			return {
+			total: 0,
+			formattedTotal: '$0.00',
+			recordCount: 0
+		};
+	}
+	
+	// APPROVAL CHECKING
+	async function checkSophisticatedApprovalStatus(officerIdentifier, periodNo, useOfficerCode = true) {
+		try {
+			const approvalType = "{{sqApprovalType}}";
+			const viewMode = window.APPROVAL_VIEW_MODE;
+			const allowAction = window.ALLOW_APPROVAL_ACTION;
+			const loanOfficerName = window.LOAN_OFFICER_NAME;
+			const isBranchManager = window.IS_BRANCH_MANAGER;
+			const isOwnCommissions = window.IS_OWN_COMMISSIONS;
+
+			// Build filter expression based on whether we have code or ID
+			let filterExpr;
+			if (useOfficerCode) {
+				filterExpr = `$filter=lv_loanofficercode eq '${officerIdentifier}' and lv_periodno eq ${periodNo}`;
+			} else {
+				filterExpr = `$filter=lv_loanofficer eq '${officerIdentifier}' and lv_periodno eq ${periodNo}`;
+			}
+
+			const approvalRecords = await apiGetRecords("lv_lvcompcommissionapprovals", filterExpr);
+
+			if (!approvalRecords || !Array.isArray(approvalRecords)) {
+				console.log('APPROVAL: No records found');
+				return {
+					showApprovalComplete: false,
+					showApprovalRequired: false,
+					showViewOnly: false,
+					message: 'Error loading approval status'
+				};
+			}
+
+			// Separate approval records by role
+			const bmApprovals = approvalRecords.filter(rec => rec.lv_webrole === 'Branch Manager');
+			const loApprovals = approvalRecords.filter(rec => rec.lv_webrole === 'Loan Officer');
+			
+			// Apply sophisticated logic based on view mode
+			switch (viewMode) {
+				case "none":
+					return { showApprovalComplete: false, showApprovalRequired: false, showViewOnly: false };
+					
+				case "loan_officer_own":
+					// "LoanOfficer" config - LO viewing their own
+					if (loApprovals.length > 0) {
+						const personalizedMessage = formatPersonalizedApprovalMessage(
+							loApprovals[0].lv_fullname,
+							loApprovals[0].lv_emailaddress,
+							window.PAGE_USEREMAIL,
+							loApprovals[0].createdon
+						);
+						return {
+							showApprovalComplete: true,
+							message: personalizedMessage
+						};
+					} else {
+						return {
+							showApprovalRequired: true,
+							showApprovalButton: true,
+							message: "If you are satisfied with this commission report, click here to finalize and approve",
+							buttonText: "Approve My Commissions"
+						};
+					}
+					
+				case "branch_manager_view_only":
+					// "LoanOfficer" or "BothRequired" - BM viewing (view only)
+					if (loApprovals.length > 0) {
+						const personalizedMessage = formatPersonalizedApprovalMessage(
+							loApprovals[0].lv_fullname,
+							loApprovals[0].lv_emailaddress,
+							window.PAGE_USEREMAIL,
+							loApprovals[0].createdon
+						);
+						return {
+							showViewOnly: true,
+							message: personalizedMessage
+						};
+					} else {
+						return {
+							showViewOnly: true,
+							message: `Awaiting approval by ${loanOfficerName}`
+						};
+					}
+					
+				case "loan_officer_view_only":
+					// "BranchManager" config - LO viewing (view only)
+					if (bmApprovals.length > 0) {
+						const personalizedMessage = formatPersonalizedApprovalMessage(
+							bmApprovals[0].lv_fullname,
+							bmApprovals[0].lv_emailaddress,
+							window.PAGE_USEREMAIL,
+							bmApprovals[0].createdon
+						);
+						return {
+							showViewOnly: true,
+							message: personalizedMessage
+						};
+					} else {
+						return {
+							showViewOnly: true,
+							message: "Awaiting branch manager approval"
+						};
+					}
+					
+				case "branch_manager_can_approve":
+					// "BranchManager" config - BM can approve
+					if (bmApprovals.length > 0) {
+						const personalizedMessage = formatPersonalizedApprovalMessage(
+							bmApprovals[0].lv_fullname,
+							bmApprovals[0].lv_emailaddress,
+							window.PAGE_USEREMAIL,
+							bmApprovals[0].createdon
+						);
+						return {
+							showApprovalComplete: true,
+							message: personalizedMessage
+						};
+					} else {
+						return {
+							showApprovalRequired: true,
+							showApprovalButton: true,
+							message: `As Branch Manager, you are authorized to approve these commissions for ${loanOfficerName}`,
+							buttonText: "Approve Commissions"
+						};
+					}
+					
+				case "loan_officer_own_both_required":
+					// "BothRequired" config - LO viewing their own
+					if (loApprovals.length > 0 && bmApprovals.length > 0) {
+						const bmDate = formatApprovalDate(bmApprovals[0].createdon);
+						const loDate = formatApprovalDate(loApprovals[0].createdon);
+						return {
+							showApprovalComplete: true,
+							message: `Fully approved - Branch manager: ${bmApprovals[0].lv_fullname} on ${bmDate}, You: ${loDate}`
+						};
+					} else if (loApprovals.length > 0) {
+						const loDate = formatApprovalDate(loApprovals[0].createdon);
+						return {
+							showViewOnly: true,
+							message: `You approved these commissions on ${loDate}. Awaiting branch manager approval.`
+						};
+					} else if (bmApprovals.length > 0) {
+						const bmDate = formatApprovalDate(bmApprovals[0].createdon);
+						return {
+							showApprovalRequired: true,
+							showApprovalButton: true,
+							message: `Branch manager approved on ${bmDate}. You can now provide your approval.`,
+							buttonText: "Approve My Commissions"
+						};
+					} else {
+						return {
+							showApprovalRequired: true,
+							showApprovalButton: true,
+							message: "If you are satisfied with this commission report, click here to finalize and approve",
+							buttonText: "Approve My Commissions"
+						};
+					}
+					
+				case "loan_officer_own_either":
+					// "EitherOr" config - LO viewing their own
+					if (bmApprovals.length > 0) {
+						const personalizedMessage = formatPersonalizedApprovalMessage(
+							bmApprovals[0].lv_fullname,
+							bmApprovals[0].lv_emailaddress,
+							window.PAGE_USEREMAIL,
+							bmApprovals[0].createdon
+						);
+						return {
+							showApprovalComplete: true,
+							message: personalizedMessage
+						};
+					} else if (loApprovals.length > 0) {
+						const personalizedMessage = formatPersonalizedApprovalMessage(
+							loApprovals[0].lv_fullname,
+							loApprovals[0].lv_emailaddress,
+							window.PAGE_USEREMAIL,
+							loApprovals[0].createdon
+						);
+						return {
+							showApprovalComplete: true,
+							message: personalizedMessage
+						};
+					} else {
+						return {
+							showApprovalRequired: true,
+							showApprovalButton: true,
+							message: "Either you or your branch manager can approve these commissions.",
+							buttonText: "Approve My Commissions"
+						};
+					}
+					
+				case "branch_manager_can_approve_either":
+					// "EitherOr" config - BM viewing (can approve)
+					if (bmApprovals.length > 0) {
+						const personalizedMessage = formatPersonalizedApprovalMessage(
+							bmApprovals[0].lv_fullname,
+							bmApprovals[0].lv_emailaddress,
+							window.PAGE_USEREMAIL,
+							bmApprovals[0].createdon
+						);
+						return {
+							showApprovalComplete: true,
+							message: personalizedMessage
+						};
+					} else if (loApprovals.length > 0) {
+						const personalizedMessage = formatPersonalizedApprovalMessage(
+							loApprovals[0].lv_fullname,
+							loApprovals[0].lv_emailaddress,
+							window.PAGE_USEREMAIL,
+							loApprovals[0].createdon
+						);
+						return {
+							showApprovalComplete: true,
+							message: personalizedMessage
+						};
+					} else {
+						return {
+							showApprovalRequired: true,
+							showApprovalButton: true,
+							message: `As Branch Manager, you are authorized to approve these commissions for ${loanOfficerName}`,
+							buttonText: "Approve Commissions"
+						};
+					}
+					
+				default:
+					console.warn('APPROVAL: Unknown view mode:', viewMode);
+					return {
+						showViewOnly: true,
+						message: 'Unknown approval configuration'
+					};
+			}
+
+		} catch (error) {
+			console.error('APPROVAL: Error checking approval status:', error);
+			return {
+				showViewOnly: true,
+				message: 'Error checking approval status'
+			};
+		}
+	}
+	
+	// Simple loan officer approval check - just checks if THIS loan officer has approved
+	async function checkLoanOfficerApproval(officerCode, periodNo) {
+		try {
+				
+			// Get all approval records for this officer and period
+			const filterExpr = `$filter=lv_loanofficercode eq '${officerCode}' and lv_periodno eq ${periodNo}`;
+			const approvalRecords = await apiGetRecords("lv_lvcompcommissionapprovals", filterExpr);
+			
+			if (!approvalRecords || !Array.isArray(approvalRecords) || approvalRecords.length === 0) {
+				return { hasApproved: false, message: 'These commissions are awaiting your approval.' };
+			}
+			
+			// Check if there's a loan officer approval
+			const loApprovals = approvalRecords.filter(rec => rec.lv_webrole === 'Loan Officer');
+			
+			if (loApprovals.length > 0) {
+				const approvalDate = formatApprovalDate(loApprovals[0].createdon);
+				return { 
+					hasApproved: true, 
+					message: `You approved these commissions on ${approvalDate}.` 
+				};
+			} else {
+				return { hasApproved: false, message: 'These commissions are awaiting your approval.' };
+			}
+			
+		} catch (error) {
+			return { hasApproved: false, message: 'These commissions are awaiting your approval.' };
+		}
+	}
+	
+	// Bulk approval functions have been moved to the /Branch page
+	
+	async function btnApproveClick() {
+		
+		addLoanOfficerToolTip(" (v3181502)")
+
+		const cardCommTotalAsFormattedString = $("#cardCommTotal").text(); // the value from the 'Total' card
+
+		const qText = 
+			"<div>" + 
+				"<div style='margin-bottom: 15px;'>On pressing 'Confirm', your approval of these commissions will be logged:</div>" + 
+
+				"<div style='margin-left: 20px; margin-bottom: 10px;'>" + 
+					"<table class='table-responsive'>" + 
+						"<tr><td class='p-3'>Amount:</td><td class='p-1'><b>" + cardCommTotalAsFormattedString + "</b></td></tr>" +
+						"<tr><td class='p-3'>Period:</td><td class='p-1'><b>" + window.PAGE_UISelPeriodCode + "</b></td></tr>" +
+					"</table>" + 
+				"</div>" + 
+
+				"<div style='margin-bottom: 10px;'>An email confirmation will be sent to <b>" + window.PAGE_USEREMAIL + "</b></div>" + 
+
+				"<div style='margin-bottom: 30px;'>Are you sure you are ready to approve your commissions?</div>" + 
+
+				"<div>Press the 'Confirm' button to proceed</div>" + 
+			"</div>";
+
+		var userChoice =  await askQuestion(qText, btn1Text = "Confirm", btn2Text = "Cancel");
+
+		if (userChoice != "Confirm") {
+			return;
+		}
+
+		$('#btnApprove').hide();
+
+		const $spn = $('#spanApprove');
+
+		$spn.html('Please wait, recording your appproval... <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>');
+
+		const subject = "Commissions approved: Period " + window.PAGE_UISelPeriodCode;
+		const body = "This email is to confirm that you approved commissions in the amount " + cardCommTotalAsFormattedString + " for period: " + window.PAGE_UISelPeriodCode;
+
+		await sendEmail("Commission Approve", subject, body, window.PAGE_USEREMAIL, window.PAGE_LOCODE_BEINGVIEWED, window.PAGE_UISelPeriodCode, "", false, window.PAGE_UISelPeriodNo);
+
+		{% comment %} Enhanced approval record creation for sophisticated approval system {% endcomment %} 
+		// Determine approval role based on user permissions and viewing context
+		const isBranchManager = {% if is_BranchManager %}true{% else %}false{% endif %};
+		const canApproveCommissions = {% if canApproveCommissions %}true{% else %}false{% endif %};
+		const isMyOwnCommissions = "{{user.lv_loanofficer.id}}" === "{{sqRecLOBeingViewed.lv_lvcomploanofficerid}}";
+		
+		let approvalRole = "Unknown";
+		let branchCode = "{{sqRecLOBeingViewed.lv_branch.lv_code}}"; // Use branch code from loan officer record
+		
+		if (canApproveCommissions && !isMyOwnCommissions) {
+			// Branch manager approving someone else's commissions
+			approvalRole = "Branch Manager";
+		} else if (isMyOwnCommissions) {
+			// Loan officer approving their own commissions
+			approvalRole = "Loan Officer";
+		} else {
+			console.warn('Unclear approval context - user cannot approve commissions and not approving own commissions');
+			approvalRole = "Loan Officer"; // Default fallback
+		}
+		
+		console.log('DEBUG APPROVAL: Role determination:', {
+			isBranchManager: isBranchManager,
+			canApproveCommissions: canApproveCommissions,
+			isMyOwnCommissions: isMyOwnCommissions,
+			approvalRole: approvalRole,
+			branchCode: branchCode
+		});
+		
+		const oPostAppr = {
+			"lv_amount": safeStringToNumeric(cardCommTotalAsFormattedString),
+			"lv_amountdisplayedtouser": cardCommTotalAsFormattedString,
+			"lv_branchcode": "", // Leave blank for loan officer approvals
+			"lv_emailaddress": window.PAGE_USEREMAIL,
+			"lv_fullname" : window.PAGE_USERNAME,
+			"lv_loanofficercode": window.PAGE_LOCODE_BEINGVIEWED,
+			"lv_periodcode": window.PAGE_UISelPeriodCode,
+			"lv_webrole": approvalRole,
+			"lv_periodno": window.PAGE_UISelPeriodNo
+		};
+
+		try {
+			const apiResponse = await apiCall("/_api/lv_lvcompcommissionapprovals", "POST", oPostAppr, true);
+		} catch (error) {
+			console.error('API call failed::', error);
+			$spn.html("Error: Failed to record approval. Please try again or contact support.");
+			$('#btnApprove').show();
+			return;
+		}
+
+		await delay(2);
+
+		writeToLogTable("ApproveEnd", "By: {{user.fullname}}", "PeriodNo", window.PAGE_UISelPeriodNo, "LoanOfficerCode", window.PAGE_LOCODE_BEINGVIEWED);
+
+		$spn.html("Your approval has been recorded successfully");
+	}
+
+	// Helper function to update approval button for partial approval states
+	function updateApprovalButtonForPartialStatus(statusDetails) {
+		const approvalType = "{{sqApprovalType}}";
+		const isUserDirectLO = "{{user.lv_loanofficer.id}}" === "{{sqRecLOBeingViewed.lv_lvcomploanofficerid}}";
+		const isBranchManager = {{is_BranchManager}};
+		const canApproveCommissions = {{canApproveCommissions}};
+		const currentUser = "{{user.fullname}}";
+		const officerName = "{{sqRecLOBeingViewed.lv_name}}";
+		
+		console.log('DEBUG: updateApprovalButtonForPartialStatus called with:', statusDetails);
+		console.log('DEBUG: approvalType:', approvalType, 'isUserDirectLO:', isUserDirectLO, 'isBranchManager:', isBranchManager, 'canApproveCommissions:', canApproveCommissions);
+		
+		let buttonText = "Approve";
+		let messageText = "";
+		
+		if (approvalType === "BothRequired") {
+			// Parse which approval exists based on the exact messages from checkExistingApproval function
+			// Format: "Partial approval - [Name] approved on [date]. Loan officer approval still required."
+			// Format: "Partial approval - Loan officer approved on [date]. Branch manager approval still required."
+			const bmApprovalExists = statusDetails.includes('Partial approval -') && statusDetails.includes('Loan officer approval still required');
+			const loApprovalExists = statusDetails.includes('Partial approval - Loan officer approved on') && statusDetails.includes('Branch manager approval still required');
+			
+			console.log('DEBUG: BothRequired mode - bmApprovalExists:', bmApprovalExists, 'loApprovalExists:', loApprovalExists);
+			console.log('DEBUG: Full status details:', statusDetails);
+			
+			if (bmApprovalExists && !loApprovalExists) {
+				// Branch manager has approved, need loan officer approval
+				if (isUserDirectLO) {
+					messageText = `Branch manager approval completed. As the loan officer, you can now provide your approval.`;
+					buttonText = "Approve My Commissions";
+				} else {
+					messageText = `Branch manager approval completed. Loan officer approval for ${officerName} is still required.`;
+					buttonText = "Cannot Approve (Loan Officer Required)";
+					$('#btnApprove').prop('disabled', true);
+				}
+			} else if (loApprovalExists && !bmApprovalExists) {
+				// Loan officer has approved, need branch manager approval
+				if (canApproveCommissions) {
+					messageText = `Loan officer approval completed. As branch manager, you can now provide your approval for ${officerName}.`;
+					buttonText = "Approve as Branch Manager";
+				} else {
+					messageText = `Loan officer approval completed. Branch manager approval for ${officerName} is still required.`;
+					buttonText = "Cannot Approve (Branch Manager Required)";
+					$('#btnApprove').prop('disabled', true);
+				}
+			}
+		} else {
+			// For other approval types with partial states, use appropriate messaging
+			if (isUserDirectLO) {
+				messageText = "You can approve your own commissions.";
+				buttonText = "Approve My Commissions";
+			} else if (canApproveCommissions) {
+				messageText = `As manager, you can approve these commissions for ${officerName}.`;
+				buttonText = "Approve Commissions";
+			}
+		}
+		
+		console.log('DEBUG: Setting messageText:', messageText, 'buttonText:', buttonText);
+		
+		// Update the UI elements
+		$('#spanApprove').html(messageText);
+		$('#btnApprove').val(buttonText);
+	}
+	
+	// Helper function to reset approval button to default state
+	function resetApprovalButtonToDefault() {
+		const isUserDirectLO = "{{user.lv_loanofficer.id}}" === "{{sqRecLOBeingViewed.lv_lvcomploanofficerid}}";
+		const officerName = "{{sqRecLOBeingViewed.lv_name}}";
+		
+		console.log('DEBUG: resetApprovalButtonToDefault called');
+		
+		// Simple approval messaging - no branch manager status info
+		if (isUserDirectLO) {
+			$('#spanApprove').html("If you are satisfied with this commission report, click here to approve");
+			$('#btnApprove').val("Approve My Commissions");
+		} else {
+			$('#spanApprove').html(`As manager, you can approve these commissions for ${officerName}`);
+			$('#btnApprove').val("Approve Commissions");
+		}
+		
+		// Re-enable button in case it was disabled
+		$('#btnApprove').prop('disabled', false);
+	}
+
+	async function onPageLoad() {
+		try {
+			// SKIP approval check for Administrators - they never approve commissions
+			const isAdmin = window.PAGE_Roles?.isAdmin || false;
+			if (isAdmin) {
+				console.log('APPROVAL: Skipping approval check - user is Administrator');
+				$('#approvalLoading').hide();
+				$('#approvalComplete').hide();
+				$('#approvalRequired').hide();
+				$('#approvalViewOnly').hide();
+				return;
+			}
+
+			// SKIP approval check if no loan officer selected yet (on initial page load)
+			let officerIdentifier = window.PAGE_LOCODE_BEINGVIEWED;
+			let useOfficerCode = true;
+
+			if (!officerIdentifier || officerIdentifier === '') {
+				// Try fallback to ID
+				officerIdentifier = window.PAGE_LOID_BEINGVIEWED;
+				useOfficerCode = false;
+
+				// If still empty, no loan officer selected yet - skip approval check silently
+				if (!officerIdentifier || officerIdentifier === '') {
+					console.log('APPROVAL: Skipping approval check - no loan officer selected yet');
+					$('#approvalLoading').hide();
+					$('#approvalComplete').hide();
+					$('#approvalRequired').hide();
+					$('#approvalViewOnly').hide();
+					return;
+				}
+			}
+
+			console.log('APPROVAL: Checking approval status for', useOfficerCode ? 'officer code' : 'officer ID', ':', officerIdentifier);
+
+			// Show loading state
+			$('#approvalLoading').show();
+			$('#approvalComplete').hide();
+			$('#approvalRequired').hide();
+			$('#approvalViewOnly').hide();
+
+			// Use new sophisticated approval checking
+			const approvalStatus = await checkSophisticatedApprovalStatus(
+				officerIdentifier,
+				window.PAGE_UISelPeriodNo,
+				useOfficerCode
+			);
+
+			console.log('APPROVAL: Result:', approvalStatus);
+
+			// Hide loading
+			$('#approvalLoading').hide();
+
+			// Display appropriate section based on result
+			if (approvalStatus.showApprovalComplete) {
+				$('#approvalStatusMessage').html(approvalStatus.message);
+				$('#approvalComplete').show();
+			} else if (approvalStatus.showApprovalRequired) {
+				$('#spanApprove').html(approvalStatus.message);
+				if (approvalStatus.showApprovalButton) {
+					$('#btnApprove').val(approvalStatus.buttonText || 'Approve');
+					$('#btnApprove').show();
+				} else {
+					$('#btnApprove').hide();
+				}
+				$('#approvalRequired').show();
+			} else if (approvalStatus.showViewOnly) {
+				$('#viewOnlyStatusMessage').html(approvalStatus.message);
+				$('#approvalViewOnly').show();
+			}
+
+		} catch (error) {
+			console.error("APPROVAL: Error checking approval status:", error);
+			$('#approvalLoading').hide();
+			$('#approvalViewOnly').show();
+			$('#viewOnlyStatusMessage').html('Error loading approval status. Please refresh the page.');
+		}
+	}
+
+	document.addEventListener("LVGlobalDOCReady", onPageLoad);
+	
+	// DEBUG FUNCTION: Manual approval record verification
+	window.debugCheckApprovalRecords = async function() {
+		try {
+			console.log('=== MANUAL APPROVAL CHECK DEBUG ===');
+			console.log('Current officer code:', window.PAGE_LOCODE_BEINGVIEWED);
+			console.log('Current period:', window.PAGE_UISelPeriodNo);
+			
+			// Check with exact same query as individual check
+			const individualQuery = `$filter=lv_loanofficercode eq '${window.PAGE_LOCODE_BEINGVIEWED}' and lv_periodno eq ${window.PAGE_UISelPeriodNo}`;
+			console.log('Individual query:', individualQuery);
+			const individualResult = await apiGetRecord("lv_lvcompcommissionapprovals", individualQuery);
+			console.log('Individual query result:', individualResult);
+			
+			// FALLBACK: Try using loan officer ID if code is empty (debug the data mismatch)
+			if (!window.PAGE_LOCODE_BEINGVIEWED || window.PAGE_LOCODE_BEINGVIEWED === '') {
+				console.log('🔍 FALLBACK: Officer code is empty, trying ID-based query');
+				const idQuery = `$filter=lv_loanofficerid eq '${window.PAGE_LOID_BEINGVIEWED}' and lv_periodno eq ${window.PAGE_UISelPeriodNo}`;
+				console.log('ID-based query:', idQuery);
+				const idResult = await apiGetRecord("lv_lvcompcommissionapprovals", idQuery);
+				console.log('ID-based query result:', idResult);
+			}
+			
+			// Check with same query as bulk check
+			const bulkQuery = `$filter=lv_loanofficercode eq '${window.PAGE_LOCODE_BEINGVIEWED}' and lv_periodno eq ${window.PAGE_UISelPeriodNo}`;
+			console.log('Bulk query:', bulkQuery);
+			const bulkResult = await apiGetRecord("lv_lvcompcommissionapprovals", bulkQuery);
+			console.log('Bulk query result:', bulkResult);
+			
+			// Get ALL records for this period to see what exists
+			const allQuery = `$filter=lv_periodno eq ${window.PAGE_UISelPeriodNo}`;
+			console.log('All records query:', allQuery);
+			const allResults = await apiGetRecords("lv_lvcompcommissionapprovals", allQuery);
+			console.log('All approval records for period:', allResults);
+			
+		} catch (error) {
+			console.error('Debug check failed:', error);
+		}
+	};
+	
+	console.log('DEBUG: Added window.debugCheckApprovalRecords() function. Call it from console to test.');
+{% else %}
+	// Not using approvals
+{% endif %}
+
+{% comment %} Clear unwanted query parameters for simple loan officers while preserving safe ones {% endcomment %}
+{% if is_OnlyLoanOfficer == true %}
+// Clear query parameters for simple loan officers but preserve period and debug parameters
+if (window.location.search) {
+	const currentParams = new URLSearchParams(window.location.search);
+	const newParams = new URLSearchParams();
+	
+	// Preserve safe parameters
+	const safeParams = ['period', 'dbg'];
+	safeParams.forEach(param => {
+		if (currentParams.has(param)) {
+			newParams.set(param, currentParams.get(param));
+		}
+	});
+	
+	const newUrl = window.location.origin + window.location.pathname + 
+		(newParams.toString() ? '?' + newParams.toString() : '');
+	window.history.replaceState({}, document.title, newUrl);
+	
+	console.log('Cleaned URL for simple LO, preserved: ' + newParams.toString());
+}
+{% endif %}
+
+</script>
+
+<!-- Loan Officer Page -->
+
+
+<!-- Last modified Sat Aug 30 12:12PM -->
+<!-- Last modified Sun Aug 31 5:00PM -->
+<!-- Last modified Tue Sep 02 10:36AM -->
+<!-- Last modified Tue Sep 02 11:20AM -->
+<!-- Last modified Wed Oct 01 3:16PM -->
+<!-- Last modified Wed Oct 01 4:00PM -->
+<!-- Last modified Thu Oct 02 12:15PM -->
+<!-- Last modified Thu Oct 02 12:20PM -->
+<!-- Last modified Mon Oct 06 3:20PM -->
+<!-- Last modified Fri Oct 24 4:07PM -->

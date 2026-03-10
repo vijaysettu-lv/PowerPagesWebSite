@@ -1,0 +1,1480 @@
+<!-- Last modified Mon Nov 17 7:17PM -->
+<!-- Last modified Fri Oct 31 8:04AM -->
+<!-- Last modified Wed Oct 29 3:57PM -->
+
+
+{% comment %}  ~jsglobal ~global Footer.webtemplate.source.html {% endcomment %} 
+
+<footer role="contentinfo" class="footer">
+	<div class="footer-bottom d-print-none">
+	  <div class="container">
+		<div class="row">
+			<div class="col-lg-12 col-md-12 col-sm-12 text-start">
+				{% editable snippets 'Footer' type: 'html' %}
+			</div>
+		</div>
+	  </div>
+	</div>  
+</footer>
+
+{% comment %} Something to do with auth for web API {% endcomment %}
+{% comment %} PERFORMANCE: Added 'defer' to prevent blocking page load if CDN is slow/unreachable {% endcomment %}
+<script src="https://alcdn.msauth.net/browser/2.30.0/js/msal-browser.min.js" defer></script>
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script src="/LVGlobal.js" type="text/javascript"></script>
+
+{% comment %}     All of this is in the footer because I never could get a global.js to work. Ridiculous         {% endcomment %} 
+
+<script type="text/javascript">
+
+// #region CommPortal Specific
+
+function addLoanOfficerToolTip(version = "") {
+	const loName = "{{user.lv_loanofficer.name}}";
+	const tip = loName == null || loName.length <= 2 ? "No Officer" : loName;
+	const $eUserName = $("span.username:first");
+	$eUserName.attr('title', tip + version);
+}
+
+function addRolesToolTip() {
+	const $navbar = $('body > div.navbar-expand-xl.navbar.navbar-dark.static-top');
+  
+  if ($navbar.length) {
+    $('<span>')
+      .css({
+        position: 'absolute',
+        width: '10px',
+        height: '10px',
+        top: '10px',
+        right: '10px',
+        display: 'block',
+        cursor: 'default'
+      })
+      .attr('title', '! todo8 need roles here')
+      .appendTo($navbar.css('position', 'relative'));
+      
+    //console.log('special added');
+  } else {
+    console.error('Navbar not found!');
+  }}
+
+// MIGRATED TO LVGlobal.js: formatApprovalDate() and formatPersonalizedApprovalMessage()
+
+
+// #endregion CommPortal Specific
+
+// #region Init
+window.G_Verbose = true; // aabbcc
+
+// Initialize G_Tags based on query string parameter "tags" and localStorage "debugtags"
+window.G_Tags = (function() {
+	const urlParams = new URLSearchParams(window.location.search);
+	const tagsParam = urlParams.get('tags') || '';
+	
+	// Get debug tags from localStorage
+	const localStorageTags = localStorage.getItem('tags') || '';
+	
+	// Create set of debug tags from CSV parameter and localStorage
+	const tagSet = new Set();
+	
+	// Add tags from query string parameter
+	if (tagsParam.trim()) {
+		tagsParam.split(',').forEach(tag => {
+			const trimmedTag = tag.trim();
+			if (trimmedTag) {
+				tagSet.add(trimmedTag.toLowerCase());
+			}
+		});
+	}
+	
+	// Append tags from localStorage
+	if (localStorageTags.trim()) {
+		localStorageTags.split(',').forEach(tag => {
+			const trimmedTag = tag.trim();
+			if (trimmedTag) {
+				tagSet.add(trimmedTag.toLowerCase());
+			}
+		});
+	}
+	
+	return {
+		Has: function(tag) {
+			return tagSet.has(tag.toLowerCase());
+		},
+		List: function() {
+			return Array.from(tagSet);
+		},
+		Size: function() {
+			return tagSet.size;
+		}
+	};
+})();
+
+// Initialize Playwright automation flag - pages can set this to true when ready
+window.playwrightReady = false;
+
+let CSRF_TOKEN = 'set in js';
+const SPIN_CONT_ID = 'global-spinner-container';
+const SPIN_ELEM_ID = 'global-spinner-elem';
+
+if (typeof window.PAGE_USERID === 'undefined') {
+	console.log("Footer: setting globals because not defined")
+	window.PAGE_USERID = "{{user.id}}";
+	window.PAGE_USEREMAIL = "{{user.emailaddress1}}";
+	window.PAGE_USERNAME = "{{user.fullname}}";
+} else {	
+	console.log("Footer: NOT setting globals because ALREADY defined");
+}
+
+// Admin Recovery variables are now set by SetupQuery instead of Footer
+// This ensures they have access to the web roles query results
+
+// Log page visits when the DOM is ready
+document.addEventListener('DOMContentLoaded', async function() {
+	console.log("ENTER>> BASE DOMContent Loaded");
+
+	const response = await fetch('/_layout/tokenhtml');
+	const html = await response.text();
+	const parser = new DOMParser();
+	const doc = parser.parseFromString(html, 'text/html');
+	CSRF_TOKEN = doc.querySelector('input[name="__RequestVerificationToken"]').value;
+	
+	// hideNavLinks(); // Removed - navigation handled by Liquid templates
+
+	initPersistentControls();
+
+	// The timeout is not really necessary, but leaving it
+	setTimeout(function() {
+		//restoreSelectedPeriod();
+		//restoreSelectedBranch();
+		logPageVisit();
+		addRolesToolTip();
+		addLoanOfficerToolTip();
+	}, 3000);
+
+	// CRITICAL: Dispatch LVGlobalDOCReady after short delay to ensure:
+	// 1. DOM is fully loaded
+	// 2. CSRF token is available
+	// 3. All utility functions are defined (BeginsWith, Has, Is, etc.)
+	// 4. All inline page scripts have been parsed and listeners attached
+	setTimeout(function() {
+		document.dispatchEvent(new CustomEvent("LVGlobalDOCReady"));
+		console.log("FOOTER: LVGlobalDOCReady event dispatched - all functions loaded");
+	}, 100);
+
+	console.log("<<LEAVE BASE DOMContent Loaded");
+});
+
+function hideNavLinks() {
+    // Navigation visibility is now handled entirely by the Liquid templates in Header.webtemplate
+    // This ensures admin users see everything regardless of specific role assignments
+    // Removed the old JavaScript-based hiding logic that was conflicting with our Liquid template approach
+}
+
+function restoreSelectedPeriod() {
+	console.log("ENTER: restore selected period");
+
+	const periodSelect = document.getElementById('period-select');
+	
+	if (!periodSelect) {
+		console.log("LEAVE: restore selected period, periodSelect not found");
+		return;
+	}
+	
+	// Try to get the saved period from local storage
+	const savedPeriod = localStorage.getItem('selectedPeriod');
+	
+	// If no saved period, exit the function
+	if (!savedPeriod) {
+		console.log("LEAVE: restore selected period, nothing found in local storage");
+		return;
+	}
+	
+	// Check if there's an option with the saved value
+	const optionExists = Array.from(periodSelect.options).some(option => option.value === savedPeriod);
+	
+	// Only set the value if a matching option exists
+	if (optionExists) {
+		console.log("found value in local storage, and it DOES does exist.")
+		periodSelect.value = savedPeriod;
+		
+		// Optionally trigger a change event if needed
+		//const event = new Event('change');
+		//periodSelect.dispatchEvent(event);
+	} else {
+		console.log("found value in local storage, but does not exist.")
+	}
+}
+
+function restoreSelectedBranch() {
+	console.log("ENTER: restore selected branch");
+
+	const branchSelect = document.getElementById('branch-select');
+	
+	if (!branchSelect) {
+		console.log("LEAVE: restore selected branch, branchSelect not found");
+		return;
+	}
+	
+	// Try to get the saved period from local storage
+	const savedBranch = localStorage.getItem('selectedBranch');
+	
+	// If no saved branch, exit the function
+	if (!savedBranch) {
+		console.log("LEAVE: restore selected branch, nothing found in local storage");
+		return;
+	}
+	
+	// Check if there's an option with the saved value
+	const optionExists = Array.from(branchSelect.options).some(option => option.value === savedBranch);
+	
+	// Only set the value if a matching option exists
+	if (optionExists) {
+		console.log("found branch value in local storage, and it DOES does exist.")
+		branchSelect.value = savedBranch;
+		
+		// Optionally trigger a change event if needed
+		//const event = new Event('change');
+		//periodSelect.dispatchEvent(event);
+	} else {
+		console.log("found branch value in local storage, but does not exist.")
+	}
+}
+// #endregion Init
+
+// #region Logging
+
+// MIGRATED TO LVGlobal.js: getFirstPathSegment()
+
+function logPageVisit() {
+	try {
+		/*
+		const pageData = {
+			path: window.location.pathname,
+			userAgent: navigator.userAgent
+		};
+
+		if (window.Microsoft && window.Microsoft.Dynamic365 && window.Microsoft.Dynamic365.Portal &&
+			window.Microsoft.Dynamic365.Portal.User) {
+			pageData.userId = window.Microsoft.Dynamic365.Portal.User.contactId;
+			pageData.userName = window.Microsoft.Dynamic365.Portal.User.userName;
+		}
+		*/
+
+		// Get current user ID (set by Footer template from Liquid)
+		const currentUser = window.PAGE_USERID;
+		const sessionUser = sessionStorage.getItem('signin_user');
+
+		// If user is not authenticated, clear the session storage
+		if (!currentUser || currentUser === "" || currentUser === "undefined") {
+			sessionStorage.removeItem('signin_user');
+			sessionStorage.removeItem('signin_logged');
+			return; // Don't log anything for unauthenticated users
+		}
+
+		// Check if this is a new signin (user changed or first signin in this session)
+		if (currentUser !== sessionUser) {
+			// New user signin detected - log it with user agent information
+			const userAgentData = {
+				userAgent: navigator.userAgent,
+				platform: navigator.platform,
+				vendor: navigator.vendor
+			};
+			writeToLogTable('SignIn', window.location.pathname, '', '', '', '', userAgentData);
+
+			// Store this user as the current session user
+			sessionStorage.setItem('signin_user', currentUser);
+			sessionStorage.setItem('signin_logged', 'true');
+
+			console.log('SignIn detected - User: ' + currentUser + ' (previous: ' + (sessionUser || 'none') + ')');
+		}
+
+		// Always log the regular page visit
+		writeToLogTable('PageVisit', window.location.pathname + window.location.search);
+	} catch (error) {
+		console.error('Error logging page visit:', error);
+	}
+}
+
+async function logCount(kind = null, key1Name = null, key1Value = null, key2Name = null, key2Value = null) {
+	// Uggh: never could figure out how to get a simple count to work when using a filter,
+	// so I restored to this ridiculs approach of extracting the @odata.count value from a single returned record.
+	let filterParts = [];
+	
+	// Add each filter condition if the parameter is provided
+	if (kind !== null) {
+		filterParts.push(`lv_kind eq '${encodeURIComponent(kind)}'`);
+	}
+	
+	if (key1Name !== null) {
+		filterParts.push(`lv_key1name eq '${encodeURIComponent(key1Name)}'`);
+	}
+	
+	if (key1Value !== null) {
+		filterParts.push(`lv_key1value eq '${encodeURIComponent(key1Value)}'`);
+	}
+	
+	if (key2Name !== null) {
+		filterParts.push(`lv_key2name eq '${encodeURIComponent(key2Name)}'`);
+	}
+	
+	if (key2Value !== null) {
+		filterParts.push(`lv_key2value eq '${encodeURIComponent(key2Value)}'`);
+	}
+	
+	// Join filter parts with 'and'
+	const filterQuery = filterParts.length > 0 ? `$filter=${filterParts.join(' and ')}` : '';
+	
+	// Use $count=true and minimize data with $top=1
+	const apiUrl = `/_api/lv_logs?${filterQuery}${filterQuery ? '&' : ''}$count=true&$top=1`;
+
+	console.count("logCount: url=" + apiUrl);
+	
+	try {
+		const result = await apiCall(apiUrl, 'GET');
+		
+		if (result.success) {
+			// Extract count from @odata.count metadata
+			if (result.data && result.data["@odata.count"] !== undefined) {
+				return parseInt(result.data["@odata.count"], 10);
+			} else {
+				console.warn('Count metadata not found in response:', result);
+				return 0;
+			}
+		} else {
+			console.error('API call failed when counting logs:', result.message);
+			return 0;
+		}
+	} catch (error) {
+		console.error('Error counting log entries:', error);
+		return 0;
+	}
+}
+
+async function apiCount(apiUrl) { // expects a url that includes $count=true
+	if (!apiUrl.Has("count=true"))
+		throw "apiCount: expected a url with count=true todo8: autohandle whether it is there or not";
+	
+	try {
+		console.log("apiCount: url=" + apiUrl);
+		const result = await apiCall(apiUrl, 'GET');
+		
+		if (result.success) {
+			// Extract count from @odata.count metadata
+			if (result.data && result.data["@odata.count"] !== undefined) {
+				return parseInt(result.data["@odata.count"], 10);
+			} else {
+				console.warn('apiCount: Count metadata not found in response:', result);
+				return -1;
+			}
+		} else {
+			console.error('apiCount: API call failed when counting:', result.message);
+			return -2;
+		}
+	} catch (error) {
+		console.error('apiCount: Error counting:', error);
+		return -3;
+	}
+}
+
+async function logSelect(sname, oSel) { // Called from various dropdown choices: period selection, branch selection
+	writeToLogTable('Select:' + sname, oSel.text, "text", oSel.text, "value", oSel.value);
+}
+
+async function logWrite(logKind, logDetail, k1name = "", k1val = "", k2name = "", k2val = "", logData=null, waitForCompletion = false) {
+	writeToLogTable(logKind, logDetail, k1name, k1val, k2name, k2val, logData, waitForCompletion);
+}
+
+async function writeToLogTable(logKind, logDetail, k1name = "", k1val = "", k2name = "", k2val = "", logData=null, waitForCompletion = false) { // by default is async
+	// Example of how to await
+	//    const result = await writeToLogTable("ERROR", "Something critical", null, true);
+	//    if (result.success)
+	//       console.log('no problem');
+	//    else {
+	//       console.error(whatever)
+	//       do whatever you need to do
+	//    }
+
+	var postData = {
+		lv_kind: logKind,
+		lv_detail: logDetail,
+		lv_userid: "{{ user.id }}",
+		lv_userfullname: "{{ user.fullname }}",
+		lv_key1name: k1name,
+		lv_key1value: k1val,
+		lv_key2name: k2name,
+		lv_key2value: k2val
+	};
+
+	if (HasValue(logData)) {
+		if (typeof logData === 'object') {
+			postData.lv_memo = JSON.stringify(logData);
+		} else {
+			postData.lv_memo = logData;
+		}
+	}
+
+	const sbody = JSON.stringify(postData);
+
+	dbglog('writeToLogTable: logKind=' + logKind + '; logDetail=' + logDetail + '; csrf=' + CSRF_TOKEN.substring(0,5) + '; sbody=' + sbody);
+
+	const fetchPromise = fetch('/_api/lv_logs', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'__RequestVerificationToken': CSRF_TOKEN
+		},
+		body: sbody
+	})
+	.then(async response => {
+		if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Error response ${response.status}:`, errorText);
+            return Promise.reject({ handled: true, status: response.status, text: errorText });
+		}
+		return response.status === 204 ? {} : response.json();
+	})
+	.then(data => {
+		//console.log('Log entry created:', data);
+		console.log("wtlt");
+		return { success: true, data: data };
+	})
+	.catch(error => {
+		// Only log if we haven't already handled it
+		if (!error.handled) {
+			console.log('Error logging entry (rjid=2503140957b)');
+		}
+		return { success: false, error: error.handled ? 'Request failed' : error.message };
+	});
+
+	// If caller wants to wait for completion, return the promise
+	if (waitForCompletion) {
+		return fetchPromise;
+	}
+	
+	// Otherwise, fire and forget
+	return { success: true, message: "Log operation started" };
+}
+
+// #endregion Logging
+
+// #region Email
+async function sendEmail(kind, subject, body, to = "", loanOfficerId = "", periodCode = "", loanNo = "", verbose = false, periodNo = -1) {
+	console.log(`ENTER: sendEmail: kind=${kind}; subject=${subject}; body=${body}; to=${to}; loanOfficerId=${loanOfficerId}; periodCode=${periodCode}; loanNo=${loanNo}`);
+
+	const oPostEmailLog = {
+		"lv_kind": kind,
+		"lv_subject": subject,
+		"lv_Contact@odata.bind": `/contacts(${window.PAGE_USERID})`,
+	};
+
+	if (HasValue(loanOfficerId))
+		oPostEmailLog["lv_LoanOfficer@odata.bind"] = `/lv_lvcomploanofficers(${loanOfficerId})`;
+
+	if (HasValue(periodCode))
+		oPostEmailLog["lv_periodcode"] = periodCode;
+
+	if (periodNo > -1)
+		oPostEmailLog["lv_periodno"] = periodNo;
+
+	// Fails if not string
+	loanNo = String(loanNo);
+	if (HasValue(loanNo))
+		oPostEmailLog["lv_loanno"] = loanNo;
+
+	await apiCall("/_api/lv_lvcompemaillogs", "POST", oPostEmailLog, verbose);
+}
+
+// #endregion Email
+
+// #region Dialogs
+function askQuestion(qText, btn1Text = "OK", btn2Text = "Cancel") {
+    return new Promise((resolve) => {
+        const modalId = 'customModal_' + Math.random().toString(36).substr(2, 9);
+        
+		const modalHTML = `
+			<div class="modal fade" id="${modalId}" tabindex="-1" role="dialog" aria-labelledby="${modalId}Label" aria-hidden="true">
+				<div class="modal-dialog modal-dialog-centered" role="document">
+					<div class="modal-content">
+						<div class="modal-body">
+							${qText}
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-secondary" id="${modalId}-btn2">${btn2Text}</button>
+							<button type="button" class="btn btn-primary" id="${modalId}-btn1">${btn1Text}</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		`;        
+ 
+		$('body').append(modalHTML);
+        
+        const $modal = $(`#${modalId}`);
+        const $btn1 = $(`#${modalId}-btn1`);
+        const $btn2 = $(`#${modalId}-btn2`);
+        
+        $btn1.on('click', function() {
+            $modal.modal('hide');
+            resolve(btn1Text);
+        });
+        
+        $btn2.on('click', function() {
+            $modal.modal('hide');
+            resolve(btn2Text);
+        });
+        
+        $modal.on('hidden.bs.modal', function() {
+            $modal.remove();
+        });
+        
+        // Show it
+        $modal.modal({
+            backdrop: 'static',  // Prevents closing when clicking outside
+            keyboard: false      // Prevents closing with keyboard
+        });
+        $modal.modal('show');
+    });
+}
+
+// Helper function for easier synchronous-like usage
+askQuestion.confirm = async function(message) {
+    const result = await askQuestion(message, "Yes", "No");
+    return result === "Yes";
+};
+
+// HowTo: use helper
+/*
+async function deleteRecord() {
+    if (await askQuestion.confirm("Are you sure you want to delete this record?")) {
+        // User confirmed, proceed with deletion
+        console.log("Deleting record...");
+    } else {
+        // User canceled
+        console.log("Operation canceled");
+    }
+}
+*/
+
+// #endregion Dialogs
+
+// #region ~Spinner
+function spinInit() {
+	if (document.getElementById(SPIN_CONT_ID))
+		return;
+
+	const spinCont = document.createElement('div');
+	spinCont.id = SPIN_CONT_ID;
+	spinCont.style.position = 'fixed';
+	spinCont.style.top = '50%';
+	spinCont.style.left = '50%';
+	spinCont.style.transform = 'translate(-50%, -50%)';
+
+	// spinCont.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'; uncomment to darken entire screen. Actually cannot just uncomment, will need other changes related to sizing. But this will be a start
+
+	spinCont.style.display = 'none'; // Hidden by default
+	spinCont.style.justifyContent = 'center';
+	spinCont.style.alignItems = 'center';
+	spinCont.style.zIndex = '10001'; // Higher than other modals
+
+	const spin = document.createElement('div');
+	spin.id = SPIN_ELEM_ID;
+	spin.style.border = '5px solid #f3f3f3';
+	spin.style.borderTop = '5px solid #3498db';
+	spin.style.borderRadius = '50%';
+	spin.style.width = '50px';
+	spin.style.height = '50px';
+	spin.style.animation = 'spin 2s linear infinite';
+
+	// Add a small white background circle behind the spinner for better visibility
+	spin.style.backgroundColor = '#ffffff';
+	spin.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.1)';
+	spin.style.padding = '10px';
+
+	// Add animation style
+	const styleElement = document.createElement('style');
+	styleElement.textContent = `
+		@keyframes spin {
+		0% { transform: rotate(0deg); }
+		100% { transform: rotate(360deg); }
+	}
+	`;
+	document.head.appendChild(styleElement);
+
+	spinCont.appendChild(spin);
+
+	document.body.appendChild(spinCont);
+}
+
+function spinShow(state) {
+	// If spin container doesn't exist yet, create it
+	if (!document.getElementById(SPIN_CONT_ID))
+		spinInit();
+
+	const spinCont = document.getElementById(SPIN_CONT_ID);
+
+	// If state is explicitly provided (true or false)
+	if (state === true) {
+		spinCont.style.display = 'flex'; // Force visible
+	} else if (state === false) {
+		spinCont.style.display = 'none'; // Force hidden
+	} else {
+		// Toggle current state if no state parameter is provided
+		spinCont.style.display = 
+			spinCont.style.display === 'none' || 
+			spinCont.style.display === '' ? 'flex' : 'none';
+	}
+}
+
+// #endregion Spinner
+
+// #region API and Auth
+function handleMsalRedirect() { // For API calls
+  // Do we have a redirect response we need to handle?
+  msalInstance.handleRedirectPromise()
+    .then(response => {
+      if (response) {
+        console.log("handleMsalRedirect: Handled redirect response", response);
+      }
+    })
+    .catch(error => {
+      console.error("handleMsalRedirect: Error handling redirect:", error);
+    });
+}
+
+function getRedirectUri() {
+    const currentUrl = window.location.href;
+    
+    if (currentUrl.includes('localhost') || currentUrl.includes('127.0.0.1'))
+        return 'http://localhost:5500';
+
+	if (currentUrl.includes('commportaltest.powerappsportals.com'))
+        return 'https://commportaltest.powerappsportals.com';
+
+    console.warn('Unknown environment, using current origin as redirect URI');
+	return window.location.origin;
+}
+
+const msalConfig = {
+	auth: {
+		clientId: 'faec3f79-f37f-4f50-b93a-9926ca206c53',
+		authority: 'https://login.microsoftonline.com/1598698c-cbd2-4d4a-94f0-0b4b2b701763',
+		redirectUri: getRedirectUri()
+	},
+	cache: {
+		cacheLocation: "localStorage",
+		storeAuthStateInCookie: true
+	}
+};
+
+// Initialize MSAL
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+function checkAccount() { // At page load, do we already have cached accounts?
+	const currentAccounts = msalInstance.getAllAccounts();
+	if (currentAccounts.length > 0) {
+		console.log("checkAccount: User is already signed in");
+		return currentAccounts[0];
+	} else {
+		console.log("checkAccount: no existing account found");
+		return null;
+	}
+}
+
+async function getToken() {
+    try {
+		let account = checkAccount();
+
+        const tokenRequest = {
+            scopes: ["https://api.businesscentral.dynamics.com/.default"]
+        };
+        
+		if (account)
+			tokenRequest.account = account;
+
+        try {
+            const response = await msalInstance.acquireTokenSilent(tokenRequest);
+			console.log("getToken: got it silently");
+            return response.accessToken;
+        } catch (error) {
+            console.log("getToken: silent acquisition did not work, presenting auth dialog to user");
+            const response = await msalInstance.acquireTokenPopup(tokenRequest);
+            return response.accessToken;
+        }
+    } catch (error) {
+        console.error("getToken(): Authentication failed:", error);
+    }
+}
+
+function getAntiForgerySafely() {
+	const tokenElement = document.querySelector('#tokenForm input[name="__RequestVerificationToken"]');
+	if (tokenElement) {
+		return tokenElement.value;
+	} else {
+		console.error("Anti-forgery token not found on page");
+		return null;
+	}
+}
+
+/**
+ * Obtains an OAuth token using client credentials flow
+ * Similar to the C# ClientSecretCredential implementation
+ * @param {string} clientId - The client ID
+ * @param {string} clientSecret - The client secret
+ * @param {string} tenantId - Optional tenant ID (if not provided, will use 'common')
+ * @returns {Promise<string>} - A promise that resolves to the access token
+ */
+ async function getOAuthToken(clientId, clientSecret, tenantId = "common") { // deprecated now that using MSAL?
+  console.log(`Requesting token for ClientId=${clientId}`);
+  
+  // The token endpoint (Azure AD token endpoint)
+  const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+  
+  // Create the form data for the token request - note that the C# code uses Azure.Identity's ClientSecretCredential
+  // which handles the OAuth flow details internally, but we need to specify them explicitly in JS
+  const formData = new URLSearchParams();
+  formData.append("grant_type", "client_credentials");
+  formData.append("client_id", clientId);
+  formData.append("client_secret", clientSecret);
+  formData.append("scope", "https://api.businesscentral.dynamics.com/.default");
+  
+  // Make the token request
+  const response = await fetch(tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: formData
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to get OAuth token: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+  
+  const data = await response.json();
+  
+  if (!data.access_token) {
+    throw new Error("No access token received in response");
+  }
+  
+  console.log(`Token received. First 10 chars: ${data.access_token.substring(0, 10)}`);
+  return data.access_token;
+}
+
+function parseHeaders(headersText, method) {
+	const headerLines = headersText.split('\n');
+	const headers = {};
+
+	headerLines.forEach(line => {
+		if (line.trim()) {
+			const parts = line.split('|');
+			if (parts.length === 2) {
+				const key = parts[0].trim();
+				const value = parts[1].trim();
+				headers[key] = value;
+			}
+		}
+	});
+
+	if (method == "GET") {
+		console.log('parseHeaders: not adding token cuz GET');
+	} else {
+		headers["__RequestVerificationToken"] = CSRF_TOKEN;
+	}
+
+	return headers;
+}
+
+async function apiGetRecords(tableNamePlural, filterExpr = "", topN = 0) { // returns array of record object
+	// 	const url = `/_api/lv_lvcompcommissionapprovals?$filter=lv_loanofficercode eq '${window.PAGE_LOID_BEINGVIEWED}' and lv_periodcode eq '${perCode}'&$count=true&$top=1`;
+
+	{% comment %}     // By design, we are NOT verifying that the filter would actually only return one row. Why? I dunno. Don't wannt mess with it?    {% endcomment %}
+
+	if (HasValue(filterExpr)) {
+		// Using native startsWith() instead of custom BeginsWith() to avoid timing issues
+		// NOTE: startsWith is case-sensitive (unlike BeginsWith which was case-insensitive)
+		if (!filterExpr.startsWith("$") && !filterExpr.startsWith("filter")) {
+			filterExpr = "$filter=" + filterExpr
+		}
+	}
+
+	{% comment %}
+	Error:  https://commportaltest.powerappsportals.com/_api/lv_lvcompbranchs?&$count=true&$top=1
+	GOOD:   https://commportaltest.powerappsportals.com/_api/lv_lvcompbranchs?$count=true&$top=1	
+	{% endcomment %} 
+
+	const topExpr = topN > 0 ? "&$top=" + topN : "";
+
+	let url = `/_api/${tableNamePlural}?${filterExpr}&$count=true${topExpr}`;
+	
+	//console.log("apiGetRecordS: url 1 =" + url);
+
+	url = url.replace("?&", "?");
+
+	console.log("apiGetRecordS: url 2 =" + url);
+
+	const oResp = await apiCall(url , "GET");
+
+	//console.log("----------- apiGetRecords: stringify");
+	//console.log(JSON.stringify(oResp, null, 3));
+
+	return oResp.data.value; // is an array
+}
+
+async function apiGetRecord(tableNamePlural, filterExpr) { // returns an object for a single record { "colName1": "colValue1", "colName2": "colVal2", ...}
+
+	{% comment %}     // By design, we are NOT verifying that the filter would actually only return one row. Why? I dunno. Don't wannt mess with it?    {% endcomment %} 
+
+	let retObj = {};
+	
+	console.log("apiGetRecord: it calls apiGetRecords with top=1")
+	const arrRecs = await apiGetRecords(tableNamePlural, filterExpr);
+	
+	if (HasValue(arrRecs) && arrRecs.length > 0)
+		retObj = arrRecs[0];
+
+	return retObj;
+}
+
+async function apiGetColumnStringArray(tableNamePlural, columnName, filterExpr) { // returns array of string
+	let retArr = [];
+
+	const arrRecs = await apiGetRecords(tableNamePlural, filterExpr)
+
+	if (HasValue(arrRecs) && arrRecs.length > 0) {
+		for (let i = 0; i < arrRecs.length; i++) {
+			const record = arrRecs[i];
+
+			if (record && record[columnName] !== undefined) {
+				retArr.push(String(record[columnName]));
+			}
+		}
+	}
+
+	return retArr;
+}
+
+async function apiGetColumnStringScalar(tableNamePlural, columnName, filterExpr) { // returns a single string
+	let ret = null;
+
+	const colArray = await apiGetColumnStringArray(tableNamePlural, columnName, filterExpr);
+
+	if (HasValue(colArray) && colArray.length > 0)
+		ret = colArray[0];
+
+	return ret;
+}
+
+async function apiCall(apiUrl, method, postData = "", verbose = false, headersText = "", clientId = "", clientSecret = "", tenantId = "common") {
+    // Used only in devtools debugging
+    if (typeof G_Verbose !== 'undefined') {
+        verbose = G_Verbose;
+    }
+
+	function log(any) {
+		if (verbose)
+			console.log(any);
+	}
+
+	console.log("ENTER: apiCall. apiUrl=" + apiUrl + "; method=" + method + (clientId ? "; Using OAuth authentication" : ""));
+	
+	if (method === 'PATCH' && (apiUrl.includes('contacts') || verbose)) {
+		console.log('🔍 CONTACT UPDATE DEBUG - apiCall entry');
+		console.log('🔍 Full apiUrl:', apiUrl);
+		console.log('🔍 Method:', method);
+		console.log('🔍 PostData type:', typeof postData);
+		console.log('🔍 PostData value:', postData);
+		console.log('🔍 Verbose mode:', verbose);
+		console.log('🔍 Environment check:', {
+			location: window.location.href,
+			userAgent: navigator.userAgent.substring(0, 100),
+			timestamp: new Date().toISOString()
+		});
+	}
+	
+	if (method === 'POST' && (apiUrl.includes('flow') || (postData && postData.action && (postData.action === 'add' || postData.action === 'remove')))) {
+		console.log('🔍 WEB ROLE FLOW DEBUG - apiCall entry');
+		console.log('🔍 Flow URL:', apiUrl);
+		console.log('🔍 Flow action:', postData.action, 'Contact ID:', postData.contactId, 'Role ID:', postData.roleId);
+		console.log('🔍 Full POST data:', postData);
+	}
+
+	apiUrl = normalizeUrl(apiUrl);
+
+    const headers = parseHeaders(method, headersText);
+
+    const timestamp = new Date().toISOString();
+
+    let requestInfo = `API Call at ${timestamp}\n`;
+
+    const options = {
+        method: method,
+        headers: headers
+    };
+
+    if (method !== 'GET' && postData) {
+		console.log("postData=" + JSON.stringify(postData));
+
+        // Handle different postData types
+        if (typeof postData === 'string') {
+            // Only add body if the string is not empty
+            if (postData.trim()) {
+                options.body = postData;
+            }
+        } else if (typeof postData === 'object') {
+            // Handle objects by converting to JSON string
+            options.body = JSON.stringify(postData);
+            // Ensure content-type is application/json if not already set
+            if (!options.headers['Content-Type'] && !options.headers['content-type']) {
+                options.headers['Content-Type'] = 'application/json';
+            }
+        }
+    }
+
+    // Handle Business Central APIs with MSAL authentication
+    if (apiUrl.includes('businesscentral.dynamics.com')) {
+        try {
+            const token = await getToken();
+
+            if (token) {
+                options.headers['Authorization'] = `Bearer ${token}`;
+                
+				requestInfo += `Authentication: Using MSAL (token first 10 chars: ${token.substring(0, 10)}...)\n`;
+            }
+            options.headers['OData-MaxVersion'] = '4.0';
+            options.headers['OData-Version'] = '4.0';
+            options.headers['If-None-Match'] = '*';
+            options.headers['Prefer'] = 'odata.include-annotations="*"';
+        } catch (authError) {
+            return {
+                success: false,
+                status: "auth_error",
+                message: `Authentication Error: ${authError.message}`,
+                data: null,
+                requestInfo: requestInfo,
+                timestamp: timestamp
+            };
+        }
+    }
+
+	requestInfo += `URL: ${apiUrl}\n`;
+	requestInfo += `Method: ${method}\n`;
+	requestInfo += `Headers:\n${JSON.stringify(options.headers, null, 2)}\n`;
+
+	// Add body information to requestInfo if it exists
+	if (options.body) {
+		requestInfo += `Body:\n${options.body}\n`;
+	}
+
+    let responseObj = {
+        success: false,
+        status: "",
+        message: "",
+        data: null,
+        requestInfo: requestInfo,
+        timestamp: timestamp
+    };
+
+    try {
+		//log("postData as object:");
+		//log(postData);
+		log("postData as stringify:");
+		log(JSON.stringify(postData));
+		//log("headers as object")
+		//log(options.headers);
+		log("headers as stringify")
+		log(JSON.stringify(options.headers));
+
+        const response = await fetch(apiUrl, options); // <--------- ACTUAL WORK
+        
+        if (method === 'PATCH' && (apiUrl.includes('contacts') || verbose)) {
+            console.log('🔍 CONTACT UPDATE DEBUG - fetch response received');
+            console.log('🔍 Response status:', response.status, 'statusText:', response.statusText, 'ok:', response.ok);
+            console.log('🔍 Response headers:', Object.fromEntries(response.headers.entries()));
+        }
+        
+		const text = await response.text();
+        
+        if (method === 'PATCH' && (apiUrl.includes('contacts') || verbose)) {
+            console.log('🔍 CONTACT UPDATE DEBUG - response text received');
+            console.log('🔍 Response text length:', text.length);
+            console.log('🔍 Response text preview:', text.substring(0, 200));
+        }
+        
+        // Add HTTP status information
+        responseObj.status = response.status;
+        responseObj.statusText = response.statusText;
+        
+        // If response was successful, save this URL in history
+        if (response.ok) {
+            // For POST, pass the actual postData. For GET, leave it null
+            responseObj.success = true;
+            
+                if (method === 'PATCH' && (apiUrl.includes('contacts') || verbose)) {
+                console.log('🔍 CONTACT UPDATE DEBUG - SUCCESS response');
+                console.log('✅ Contact update appears successful');
+            }
+            
+            if (method === 'POST' && (apiUrl.includes('flow') || (postData && postData.action && (postData.action === 'add' || postData.action === 'remove')))) {
+                console.log('🔍 WEB ROLE FLOW DEBUG - SUCCESS response');
+                console.log('✅ Web role flow call appears successful');
+                console.log('✅ Action completed:', postData.action, 'for role:', postData.roleId);
+            }
+        } else {
+                if (method === 'PATCH' && (apiUrl.includes('contacts') || verbose)) {
+                console.log('🔍 CONTACT UPDATE DEBUG - FAILED response');
+                console.error('❌ Contact update failed with status:', response.status, response.statusText);
+            }
+            
+            if (method === 'POST' && (apiUrl.includes('flow') || (postData && postData.action && (postData.action === 'add' || postData.action === 'remove')))) {
+                console.log('🔍 WEB ROLE FLOW DEBUG - FAILED response');
+                console.error('❌ Web role flow call failed with status:', response.status, response.statusText);
+                console.error('❌ Failed action:', postData.action, 'for role:', postData.roleId);
+            }
+        }
+
+        try {
+            // Try to parse as JSON
+            const json = JSON.parse(text);
+            responseObj.data = json;
+            responseObj.message = "JSON response received";
+        } catch (e) {
+            // If not JSON, store the raw text in a structured way
+            responseObj.data = { rawText: text };
+            responseObj.message = "Non-JSON response received and wrapped";
+        }
+
+        log(JSON.stringify(responseObj, null, 2));
+    } catch (error) {
+        responseObj.status = "fetch_error";
+        responseObj.message = `Network Error: ${error.message}`;
+        console.error(responseObj.message);
+        
+        if (method === 'PATCH' && apiUrl.includes('contacts')) {
+            console.error('🔍 CONTACT UPDATE DEBUG - NETWORK ERROR');
+            console.error('❌ Contact update network error:', error);
+            console.error('❌ Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+        }
+        
+        if (method === 'POST' && (apiUrl.includes('flow') || (postData && postData.action))) {
+            console.error('🔍 WEB ROLE FLOW DEBUG - NETWORK ERROR');
+            console.error('❌ Web role flow network error:', error);
+            console.error('❌ Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                action: postData.action,
+                roleId: postData.roleId
+            });
+        }
+    } finally {
+        log("---");
+    }
+
+    return responseObj;
+}
+
+// #endregion API and Auth
+
+// #region Utility
+
+// #region JQuery and Bootstrap (so we can test a page without deploying)
+function loadScript(url, callback) { // Load a script dynamically, used for local dev to load jQuery
+	const script = document.createElement('script');
+	script.src = url;
+	script.onload = callback;
+	document.head.appendChild(script);
+}
+
+function loadStylesheet(url) { // Load stylesheet dynamically, used for local dev to load bootstrap
+	const link = document.createElement('link');
+	link.rel = 'stylesheet';
+	link.href = url;
+	document.head.appendChild(link);
+}
+
+// Return a promise from loadJqueryAndBootstrap
+function loadJqueryAndBootstrap() {
+    return new Promise((resolve) => {
+        if (typeof jQuery === 'undefined') {
+            console.log('jQuery not detected, loading from CDN');
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js', function() {
+                console.log('jQuery loaded successfully');
+                checkAndLoadBootstrap(resolve);
+            });
+        } else {
+            console.log('jQuery already available');
+            checkAndLoadBootstrap(resolve);
+        }
+    });
+}
+
+// Pass the resolve function to checkAndLoadBootstrap
+function checkAndLoadBootstrap(resolve) {
+    if (typeof bootstrap === 'undefined') {
+        console.log('Bootstrap not detected, loading from CDN');
+        
+        // Load Bootstrap CSS
+        loadStylesheet('https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css');
+        
+        // Load Bootstrap JS (which requires jQuery)
+        loadScript('https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js', function() {
+            console.log('Bootstrap loaded successfully');
+            resolve(); // Resolve the promise when Bootstrap is loaded
+        });
+    } else {
+        console.log('Bootstrap already available');
+        resolve(); // Resolve the promise immediately if Bootstrap is already available
+    }
+}
+// #endregion
+
+// #region String - MIGRATED TO LVGlobal.js
+// MIGRATED: normalizeUrl(), String.prototype extensions (After, BeginsWith, Has, Is, IsNot, IsEmpty, HasValue)
+// #endregion String
+
+// #region Date and Time - MIGRATED TO LVGlobal.js
+// MIGRATED: DateUtcToLocalString(), daysAgo(), formatApprovalDate(), formatPersonalizedApprovalMessage()
+
+/**
+ * Returns a relative time description at the minute level for a target date compared to a reference date
+ * See daysAgo for a more granular (day level) version
+ * @param {string|Date} targetDate - The date to compare
+ * @param {string|Date|null} referenceDate - The reference date (defaults to current time)
+ * @returns {string} - "just now", "X mins ago", "X hours ago", "yesterday", or "X days ago"
+ */
+function minutesAgo(targetDate, referenceDate = null) {
+    // Convert inputs to Date objects if they aren't already
+    const target = new Date(targetDate);
+    const reference = referenceDate ? new Date(referenceDate) : new Date();
+    
+    // Calculate the difference in milliseconds
+    const diffMs = reference - target;
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMinutes < 1) {
+        return "just now";
+    } else if (diffMinutes < 60) {
+        return `${diffMinutes} mins ago`;
+    } else if (diffHours < 24) {
+        return `${diffHours} hours ago`;
+    } else if (diffDays === 1) {
+        return "yesterday";
+    } else if (diffDays > 1) {
+        return `${diffDays} days ago`;
+    } else {
+        // Future date
+        return "just now";
+    }
+}
+
+// #endregion Date and Time
+
+// MIGRATED TO LVGlobal.js: HasValue(), IsEmpty(), Plural()
+
+// #endregion String
+
+// #region Controls
+function isChecked(checkboxId) {
+	const selector = checkboxId.BeginsWith("#") ? checkBoxId : "#" + checkboxId;
+
+	return $(selector).is(":checked");
+}
+
+// #region select element
+
+/**
+ * Gets the selected option's value and text from a select element
+ * @param {string} id - The ID of the select element (with or without "#")
+ * @returns {Object} An object containing the value and text of the selected option
+ */
+ function getSelectSelected(id) {
+  try {
+    const selectId = id.startsWith("#") ? id : `#${id}`;
+    
+    const eSel = document.querySelector(selectId);
+    
+    // Check if the element exists and is a select element
+    if (!eSel || eSel.tagName !== 'SELECT') {
+      throw new Error(`Element with ID ${id} is not a valid select element`);
+    }
+    
+    // Get the selected option
+    const opt = eSel.options[eSel.selectedIndex];
+    
+    // Check if we have a valid selected option
+    if (!opt) {
+      throw new Error(`No option selected in select element with ID ${id}`);
+    }
+    
+    return {
+      value: String(opt.value),
+      text: String(opt.textContent)
+    };
+  } catch (error) {
+    console.error(`Error getting selected option for ${id}:`, error);
+    
+    // Return error values
+    return {
+      value: "error",
+      text: "error"
+    };
+  }
+}
+
+// #endregion select element
+
+function initPersistentControls() {
+	// Class to identify form elements that should be persisted to local storage, meaning their values will be restored on form reload
+	const PERSIST_CLASS = 'rj-persist';
+	
+	// Load saved values when page loads
+	$('.' + PERSIST_CLASS).each(function() {
+		const elemId = $(this).attr('id');
+		if (!elemId) {
+			const outerHtml = $(this).prop('outerHTML');
+    		console.warn("Element has class " + PERSIST_CLASS + ", but has no id. outerHTML=", outerHtml.length > 100 ? outerHtml.substring(0, 100) + '...' : outerHtml);
+			return;
+		}
+		
+		restoreElementValue(elemId);
+	});
+	
+	// Save values when changed
+	$(document).on('change input', '.' + PERSIST_CLASS, function() {
+		const elemId = $(this).attr('id');
+		if (!elemId) return;
+		
+		const elemType = $(this).attr('type') || this.tagName.toLowerCase();
+		let valueToStore;
+		
+		switch(elemType) {
+			case 'checkbox':
+				valueToStore = $(this).prop('checked');
+				break;
+			case 'radio':
+				// Only save radio value when checked
+				if (!$(this).prop('checked')) return;
+				valueToStore = $(this).val();
+				break;
+			case 'select':
+				valueToStore = $(this).val();
+				console.log(valueToStore + " tag=3151017a"); // for example, useful for a dropdown of contactid, so as to be able to copy it
+				break;
+			case 'select':
+				valueToStore = $(this).val();
+				console.log(valueToStore + " tag=3151017b"); // for example, useful for a dropdown of contactid, so as to be able to copy it
+				break;
+			default:
+				valueToStore = $(this).val();
+				break;
+		}
+		
+		localStorage.setItem('input_' + elemId, valueToStore);
+	});
+} // initPersistentControls
+
+function restoreElementValue(elemId, debug = false) {
+    const $elem = $('#' + elemId);
+
+	if (debug)
+		console.log("ENTER: restoreElementValue: elemId=" + elemId);
+
+    if (!$elem.length) {
+        console.warn(`Element with id ${elemId} not found`);
+        return false;
+    }
+    
+    const savedValue = localStorage.getItem('input_' + elemId);
+
+    if (savedValue === null) {		
+		if (debug)
+			console.log("restoreElementValue: leaving early cuz savedValue as retrieved from localStorage is null");
+
+		return false;
+	}
+    
+    const elemType = $elem.attr('type') || $elem[0].tagName.toLowerCase();
+    
+    switch(elemType) {
+        case 'checkbox':
+            $elem.prop('checked', savedValue === 'true');
+
+			if (debug)
+				console.log("restoreElementValue: called $elem.prop('checked') with " + savedValue);
+
+            break;
+        case 'radio':
+            if ($elem.val() === savedValue) {
+                $elem.prop('checked', true);
+
+				if (debug)
+					console.log("restoreElementValue: radio: DID get set to checked, because elem.val === savedValue, where savedValue=" + savedValue);
+            } else {
+				if (debug)
+					console.log("restoreElementValue: radio: did NOT set, because it is not true the elem.val === savedValue, where savedValue=" + savedValue);
+			}
+            break;
+        case 'select':
+        case 'textarea':
+        case 'text':
+        case 'number':
+        case 'email':
+        case 'password':
+        case 'tel':
+        case 'url':
+        case 'date':
+        case 'time':
+        case 'color':
+        default:
+            $elem.val(savedValue);
+
+			if (debug)
+				console.log("restoreElementValue: we did call $elem.val(savedValue), where savedValue=" + savedValue);
+
+            break;
+    }
+}
+
+// #endregion Controls
+
+// #region Misc / Uncat
+// Helper function to check if debug tags should trigger logging
+function shouldDebugLog(tags) {
+	if (!tags || tags.trim() === "")
+		return false;
+
+	// Split CSV tags and trim whitespace from each token
+	const tokens = tags.split(',').map(token => token.trim()).filter(token => token !== "");
+	
+	// Check if any token matches G_Tags or if "all" is present
+	// G_Tags can be set from query string parameter -OR- localStorage key 'tags' - see IIFE in global javascript, currently in Footer
+	return tokens.some(token => window.G_Tags.Has(token)) || window.G_Tags.Has("all");
+}
+
+function dbglog(msg, tags = "") {
+	if (shouldDebugLog(tags)) {
+		console.log(msg);
+	}
+}
+
+function dbgerr(msg, tags = "") {
+	if (shouldDebugLog(tags)) {
+		console.error(msg);
+	}
+}
+
+function dbgwarn(msg, tags = "") {
+	if (shouldDebugLog(tags)) {
+		console.warn(msg);
+	}
+}
+
+/**
+ * Extracts properties from an object that match a given regex pattern.
+ * 
+ * Typical use case: suppose you query Dataverse and have a record. But you only want the lv_
+ * columns
+ * 
+ * If no pattern is provided, returns a copy of the original object.
+ * 
+ * @param {Object} obj - The source object to extract properties from
+ * @param {string|RegExp} [pattern] - Optional regex pattern to match property names
+ * @returns {Object} A new object containing the matching properties (or all properties if no pattern)
+ */
+ function ExtractProperties(obj, pattern) {
+	if (IsEmpty(pattern)) {
+		return { ...obj }; // shallow copy
+	}
+
+	const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+
+	const result = {};
+
+	for (const propName in obj) {
+		if (obj.hasOwnProperty(propName) && regex.test(propName)) {
+			result[propName] = obj[propName];
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Filters an array of objects, keeping only properties that match the regex pattern
+ * @param {Array<Object>} arrayOfObjects - Array of objects to filter
+ * @param {string|RegExp} pattern - Regex pattern for property names to keep
+ * @returns {Array<Object>} New array with filtered objects
+ */
+ function ExtractPropertiesFromArray(arrayOfObjects, pattern) { // returns a new array created from arrayOfObjects
+	if (!Array.isArray(arrayOfObjects) || arrayOfObjects.length === 0) {
+		return [];
+	}
+	
+	return arrayOfObjects.map(obj => ExtractProperties(obj, pattern));
+}
+
+function delay(msecs = 1) {
+	
+	if (msecs < 10)
+		msecs = 1000 * msecs;
+
+  return new Promise(resolve => setTimeout(resolve, msecs));
+}
+
+function safeStringToNumeric(currencyString) {
+  let sign = 1;
+  if (currencyString.startsWith('-')) {
+    sign = -1;
+    currencyString = currencyString.substring(1); // Remove the leading minus sign
+  }
+
+  // Remove dollar signs, commas, and any other non-numeric characters
+  // The regex `/[^0-9.]/g` matches any character that is NOT a digit (0-9) or a literal dot.
+  // This assumes the decimal separator is always a dot.
+  const cleanedString = currencyString.replace(/[^0-9.]/g, '');
+
+  // Parse the cleaned string to a float
+  const numericValue = parseFloat(cleanedString);
+
+  // Should it instead just return NaN
+  if (isNaN(numericValue)) {
+    return 0.0; // Or throw an error?
+  }
+
+  return numericValue * sign;
+}
+
+// #endregion Misc / Uncat
+
+// #endregion Utility
+
+
+
+function version() { return "FooterGlobal: 2505151116"; }
+
+
+</script>
+
+<!-- ENDFooter 2503131016 -->
+<!-- Last modified fri aug 8 12:37pm -->
+<!-- Last modified 2025-08-25 Mon 1706 -->
+<!-- Last modified Mon 29 08:24:51 -->
+
+
+<!-- Last modified Wed Oct 29 3:36PM -->
+<!-- Last modified Wed Oct 29 3:41PM -->
+<!-- Last modified Wed Oct 29 3:49PM -->
+<!-- Last modified Wed Oct 29 3:57PM -->
+<!-- Last modified Fri Oct 31 8:04AM -->
+<!-- Last modified Mon Nov 17 7:17PM -->

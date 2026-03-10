@@ -1,0 +1,1227 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Sep 27 12:32PM -->
+<!-- Last modified Mon Sep 22 3:22PM -->
+<!-- Excel Export Functionality with SheetJS -->
+<!-- Last modified Wed Sep 10 8:00AM -->
+<!-- Load ExcelJS library for professional Excel exports -->
+<script src="https://unpkg.com/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+<style>
+.excel-export-btn {
+    display: inline-block;
+    background-color: #0066cc;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    text-decoration: none;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+.excel-export-btn:hover {
+    background-color: #0052a3;
+    color: white;
+    text-decoration: none;
+}
+
+.excel-export-btn:active {
+    background-color: #004080;
+}
+
+.excel-export-btn i {
+    margin-right: 4px;
+}
+
+.export-section {
+    display: inline-block;
+    margin-left: 15px;
+}
+</style>
+
+<script>
+// Excel Export Functionality
+window.ExcelExporter = {
+    
+    // Export table data to Excel
+    exportTableToExcel: function(tableId, filename, sheetName) {
+        try {
+            const table = document.getElementById(tableId);
+            if (!table) {
+                alert('Table not found: ' + tableId);
+                return;
+            }
+
+            // Extract table data
+            const data = this.extractTableData(table);
+            if (data.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            // Create workbook and worksheet
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(data);
+
+            // Auto-size columns
+            const colWidths = this.calculateColumnWidths(data);
+            ws['!cols'] = colWidths;
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().slice(0, 16).replace(/[:-]/g, '').replace('T', '_');
+            const fullFilename = `${filename}_${timestamp}.xlsx`;
+
+            // Save file
+            XLSX.writeFile(wb, fullFilename);
+
+            console.log('Excel export completed:', fullFilename);
+            
+        } catch (error) {
+            console.error('Excel export error:', error);
+            alert('Export failed: ' + error.message);
+        }
+    },
+
+    // Extract data from HTML table with proper header handling
+    extractTableData: function(table) {
+        const data = [];
+        const rows = table.querySelectorAll('tr');
+
+        rows.forEach((row, rowIndex) => {
+            const rowData = [];
+            const cells = row.querySelectorAll('th, td');
+
+            cells.forEach(cell => {
+                let cellValue = cell.textContent.trim();
+
+                // Skip action columns (empty header cells with &nbsp; or no content)
+                if (cellValue === '\u00A0' || cellValue === '') {
+                    if (rowIndex === 0) { // Header row
+                        return; // Skip empty header cells
+                    }
+                }
+
+                // Clean up currency values - remove $ and commas but keep numbers
+                if (cellValue.match(/^\$[\d,]+\.?\d*$/)) {
+                    cellValue = cellValue.replace(/[$,]/g, '');
+                    cellValue = parseFloat(cellValue);
+                }
+                // Clean up other numeric values
+                else if (cellValue.match(/^[\d,]+\.?\d*$/) && cellValue !== '') {
+                    const numValue = cellValue.replace(/,/g, '');
+                    if (!isNaN(numValue) && numValue !== '') {
+                        cellValue = parseFloat(numValue);
+                    }
+                }
+
+                rowData.push(cellValue);
+            });
+
+            // Only add non-empty rows
+            if (rowData.some(cell => cell !== '' && cell !== '\u00A0')) {
+                data.push(rowData);
+            }
+        });
+
+        return data;
+    },
+
+    // Extract headers from table
+    extractTableHeaders: function(table) {
+        const headerRow = table.querySelector('thead tr');
+        if (!headerRow) return [];
+
+        const headers = [];
+        const headerCells = headerRow.querySelectorAll('th');
+
+        headerCells.forEach(cell => {
+            const headerText = cell.textContent.trim();
+            // Skip empty headers (action columns)
+            if (headerText && headerText !== '\u00A0') {
+                headers.push(headerText);
+            }
+        });
+
+        return headers;
+    },
+
+    // Define the destination column structure and mappings
+    getDestinationColumns: function() {
+        return [
+            'Kind',
+            'Branch',
+            'Loan Officer',
+            'Profile Name',
+            'Amount',
+            'Loan Number',
+            'Date',
+            'Borrower/Desc',
+            'Base Amount',
+            'BPS Calc',
+            'CalcType',
+            'LOSplit',
+            'Capped Base Amount'
+        ];
+    },
+
+    // Map source table headers to destination columns
+    mapSourceToDestination: function(sourceHeaders, tableType) {
+        const mapping = {};
+
+        if (tableType === 'Commission') {
+            // Commission table column mappings
+            sourceHeaders.forEach((header, index) => {
+                switch(header) {
+                    case 'Branch':
+                        mapping['Branch'] = index;
+                        break;
+                    case 'Loan Officer':
+                        mapping['Loan Officer'] = index;
+                        break;
+                    case 'Profile Name':
+                        mapping['Profile Name'] = index;
+                        break;
+                    case 'Amount':
+                        mapping['Amount'] = index;
+                        break;
+                    case 'Loan Number':
+                        mapping['Loan Number'] = index;
+                        break;
+                    case 'Date':
+                        mapping['Date'] = index;
+                        break;
+                    case 'Borrower Name':
+                        mapping['Borrower/Desc'] = index;
+                        break;
+                    case 'Base Amount':
+                        mapping['Base Amount'] = index;
+                        break;
+                    case 'BPS Calc':
+                        mapping['BPS Calc'] = index;
+                        break;
+                    case 'Calc Type':
+                        mapping['CalcType'] = index;
+                        break;
+                    case 'LO Split':
+                        mapping['LOSplit'] = index;
+                        break;
+                }
+            });
+        } else if (tableType === 'Adjustment') {
+            // Adjustment table column mappings
+            sourceHeaders.forEach((header, index) => {
+                switch(header) {
+                    case 'Branch':
+                        mapping['Branch'] = index;
+                        break;
+                    case 'Loan Officer':
+                        mapping['Loan Officer'] = index;
+                        break;
+                    case 'Amount':
+                        mapping['Amount'] = index;
+                        break;
+                    case 'Calculation Date':
+                        mapping['Date'] = index;
+                        break;
+                    case 'Description':
+                        mapping['Borrower/Desc'] = index;
+                        break;
+                    case 'BPS Calc':
+                        mapping['BPS Calc'] = index;
+                        break;
+                    case 'Capped Base Amount':
+                        mapping['Capped Base Amount'] = index;
+                        break;
+                }
+            });
+        }
+
+        return mapping;
+    },
+
+    // Extract table body data using explicit column mapping
+    extractMappedTableData: function(table, tableType) {
+        const data = [];
+        const headers = this.extractTableHeaders(table);
+        const columnMapping = this.mapSourceToDestination(headers, tableType);
+        const destinationColumns = this.getDestinationColumns();
+
+        const bodyRows = table.querySelectorAll('tbody tr');
+
+        bodyRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            const mappedRow = new Array(destinationColumns.length);
+
+            // Set the Kind column
+            mappedRow[0] = tableType;
+
+            // Map each destination column
+            destinationColumns.forEach((destColumn, destIndex) => {
+                if (destIndex === 0) return; // Skip Kind column, already set
+
+                if (columnMapping[destColumn] !== undefined) {
+                    const sourceIndex = columnMapping[destColumn];
+                    if (cells[sourceIndex]) {
+                        let cellValue = cells[sourceIndex].textContent.trim();
+
+                        // Skip action columns - look for button elements
+                        if (cells[sourceIndex].querySelector('button') || cells[sourceIndex].querySelector('.btn-email')) {
+                            cellValue = '';
+                        } else {
+                            // Clean up currency values - handle both positive and parenthetical negative formats
+                            if (cellValue.match(/^\$[\d,]+\.?\d*$/) || cellValue.match(/^\(\$[\d,]+\.?\d*\)$/)) {
+                                let cleanValue = cellValue.replace(/[$,]/g, '');
+                                let isNegative = false;
+
+                                // Handle parenthetical negative format
+                                if (cleanValue.match(/^\(.*\)$/)) {
+                                    cleanValue = cleanValue.replace(/[()]/g, '');
+                                    isNegative = true;
+                                }
+
+                                let numValue = parseFloat(cleanValue);
+                                if (isNegative) numValue = -numValue;
+
+                                // Replace 0 values with blanks for currency columns
+                                if ((destColumn === 'Amount' || destColumn === 'Base Amount') && numValue === 0) {
+                                    cellValue = '';
+                                } else {
+                                    cellValue = numValue;
+                                }
+                            }
+                            // Clean up other numeric values
+                            else if (cellValue.match(/^[\d,]+\.?\d*$/) && cellValue !== '') {
+                                const numValue = cellValue.replace(/,/g, '');
+                                if (!isNaN(numValue) && numValue !== '') {
+                                    let parsedValue = parseFloat(numValue);
+                                    // Replace 0 values with blanks for specific numeric columns
+                                    if ((destColumn === 'BPS Calc' || destColumn === 'Capped Base Amount') && parsedValue === 0) {
+                                        cellValue = '';
+                                    } else {
+                                        cellValue = parsedValue;
+                                    }
+                                }
+                            }
+                            // Handle direct 0 values
+                            else if ((destColumn === 'Amount' || destColumn === 'Base Amount' ||
+                                     destColumn === 'BPS Calc' || destColumn === 'Capped Base Amount') &&
+                                    (cellValue === '0' || cellValue === '0.00')) {
+                                cellValue = '';
+                            }
+                        }
+
+                        mappedRow[destIndex] = cellValue;
+                    } else {
+                        mappedRow[destIndex] = ''; // Cell doesn't exist in source
+                    }
+                } else {
+                    mappedRow[destIndex] = ''; // Column not available in this table type
+                }
+            });
+
+            // Only add rows that have some data (not just Kind column)
+            if (mappedRow.slice(1).some(cell => cell !== '' && cell !== '\u00A0')) {
+                data.push(mappedRow);
+            }
+        });
+
+        return data;
+    },
+
+    // Legacy function - kept for backward compatibility
+    extractTableBodyData: function(table) {
+        const data = [];
+        const bodyRows = table.querySelectorAll('tbody tr');
+
+        bodyRows.forEach(row => {
+            const rowData = [];
+            const cells = row.querySelectorAll('td');
+
+            cells.forEach(cell => {
+                let cellValue = cell.textContent.trim();
+
+                // Skip action columns - look for button elements or empty cells
+                if (cell.querySelector('button') || cell.querySelector('.btn-email')) {
+                    return; // Skip action column cells
+                }
+
+                // Clean up currency values - remove $ and commas but keep numbers
+                if (cellValue.match(/^\$[\d,]+\.?\d*$/)) {
+                    cellValue = cellValue.replace(/[$,]/g, '');
+                    cellValue = parseFloat(cellValue);
+                }
+                // Clean up other numeric values
+                else if (cellValue.match(/^[\d,]+\.?\d*$/) && cellValue !== '') {
+                    const numValue = cellValue.replace(/,/g, '');
+                    if (!isNaN(numValue) && numValue !== '') {
+                        cellValue = parseFloat(numValue);
+                    }
+                }
+
+                rowData.push(cellValue);
+            });
+
+            // Only add non-empty rows
+            if (rowData.some(cell => cell !== '' && cell !== '\u00A0')) {
+                data.push(rowData);
+            }
+        });
+
+        return data;
+    },
+
+    // Calculate optimal column widths
+    calculateColumnWidths: function(data) {
+        if (data.length === 0) return [];
+        
+        const colCount = Math.max(...data.map(row => row.length));
+        const widths = [];
+        
+        for (let col = 0; col < colCount; col++) {
+            let maxWidth = 10; // Minimum width
+            
+            data.forEach(row => {
+                if (row[col] !== undefined) {
+                    const cellLength = String(row[col]).length;
+                    maxWidth = Math.max(maxWidth, cellLength);
+                }
+            });
+            
+            // Cap maximum width and convert to Excel units
+            widths.push({ wch: Math.min(maxWidth + 2, 50) });
+        }
+        
+        return widths;
+    },
+
+
+    // Generate context-aware filename based on current page
+    generateFilename: function(tableType) {
+        const parts = ['CommPortal'];
+
+        // Helper function to clean names for filename
+        const cleanName = (name) => name.replace(/[^a-zA-Z0-9]/g, '_');
+
+        // Get period name via API call since page variables are not available in this standalone component
+        let periodName = '';
+
+        // Extract period from URL or use the currentPeriod from AJAX data
+        const urlParams = new URLSearchParams(window.location.search);
+        const periodGuid = urlParams.get('period');
+
+        if (periodGuid) {
+            try {
+                // Make synchronous API call to get period name
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', `/_api/lv_lvcompcommperiodcalcs?$filter=lv_lvcompcommperiodcalcid eq '${periodGuid}'`, false);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.send();
+
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response && response.value && response.value.length > 0) {
+                        const periodData = response.value[0];  // Get first (and should be only) result
+                        if (periodData.lv_name) {
+                            periodName = cleanName(periodData.lv_name);
+                            }
+                    } else {
+                    }
+                } else {
+                }
+            } catch (error) {
+            }
+        }
+
+        // Fallback: try to get period name from dropdown selection if no URL parameter
+        if (!periodName) {
+            const periodDropdown = document.querySelector('select[name*="period"], select#periodSelect, select.period-select');
+            if (periodDropdown && periodDropdown.selectedIndex >= 0) {
+                const selectedOption = periodDropdown.options[periodDropdown.selectedIndex];
+                if (selectedOption && selectedOption.textContent) {
+                    periodName = cleanName(selectedOption.textContent.trim());
+                }
+            }
+        }
+
+        // Determine page type and build filename accordingly
+        const currentPath = window.location.pathname;
+
+        if (currentPath.includes('/accounting') || currentPath.includes('/Accounting')) {
+            // Format: CommPortal_<periodname>
+            if (periodName) {
+                parts.push(periodName);
+            }
+        } else if (currentPath === '/' || currentPath.includes('/home') || currentPath.includes('/default') || (!currentPath.toLowerCase().includes('/branch') && !currentPath.toLowerCase().includes('/loan-officer'))) {
+            // Format: CommPortal_<periodname> - this might be the root/default accounting page
+            if (periodName) {
+                parts.push(periodName);
+            }
+        } else if (currentPath.includes('/branch') || currentPath.includes('/Branch')) {
+            // Format: CommPortal_<branchname>_<periodname>
+            // Extract branch from URL or page context
+            const branchName = this.getBranchName();
+            if (branchName) {
+                parts.push(cleanName(branchName));
+            }
+            if (periodName) {
+                parts.push(periodName);
+            }
+        } else if (currentPath.includes('/loan-officer') || currentPath.includes('/Loan-Officer')) {
+            // Format: CommPortal_<loanofficername>_<periodname>
+            // Extract loan officer from URL or page context
+            const loanOfficerName = this.getLoanOfficerName();
+            if (loanOfficerName) {
+                parts.push(cleanName(loanOfficerName));
+            }
+            if (periodName) {
+                parts.push(periodName);
+            }
+        } else {
+            // Fallback for other pages - include period if available
+            if (periodName) {
+                parts.push(periodName);
+            }
+        }
+
+        const finalFilename = parts.join('_');
+
+        return finalFilename;
+    },
+
+    // Helper function to get branch name for filename
+    getBranchName: function() {
+        // Get branch GUID from dropdown selection
+        const branchDropdown = document.querySelector('select[name*="branch"], select#branchSelect, select.branch-select');
+        if (branchDropdown && branchDropdown.value) {
+            const branchGuid = branchDropdown.value;
+
+            // Make API call to get branch name
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', `/_api/lv_lvcompbranchs?$filter=lv_lvcompbranchid eq '${branchGuid}'`, false);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.send();
+
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response && response.value && response.value.length > 0) {
+                        const branchData = response.value[0];
+                        if (branchData.lv_name) {
+                            return branchData.lv_name;
+                        }
+                    }
+                }
+            } catch (error) {
+                // Fallback: try to get name from dropdown option text
+                const selectedOption = branchDropdown.options[branchDropdown.selectedIndex];
+                if (selectedOption && selectedOption.textContent) {
+                    return selectedOption.textContent.trim();
+                }
+            }
+        }
+
+        return null;
+    },
+
+    // Helper function to get loan officer name for filename
+    getLoanOfficerName: function() {
+
+        // First try URL parameter (loan officer pages use 'officer' parameter)
+        const urlParams = new URLSearchParams(window.location.search);
+        let loGuid = urlParams.get('officer') || urlParams.get('loanofficer');
+
+        // If no URL param, try dropdown selection
+        if (!loGuid) {
+            const loDropdown = document.querySelector('select[name*="loan"], select[name*="officer"], select#loanOfficerSelect, select.loan-officer-select');
+            if (loDropdown && loDropdown.value) {
+                loGuid = loDropdown.value;
+            }
+        }
+
+        if (loGuid) {
+            // Make API call to get loan officer name
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', `/_api/lv_lvcomploanofficers?$filter=lv_lvcomploanofficerid eq '${loGuid}'`, false);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.send();
+
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response && response.value && response.value.length > 0) {
+                        const loData = response.value[0];
+                        if (loData.lv_name) {
+                            return loData.lv_name;
+                        }
+                    }
+                }
+            } catch (error) {
+                // Fallback: try to get name from dropdown option text
+                const loDropdown = document.querySelector('select[name*="loan"], select[name*="officer"], select#loanOfficerSelect, select.loan-officer-select');
+                if (loDropdown) {
+                    const selectedOption = loDropdown.options[loDropdown.selectedIndex];
+                    if (selectedOption && selectedOption.textContent) {
+                        return selectedOption.textContent.trim();
+                    }
+                }
+            }
+        } else {
+        }
+
+        return null;
+    },
+
+    // Export combined commissions and adjustments to single Excel sheet with proper column mapping
+    exportCombinedData: function() {
+        try {
+            if (typeof ExcelJS === 'undefined') {
+                alert('Excel export library is still loading. Please wait a moment and try again.');
+                return;
+            }
+            return this.exportWithExcelJS();
+        } catch (error) {
+            console.error('Excel export error:', error);
+            alert('Export failed: ' + error.message);
+        }
+    },
+
+    // Export using ExcelJS with professional formatting
+    exportWithExcelJS: async function() {
+        try {
+            // Create workbook
+            const workbook = new ExcelJS.Workbook();
+            workbook.creator = 'LoanVision Commission Portal';
+            workbook.created = new Date();
+
+            // Add worksheet
+            const worksheet = workbook.addWorksheet('Commissions & Adjustments');
+            const destinationColumns = this.getDestinationColumns();
+
+            // Add and format headers
+            const headerRow = worksheet.addRow(destinationColumns);
+            this.formatHeaderRow(headerRow, destinationColumns);
+
+            let commissionStartRow = 2;
+            let commissionEndRow = 1;
+            let adjustmentStartRow = 2;
+            let adjustmentEndRow = 1;
+
+            // Check if we have AJAX-loaded data (for full export) or fall back to table data
+            const hasAjaxData = typeof window.allCommissionData !== 'undefined' && window.allCommissionData && window.allCommissionData.length > 0;
+
+            if (hasAjaxData) {
+                // Get current period for filtering (from accounting pagination or URL)
+                const currentPeriod = window.accountingPagination ? window.accountingPagination.currentPeriod : null;
+
+                // Filter AJAX data by current period first, then split by type
+                const currentPeriodData = currentPeriod ?
+                    window.allCommissionData.filter(row => row.lv_periodno === currentPeriod) :
+                    window.allCommissionData;
+
+                const commissionRecords = currentPeriodData.filter(row => row.lv_type === 'Loan Based');
+                const adjustmentRecords = currentPeriodData.filter(row => row.lv_type === 'Period Based');
+
+                // Add commission data from AJAX
+                if (commissionRecords.length > 0) {
+                    commissionStartRow = worksheet.rowCount + 1;
+                    commissionRecords.forEach(record => {
+                        const rowData = this.convertAjaxRecordToRowData(record, 'Commission', destinationColumns);
+                        const typedRowData = this.ensureNumericTypes(rowData, destinationColumns);
+                        const row = worksheet.addRow([]);
+                        this.setRowValues(row, typedRowData, destinationColumns);
+                        commissionEndRow = row.number;
+                    });
+
+                    // Add Commission subtotal
+                    this.addSubtotalRow(worksheet, destinationColumns, 'Commission Total', commissionStartRow, commissionEndRow);
+                }
+
+                // Add adjustment data from AJAX
+                if (adjustmentRecords.length > 0) {
+                    adjustmentStartRow = worksheet.rowCount + 1;
+                    adjustmentRecords.forEach(record => {
+                        const rowData = this.convertAjaxRecordToRowData(record, 'Adjustment', destinationColumns);
+                        const typedRowData = this.ensureNumericTypes(rowData, destinationColumns);
+                        const row = worksheet.addRow([]);
+                        this.setRowValues(row, typedRowData, destinationColumns);
+                        adjustmentEndRow = row.number;
+                    });
+
+                    // Add Adjustment subtotal
+                    this.addSubtotalRow(worksheet, destinationColumns, 'Adjustment Total', adjustmentStartRow, adjustmentEndRow);
+                }
+
+            } else {
+
+                // Fall back to table-based extraction
+                const commissionTable = document.getElementById('table-commission');
+                const adjustmentTable = document.getElementById('table-adjustment');
+
+                if (!commissionTable && !adjustmentTable) {
+                    alert('No commission or adjustment data found for export');
+                    return;
+                }
+
+                // Add commission data from table
+                if (commissionTable) {
+                    const commissionData = this.extractMappedTableData(commissionTable.closest('table'), 'Commission');
+                    if (commissionData.length > 0) {
+                        commissionStartRow = worksheet.rowCount + 1;
+                        commissionData.forEach(rowData => {
+                            const typedRowData = this.ensureNumericTypes(rowData, destinationColumns);
+                            const row = worksheet.addRow([]);
+                            this.setRowValues(row, typedRowData, destinationColumns);
+                            commissionEndRow = row.number;
+                        });
+
+                        // Add Commission subtotal
+                        this.addSubtotalRow(worksheet, destinationColumns, 'Commission Total', commissionStartRow, commissionEndRow);
+                    }
+                }
+
+                // Add adjustment data from table
+                if (adjustmentTable) {
+                    const adjustmentData = this.extractMappedTableData(adjustmentTable.closest('table'), 'Adjustment');
+                    if (adjustmentData.length > 0) {
+                        adjustmentStartRow = worksheet.rowCount + 1;
+                        adjustmentData.forEach(rowData => {
+                            const typedRowData = this.ensureNumericTypes(rowData, destinationColumns);
+                            const row = worksheet.addRow([]);
+                            this.setRowValues(row, typedRowData, destinationColumns);
+                            adjustmentEndRow = row.number;
+                        });
+
+                        // Add Adjustment subtotal
+                        this.addSubtotalRow(worksheet, destinationColumns, 'Adjustment Total', adjustmentStartRow, adjustmentEndRow);
+                    }
+                }
+            }
+
+            // Add grand total row
+            if (worksheet.rowCount > 1) {
+                this.addGrandTotalRow(worksheet, destinationColumns);
+            }
+
+            // Auto-fit columns
+            this.autoFitColumns(worksheet, destinationColumns);
+
+            // Save and download
+            const filename = this.generateFilename();
+            const fullFilename = `${filename}.xlsx`;
+
+            const buffer = await workbook.xlsx.writeBuffer();
+            this.downloadFile(buffer, fullFilename);
+
+            // Log Excel export to Dataverse
+            const currentPath = window.location.pathname;
+            let pageType = 'Unknown';
+            if (currentPath.includes('/accounting') || currentPath.includes('/Accounting')) {
+                pageType = 'Accounting';
+            } else if (currentPath.includes('/branch') || currentPath.includes('/Branch')) {
+                pageType = 'Branch';
+            } else if (currentPath.includes('/loan-officer') || currentPath.includes('/Loan-Officer')) {
+                pageType = 'Loan Officer';
+            } else if (currentPath === '/' || currentPath.includes('/home') || currentPath.includes('/default')) {
+                pageType = 'Home/Default';
+            }
+
+            logWrite('ExcelExport', `Excel file exported: ${fullFilename}`, 'PageType', pageType, 'Filename', fullFilename);
+
+        } catch (error) {
+            console.error('Excel export error:', error);
+            alert('Export failed: ' + error.message);
+        }
+    },
+
+    // Format header row with proper alignment
+    formatHeaderRow: function(headerRow, destinationColumns) {
+        headerRow.font = { bold: true, size: 11 };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+        headerRow.border = {
+            bottom: { style: 'thin', color: { argb: 'FF000000' } }
+        };
+
+        // Set alignment per column
+        destinationColumns.forEach((colName, index) => {
+            const cell = headerRow.getCell(index + 1);
+            if (colName === 'Amount' || colName === 'Base Amount' ||
+                colName === 'BPS Calc' || colName === 'Capped Base Amount') {
+                cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            } else {
+                cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            }
+        });
+    },
+
+    // Format data row with proper styling
+    formatDataRow: function(row, destinationColumns) {
+        destinationColumns.forEach((colName, index) => {
+            const cell = row.getCell(index + 1);
+
+            // Right align and format numeric columns
+            if (colName === 'Amount' || colName === 'Base Amount' ||
+                colName === 'BPS Calc' || colName === 'Capped Base Amount') {
+                cell.alignment = { horizontal: 'right' };
+
+                // Ensure numeric values are properly typed and formatted
+                if (cell.value !== '' && cell.value !== null && cell.value !== undefined) {
+
+                    // Convert to number if it's a string representation of a number
+                    if (typeof cell.value === 'string') {
+                        const cleanValue = cell.value.replace(/[$,]/g, '');
+                        const numValue = parseFloat(cleanValue);
+                        if (!isNaN(numValue)) {
+                            cell.value = numValue;
+                        }
+                    }
+
+                    // Apply currency formatting to numeric values
+                    if ((colName === 'Amount' || colName === 'Base Amount') &&
+                        typeof cell.value === 'number') {
+
+                        // Try multiple approaches to force Excel number recognition
+                        cell.value = +cell.value; // Force to number with unary plus
+                        cell.dataType = ExcelJS.ValueType.Number;
+                        cell.numFmt = '$#,##0.00_);[Red]($#,##0.00)';
+
+
+                    } else if ((colName === 'BPS Calc' || colName === 'Capped Base Amount') &&
+                              typeof cell.value === 'number') {
+
+                        // Try multiple approaches to force Excel number recognition
+                        cell.value = +cell.value; // Force to number with unary plus
+                        cell.dataType = ExcelJS.ValueType.Number;
+                        cell.numFmt = '#,##0.00_);[Red](#,##0.00)';
+
+                    }
+                }
+            }
+        });
+    },
+
+    // Add subtotal row with formula for specific data range
+    addSubtotalRow: function(worksheet, destinationColumns, label, startRow, endRow) {
+        const subtotalRow = worksheet.addRow([]);
+        const amountColumnIndex = destinationColumns.indexOf('Amount') + 1;
+
+        destinationColumns.forEach((colName, index) => {
+            const cell = subtotalRow.getCell(index + 1);
+
+            if (colName === 'Kind') {
+                cell.value = label;
+                cell.font = { bold: true };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+            } else if (colName === 'Amount') {
+                // Add SUM formula for Amount column in the specified range
+                const columnLetter = this.getColumnLetter(amountColumnIndex);
+                const startCell = columnLetter + startRow;
+                const endCell = columnLetter + endRow;
+                const formula = `SUM(${startCell}:${endCell})`;
+
+                // Set Excel formula - user will need to "Enable Editing" for calculations to work
+                try {
+                    cell.value = { formula: formula, result: 0 };
+                } catch (e) {
+                    try {
+                        cell.value = '=' + formula;
+                    } catch (e2) {
+                        try {
+                            cell.formula = formula;
+                        } catch (e3) {
+                            // Final fallback: Calculate manual sum
+                            this.setManualSumRange(cell, worksheet, amountColumnIndex, startRow, endRow);
+                        }
+                    }
+                }
+
+                cell.font = { bold: true };
+                cell.numFmt = '$#,##0.00_);[Red]($#,##0.00)';
+                cell.dataType = ExcelJS.ValueType.Number;
+                cell.alignment = { horizontal: 'right' };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+            }
+        });
+
+        // Add border to subtotal row
+        subtotalRow.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } }
+        };
+    },
+
+    // Add grand total row that sums all data (excluding subtotal rows)
+    addGrandTotalRow: function(worksheet, destinationColumns) {
+        const grandTotalRow = worksheet.addRow([]);
+        const amountColumnIndex = destinationColumns.indexOf('Amount') + 1;
+
+        destinationColumns.forEach((colName, index) => {
+            const cell = grandTotalRow.getCell(index + 1);
+
+            if (colName === 'Kind') {
+                cell.value = 'GRAND TOTAL';
+                cell.font = { bold: true, size: 12 };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0D0D0' } };
+            } else if (colName === 'Amount') {
+                // Sum all Amount values where Kind is "Commission" or "Adjustment"
+                this.setGrandTotalFormula(cell, worksheet, amountColumnIndex);
+
+                cell.font = { bold: true, size: 12 };
+                cell.numFmt = '$#,##0.00_);[Red]($#,##0.00)';
+                cell.dataType = ExcelJS.ValueType.Number;
+                cell.alignment = { horizontal: 'right' };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0D0D0' } };
+            }
+        });
+
+        // Add border to grand total row
+        grandTotalRow.border = {
+            top: { style: 'double', color: { argb: 'FF000000' } },
+            bottom: { style: 'double', color: { argb: 'FF000000' } }
+        };
+    },
+
+    // Fallback method to calculate manual sum for a specific range when formula fails
+    setManualSumRange: function(cell, worksheet, amountColumnIndex, startRow, endRow) {
+        let sum = 0;
+
+        // Iterate through Amount column in the specified range to calculate sum
+        for (let rowNum = startRow; rowNum <= endRow; rowNum++) {
+            const dataCell = worksheet.getCell(rowNum, amountColumnIndex);
+            const cellValue = dataCell.value;
+
+            if (typeof cellValue === 'number') {
+                sum += cellValue;
+            } else if (typeof cellValue === 'string') {
+                // Try to parse currency strings
+                const cleanValue = cellValue.replace(/[$,]/g, '');
+                const numValue = parseFloat(cleanValue);
+                if (!isNaN(numValue)) {
+                    sum += numValue;
+                }
+            }
+        }
+
+        cell.value = sum;
+        cell.dataType = ExcelJS.ValueType.Number;
+        return sum;
+    },
+
+    // Set grand total formula that sums only Commission and Adjustment rows
+    setGrandTotalFormula: function(cell, worksheet, amountColumnIndex) {
+        let sum = 0;
+        const kindColumnIndex = 1; // "Kind" is the first column
+
+        // Iterate through all rows to sum only Commission and Adjustment amounts
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return; // Skip header row
+
+            const kindCell = row.getCell(kindColumnIndex);
+            const amountCell = row.getCell(amountColumnIndex);
+            const kindValue = kindCell.value;
+            const amountValue = amountCell.value;
+
+            // Only sum rows where Kind is "Commission" or "Adjustment"
+            if ((kindValue === 'Commission' || kindValue === 'Adjustment') && typeof amountValue === 'number') {
+                sum += amountValue;
+            }
+        });
+
+        cell.value = sum;
+        cell.dataType = ExcelJS.ValueType.Number;
+        return sum;
+    },
+
+    // Fallback method to calculate manual sum when formula fails (legacy)
+    setManualSum: function(cell, worksheet, amountColumnIndex, lastDataRow) {
+        let sum = 0;
+
+        // Iterate through Amount column to calculate sum
+        for (let rowNum = 2; rowNum <= lastDataRow; rowNum++) {
+            const dataCell = worksheet.getCell(rowNum, amountColumnIndex);
+            const cellValue = dataCell.value;
+
+            if (typeof cellValue === 'number') {
+                sum += cellValue;
+            } else if (typeof cellValue === 'string') {
+                // Try to parse currency strings
+                const cleanValue = cellValue.replace(/[$,]/g, '');
+                const numValue = parseFloat(cleanValue);
+                if (!isNaN(numValue)) {
+                    sum += numValue;
+                }
+            }
+        }
+
+        cell.value = sum;
+        cell.dataType = ExcelJS.ValueType.Number;
+        return sum;
+    },
+
+    // Convert column index to Excel column letter
+    getColumnLetter: function(columnIndex) {
+        let result = '';
+        while (columnIndex > 0) {
+            columnIndex--;
+            result = String.fromCharCode(65 + (columnIndex % 26)) + result;
+            columnIndex = Math.floor(columnIndex / 26);
+        }
+        return result;
+    },
+
+    // Ensure numeric columns have proper JavaScript number types
+    ensureNumericTypes: function(rowData, destinationColumns) {
+        const typedRowData = [...rowData]; // Create a copy
+
+        destinationColumns.forEach((colName, index) => {
+            if ((colName === 'Amount' || colName === 'Base Amount' ||
+                 colName === 'BPS Calc' || colName === 'Capped Base Amount') &&
+                typedRowData[index] !== '' && typedRowData[index] !== null &&
+                typedRowData[index] !== undefined) {
+
+                let value = typedRowData[index];
+                let originalValue = value;
+
+                // Convert string numbers to actual numbers - handle parenthetical negatives
+                if (typeof value === 'string') {
+                    let cleanValue = value.replace(/[$,]/g, '');
+                    let isNegative = false;
+
+                    // Handle parenthetical negative format like ($1,417.36)
+                    if (cleanValue.match(/^\(.*\)$/)) {
+                        cleanValue = cleanValue.replace(/[()]/g, '');
+                        isNegative = true;
+                    }
+
+                    const numValue = parseFloat(cleanValue);
+                    if (!isNaN(numValue)) {
+                        const finalValue = isNegative ? -numValue : numValue;
+                        typedRowData[index] = finalValue;
+                    }
+                } else if (typeof value === 'number') {
+                    // Already a number, but ensure it's a proper JS number
+                    typedRowData[index] = Number(value);
+                }
+            }
+        });
+
+        return typedRowData;
+    },
+
+    // Convert AJAX record data to row format for Excel export
+    convertAjaxRecordToRowData: function(record, tableType, destinationColumns) {
+        const rowData = new Array(destinationColumns.length);
+
+        // Set the Kind column
+        rowData[0] = tableType;
+
+        // Map each destination column from AJAX record
+        destinationColumns.forEach((destColumn, destIndex) => {
+            if (destIndex === 0) return; // Skip Kind column, already set
+
+            switch(destColumn) {
+                case 'Branch':
+                    rowData[destIndex] = record.lv_xbranchname || '';
+                    break;
+                case 'Loan Officer':
+                    rowData[destIndex] = record.lv_xloanofficername || '';
+                    break;
+                case 'Profile Name':
+                    rowData[destIndex] = record.lv_xprofile || '';
+                    break;
+                case 'Amount':
+                    rowData[destIndex] = record.lv_amount || 0;
+                    break;
+                case 'Loan Number':
+                    rowData[destIndex] = record.lv_xloan || '';
+                    break;
+                case 'Date':
+                    rowData[destIndex] = tableType === 'Commission' ? record.lv_commissiondate : record.lv_calculationdate;
+                    break;
+                case 'Borrower/Desc':
+                    rowData[destIndex] = tableType === 'Commission' ? record.lv_borrowername : record.lv_description;
+                    break;
+                case 'Base Amount':
+                    rowData[destIndex] = record.lv_commissionbaseamount || 0;
+                    break;
+                case 'BPS Calc':
+                    rowData[destIndex] = record.lv_bpscalculated || 0;
+                    break;
+                case 'CalcType':
+                    rowData[destIndex] = record.lv_calculationtype || '';
+                    break;
+                case 'LOSplit':
+                    rowData[destIndex] = record.lv_losplit || '';
+                    break;
+                case 'Capped Base Amount':
+                    rowData[destIndex] = record.lv_cappedcommissionbaseamount || 0;
+                    break;
+                default:
+                    rowData[destIndex] = '';
+            }
+        });
+
+        return rowData;
+    },
+
+    // Set row values explicitly cell by cell with aggressive number forcing
+    setRowValues: function(row, rowData, destinationColumns) {
+        destinationColumns.forEach((colName, index) => {
+            const cell = row.getCell(index + 1);
+            let value = rowData[index];
+
+            if (value === undefined || value === null || value === '') {
+                cell.value = '';
+                return;
+            }
+
+            // For numeric columns, be extremely aggressive about ensuring number type
+            if (colName === 'Amount' || colName === 'Base Amount' ||
+                colName === 'BPS Calc' || colName === 'Capped Base Amount') {
+
+
+                if (typeof value === 'number') {
+                    // It's already a number, but force it again
+                    const finalValue = Number(value);
+                    cell.value = finalValue;
+                    cell.dataType = ExcelJS.ValueType.Number;
+
+                    // Apply formatting - Base Amount has no decimals
+                    if (colName === 'Amount') {
+                        cell.numFmt = '$#,##0.00_);[Red]($#,##0.00)';
+                    } else if (colName === 'Base Amount') {
+                        cell.numFmt = '$#,##0_);[Red]($#,##0)';
+                    } else {
+                        cell.numFmt = '#,##0.00_);[Red](#,##0.00)';
+                    }
+                    cell.alignment = { horizontal: 'right' };
+
+
+                } else if (typeof value === 'string') {
+                    // Convert string to number - handle parenthetical negatives like ($1,417.36)
+                    let cleanValue = value.replace(/[$,]/g, '');
+                    let isNegative = false;
+
+                    // Handle parenthetical negative format
+                    if (cleanValue.match(/^\(.*\)$/)) {
+                        cleanValue = cleanValue.replace(/[()]/g, '');
+                        isNegative = true;
+                    }
+
+                    const numValue = parseFloat(cleanValue);
+
+                    if (!isNaN(numValue)) {
+                        const finalValue = isNegative ? -numValue : numValue;
+                        cell.value = finalValue;
+                        cell.dataType = ExcelJS.ValueType.Number;
+
+                        // Apply formatting - Base Amount has no decimals
+                        if (colName === 'Amount') {
+                            cell.numFmt = '$#,##0.00_);[Red]($#,##0.00)';
+                        } else if (colName === 'Base Amount') {
+                            cell.numFmt = '$#,##0_);[Red]($#,##0)';
+                        } else {
+                            cell.numFmt = '#,##0.00_);[Red](#,##0.00)';
+                        }
+                        cell.alignment = { horizontal: 'right' };
+
+                    } else {
+                        cell.value = value; // Keep as string if conversion fails
+                    }
+                } else {
+                    cell.value = value;
+                }
+            } else {
+                // Non-numeric columns
+                cell.value = value;
+            }
+        });
+    },
+
+    // Auto-fit columns based on content
+    autoFitColumns: function(worksheet, destinationColumns) {
+        destinationColumns.forEach((col, index) => {
+            const column = worksheet.getColumn(index + 1);
+            let maxLength = col.length;
+
+            worksheet.eachRow(row => {
+                const cellValue = row.getCell(index + 1).value;
+                if (cellValue) {
+                    const cellLength = cellValue.toString().length;
+                    maxLength = Math.max(maxLength, cellLength);
+                }
+            });
+
+            // Calculate base width
+            let baseWidth = Math.min(maxLength + 2, 50);
+
+            // Make Amount column 20% wider for totals
+            if (col === 'Amount') {
+                baseWidth = Math.min(baseWidth * 1.2, 60);
+            }
+
+            column.width = baseWidth;
+        });
+    },
+
+    // Download file from buffer
+    downloadFile: function(buffer, filename) {
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    },
+
+
+    // Legacy export functions (kept for backward compatibility)
+    exportCommissions: function() {
+        this.exportCombinedData();
+    },
+
+    exportAdjustments: function() {
+        this.exportCombinedData();
+    }
+};
+
+// Initialize export buttons when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Add export buttons to tables
+    setTimeout(function() {
+        addExportButtons();
+    }, 1000); // Delay to ensure tables are loaded
+    
+    function addExportButtons() {
+        // Add single export button to commissions section only
+        const commissionsH3 = document.querySelector('.commissions-section h3');
+        if (commissionsH3 && (document.getElementById('table-commission') || document.getElementById('table-adjustment'))) {
+            if (!commissionsH3.querySelector('.export-section')) {
+                const exportDiv = document.createElement('div');
+                exportDiv.className = 'export-section';
+                exportDiv.innerHTML = '<button class="excel-export-btn" onclick="ExcelExporter.exportCombinedData()" title="Export Commissions and Adjustments to Excel"><i class="fas fa-download"></i>Excel</button>';
+                commissionsH3.appendChild(exportDiv);
+            }
+        }
+
+        // Remove any existing export button from adjustments section
+        const adjustmentsH3 = document.querySelector('.adjustments-section h3');
+        if (adjustmentsH3) {
+            const existingExportDiv = adjustmentsH3.querySelector('.export-section');
+            if (existingExportDiv) {
+                existingExportDiv.remove();
+            }
+        }
+    }
+});
+</script>
+<!-- Last modified Mon Sep 22 3:22PM -->
+<!-- Last modified Sat Sep 27 12:32PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

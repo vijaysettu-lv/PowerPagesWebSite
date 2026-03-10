@@ -1,0 +1,374 @@
+<!-- ENTER: Admin-Panel-Navigation -->
+<style>
+
+/* 
+* On 2025-02-26 I spent way too much time trying to futz with a
+* CSS based approach to change ordering for mobile vs. desktop
+* Finally gave up and switched to javascript see tag=2502261442
+* /
+
+/* Default desktop ordering */
+.accountingHeading {
+  order: 1;
+}
+
+.admin-panel {
+  order: 3;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+/* Desktop admin panel ordering */
+#divPeriodDropdown {
+  order: 1;
+  flex: 0 0 auto;
+  max-width: 300px;
+  margin-top: 5px;
+  margin-right: 20px;
+}
+
+.admin-panel-nav {
+  margin-left: 200px;
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+/* Setup section styling */
+.admin-panel-nav h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.panel-nav-items {
+  display: flex;
+  flex-direction: row;
+  gap: 15px;
+  padding: 0;
+  margin: 0;
+}
+
+.panel-nav-item {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.panel-nav-item a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  gap: 5px;
+  padding: 5px 10px;
+}
+
+/* Remove any extraneous white space */
+.admin-panel-nav > * {
+  margin: 0;
+  padding: 0;
+}
+
+/* Fix for whitespace issues */
+.admin-panel-nav ul {
+  line-height: normal;
+  margin-bottom: 0;
+}
+
+/* Override any default margins that might be causing whitespace */
+.panel-nav-item small {
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* CSS to support the JavaScript mobile reordering */
+.mobile-stacked {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  align-items: center !important;
+}
+
+.mobile-stacked > li {
+  width: 100% !important;
+  text-align: center !important;
+  margin-bottom: 10px !important;
+}
+
+.mobile-stacked > li > a {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  padding: 10px !important;
+  width: 100% !important;
+}
+
+/* Fix the icon alignment */
+.admin-panel-nav svg {
+  margin: 0 auto 5px auto;
+}
+
+/* Remove margin on mobile screens */
+@media screen and (max-width: 768px) {
+  .admin-panel-nav {
+    margin-left: 0; /* Remove margin on mobile */
+  }
+}
+
+</style>
+
+
+{% comment %} ~adminnav  {% endcomment %} 
+<div id="divSetupIcons" class="admin-panel-nav">
+    <h3>Setup</h3>
+    <ul class="panel-nav-items" role="list">
+		<li class="panel-nav-item" title="Set email address and Region or Branch approval">
+			<a href="#" class="nav-link-button" id="openCommissionSetupModal">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+					fill="currentColor" class="bi bi-gear-wide-connected" viewBox="0 0 16 16">
+					<path
+						d="M7.068.727c.243-.97 1.62-.97 1.864 0l.071.286a.96.96 0 0 0 1.622.434l.205-.211c.695-.719 1.888-.03 1.613.931l-.08.284a.96.96 0 0 0 1.187 1.187l.283-.081c.96-.275 1.65.918.931 1.613l-.211.205a.96.96 0 0 0 .434 1.622l.286.071c.97.243.97 1.62 0 1.864l-.286.071a.96.96 0 0 0-.434 1.622l.211.205c.719.695.03 1.888-.931 1.613l-.284-.08a.96.96 0 0 0-1.187 1.187l.081.283c.275.96-.918 1.65-1.613.931l-.205-.211a.96.96 0 0 0-1.622.434l-.071.286c-.243.97-1.62.97-1.864 0l-.071-.286a.96.96 0 0 0-1.622-.434l-.205.211c-.695.719-1.888.03-1.613-.931l.08-.284a.96.96 0 0 0-1.186-1.187l-.284.081c-.96.275-1.65-.918-.931-1.613l.211-.205a.96.96 0 0 0-.434-1.622l-.286-.071c-.97-.243-.97-1.62 0-1.864l.286-.071a.96.96 0 0 0 .434-1.622l-.211-.205c-.719-.695-.03-1.888.931-1.613l.284.08a.96.96 0 0 0 1.187-1.186l-.081-.284c-.275-.96.918-1.65 1.613-.931l.205.211a.96.96 0 0 0 1.622-.434zM12.973 8.5H8.25l-2.834 3.779A4.998 4.998 0 0 0 12.973 8.5m0-1a4.998 4.998 0 0 0-7.557-3.779l2.834 3.78zM5.048 3.967l-.087.065zm-.431.355A4.98 4.98 0 0 0 3.002 8c0 1.455.622 2.765 1.615 3.678L7.375 8zm.344 7.646.087.065z"
+					/>
+				</svg>
+				<small>Approval</small>
+			</a>
+		</li>
+
+		<li class="panel-nav-item" title="List loan officers with option to edit their Commission Profile Setup">
+            <a href="{{ sitemarkers['Contacts'].url }}" class="nav-link-button" onclick="spinShow(true)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-people-fill" viewBox="0 0 16 16">
+                    <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.24 2.24 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.3 6.3 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
+                  </svg>
+                <small>Users</small>
+            </a>
+        </li>
+
+    </ul>
+</div>
+
+<!-- Modal Dialog ~setup -->
+<div id="commissionSetupModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="commissionSetupModalLabel" aria-hidden="true">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="commissionSetupModalLabel">Commission Setup</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				<form id="commissionSetupForm">
+					<div class="form-group">
+						<label for="txtSetupEmail">Send commission inquiry emails to:</label>
+						<input type="text" class="form-control" id="txtSetupEmail" name="txtSetupEmail" required title="When a loan officer clicks the email button on a commission, the email will be sent to this address">
+					</div>
+
+					<div class="form-group mt-3">           {% comment %} Dropdown with None, Loan Officer, Branch Manager, Brand Manager & LoanOfficer      {% endcomment %} 
+						<label>Approval Type</label>
+						<div style="margin-left: 15px;">
+							<div class="form-check">
+								<input class="form-check-input" type="radio" name="ApprovalType" id="ApprovalTypeNone" value="None" checked data-choice="124420000">
+								<label class="form-check-label" for="ApprovalTypeNone" title="Disable the approval feature and do not display the 'Approve' button">
+									None
+								</label>
+							</div>
+							<div class="form-check">
+								<input class="form-check-input" type="radio" name="ApprovalType" id="ApprovalTypeLO" value="Loan Officer" data-choice="124420002">
+								<label class="form-check-label" for="ApprovalTypeLO" title="Only Loan officers approve their own commissions">
+									Loan Officer
+								</label>
+							</div>
+							<div class="form-check">
+								<input class="form-check-input" type="radio" name="ApprovalType" id="ApprovalTypeBM" value="Branch Manager" data-choice="124420001">
+								<label class="form-check-label" for="ApprovalTypeBM" title="Only Branch Managers approve commissions">
+									Branch Manager
+								</label>
+							</div>
+							<div class="form-check">
+								<input class="form-check-input" type="radio" name="ApprovalType" id="ApprovalTypeBothRequired" value="BothRequired" data-choice="124420004">
+								<label class="form-check-label" for="ApprovalTypeBothRequired" title="Both a Branch Manager AND a Loan Officer must approve (both approvals are required)">
+									Both Branch Manager AND Loan Officer Required
+								</label>
+							</div>
+						</div>
+					</div>
+
+					{% assign tmpTagsRole = 'Developer' %}
+					{% assign is_loanvision = is_LoanVision %}
+					{% assign is_allowed = is_developer %}
+					{% if is_allowed %}
+						<div class="form-group">
+							<label for="txtConfigTags" title="Visible only to role 'LoanVision">Tags</label><span class="ms-3 fs-6 text-danger">this field visible only to role '{{tmpTagsRole}}'</span>
+							<input type="text" class="form-control" id="txtConfigTags" name="txtConfigTags" required title="Used only for diagnostic purposes; do not modify unless you know what you are doing. Visible only to role '{{tmpTagsRole}}'. assignment,print,region,profile(?)">
+						</div>
+					{% endif %}
+
+				</form>
+			</div>
+			<div class="modal-footer d-flex">
+				<label id="lblStatus" class="me-auto" style="color: green"></label>
+				<button type="button" class="btn btn-primary" id="submitCommissionSetup">Save</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script>
+	let OrigSetupRec = {};
+
+	document.addEventListener("LVGlobalDOCReady", function() {
+		// Open modal when nav item is clicked
+		$("#openCommissionSetupModal").click(function(e) {
+			e.preventDefault(); // Prevent default link behavior
+			$("#commissionSetupModal").modal("show");
+			$('#txtSetupEmail').focus();
+			return false;
+		});
+
+		setTimeout(retrieveSetupRec, 1000);
+
+		$(".modal .close").click(function() {
+			$("#commissionSetupModal").modal("hide");
+		});
+		
+		// Fix for Save button - add modal hide
+		$("#submitCommissionSetup").click(async function() {
+			$("#submitCommissionSetup").prop('disabled', true);
+
+			const currEmail = $('#txtSetupEmail').val();
+			const currTags = $('#txtConfigTags').val();
+			const sType = $('input[name="ApprovalType"]:checked').data('choice');
+			const currType = parseInt(sType);
+
+			const origEmail = OrigSetupRec["lv_accountingemail"];
+			const origType = OrigSetupRec["lv_approvaltype"];
+			const origTags = OrigSetupRec["lv_configtags"];
+
+			let postData = {};
+
+			if (currEmail != origEmail)
+				postData["lv_accountingemail"] = currEmail;
+
+			if (currTags != origTags)
+				postData["lv_configtags"] = currTags;
+
+			if (currType != origType)
+				postData["lv_approvaltype"] = currType;
+
+			const delay = Object.keys(postData).length > 0 ? 2500 : 0;
+
+			if (delay > 0) {
+				$('#lblStatus').text("Saving your changes....");
+				const rowId = OrigSetupRec["lv_lvcompcommissionsetupid"];
+
+				// Build detailed audit trail with before/after values
+				const auditChanges = [];
+
+				if (postData.hasOwnProperty("lv_accountingemail")) {
+					auditChanges.push({
+						field: "Accounting Email",
+						from: origEmail || "(blank)",
+						to: currEmail || "(blank)"
+					});
+				}
+
+				if (postData.hasOwnProperty("lv_configtags")) {
+					auditChanges.push({
+						field: "Config Tags",
+						from: origTags || "(blank)",
+						to: currTags || "(blank)"
+					});
+				}
+
+				if (postData.hasOwnProperty("lv_approvaltype")) {
+					const getApprovalTypeName = (value) => {
+						switch(value) {
+							case 124420000: return "None";
+							case 124420001: return "Branch Manager";
+							case 124420002: return "Loan Officer";
+							case 124420004: return "Both Branch Manager AND Loan Officer Required";
+							default: return `Unknown (${value})`;
+						}
+					};
+
+					auditChanges.push({
+						field: "Approval Type",
+						from: getApprovalTypeName(origType),
+						to: getApprovalTypeName(currType)
+					});
+				}
+
+				// Save the setup changes
+				await apiCall(`_api/lv_lvcompcommissionsetups(${rowId})`, "PATCH", postData, true);
+				logWrite("SetupUpdate", JSON.stringify(postData));
+
+				// Create audit log record with detailed change tracking
+				const auditData = {
+					"lv_action": "Commission Setup Modified",
+					"lv_details": JSON.stringify({
+						recordId: rowId,
+						changes: auditChanges,
+						rawChanges: postData
+					}),
+					"lv_timestamp": new Date().toISOString()
+				};
+
+				// Add user context if available
+				if (typeof user !== 'undefined' && user.contactid) {
+					auditData["lv_userid"] = user.contactid;
+				}
+
+				await apiCall("/_api/lv_logs", "POST", auditData, false);
+			}
+
+			setTimeout(function() {
+    			$("#commissionSetupModal").modal("hide");
+				$('#lblStatus').text("");
+				$("#submitCommissionSetup").prop('disabled', false);
+			}, delay);
+
+		});
+	});
+
+	function retrieveSetupRec() {
+		// Use data already available from SetupQuery instead of making redundant API call
+		console.log('📋 Using setup data from SetupQuery instead of API call');
+		
+		// Create OrigSetupRec from server-side data (already fetched in SetupQuery)
+		// Use string-based assignment to prevent JavaScript syntax errors
+		OrigSetupRec = {};
+		OrigSetupRec["lv_lvcompcommissionsetupid"] = "{{setupRecord.lv_lvcompcommissionsetupid}}";
+		OrigSetupRec["lv_accountingemail"] = "{{setupRecord.lv_accountingemail}}";
+		OrigSetupRec["lv_configtags"] = "{{setupRecord.lv_configtags}}";
+		
+		// Handle lv_approvaltype safely
+		{% if setupRecord.lv_approvaltype and setupRecord.lv_approvaltype.value %}
+			OrigSetupRec["lv_approvaltype"] = {{setupRecord.lv_approvaltype.value}};
+		{% else %}
+			OrigSetupRec["lv_approvaltype"] = 124420000;
+		{% endif %}
+		
+		console.log('📋 OrigSetupRec created:', OrigSetupRec);
+		
+		const email = OrigSetupRec["lv_accountingemail"];
+		const atype = OrigSetupRec["lv_approvaltype"];
+		const tags = OrigSetupRec["lv_configtags"];
+
+		$('#txtSetupEmail').val(email);
+		$('#txtConfigTags').val(tags);
+
+		if (atype == 124420001)
+			$('#ApprovalTypeBM').prop('checked', true);
+		else if (atype == 124420002)
+			$('#ApprovalTypeLO').prop('checked', true);
+		else if (atype == 124420003)
+			$('#ApprovalTypeEitherOr').prop('checked', true);
+		else if (atype == 124420004)
+			$('#ApprovalTypeBothRequired').prop('checked', true);
+		else
+			$('#ApprovalTypeNone').prop('checked', true);
+	}
+</script>

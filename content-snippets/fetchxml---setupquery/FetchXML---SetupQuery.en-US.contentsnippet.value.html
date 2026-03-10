@@ -1,0 +1,1040 @@
+<!-- Last modified Thu Oct 30 3:22PM -->
+<!-- Last modified Wed Oct 29 3:36PM -->
+<!-- Last modified Wed Oct 29 8:37AM -->
+<!-- Last modified Mon Oct 06 3:20PM -->
+
+<!-- ENTER>> ~SetupQuery -->
+
+{% comment -%}
+Variables set in this file:
+
+cfgAccountingEnabled
+cfgBranchEnabled
+cfgPrintEnabled
+intSettingNumApprovalPeriods
+
+sqApprovalType                  str    Read from lv_lvcompcommissionsetup.  Will be empty, "LoanOfficer", "BranchManager", "EitherOr", or "BothRequired"
+sqIsCommissioned                bool   set to true when the currently logged in user has a loan officer, and that officer has a commission profile record
+	what is the difference between this and sqHasCommissionProfile ????? todo8
+sqRecCommProfile                rec    Null if logged in user does not have a profile, the rec of logged in user's LO otherwise
+sqRecLOBeingViewed              rec    ALWAYS a loan officer record or null - NEVER a string
+sqLOViewMode                    str    Either "ALL_LOAN_OFFICERS" or "SPECIFIC_OFFICER" to track view mode
+sqRecLOYouAre                   rec    The LoanOfficer rec for whatever loan officer the currently logged in user is assigned as
+sqUsingApprovals                bool   Set to true if sqApprovalType is non-empty
+userBranchList
+sqlUserRoleList                string  All roles separate with pipe
+
+PERIOD RELATED
+	Big Confusion on 'current' period: that could be interpreted as the currently select value in the dropdown
+						-or-
+							could be interpreted as the latest/open period
+
+	Thus the distinction UI_PERIOD_NO vs. UI_PERIOD_CODE and ACCTG_PERIOD_NO and ACCTG_PERIOD_CODE
+
+	sqRecUISelPeriod           Record from lv_lvcompCommPeriodCalc from with whatever period the user has selected in the UI dropdown
+	sqRecAcctgPeriod           Record from lv_lvcompCommPeriodCalc from with whatever period we end up defining as the open or active accounting period - right now the logic is simple, we always set it to the latest, but we may change that later
+
+	sqUISelPeriodNo            integer from sqRecUISelPeriod.lv_periodno
+	sqAcctgPeriodNo            integer from sqRecAcctgeriod.lv_periodno, will be the most recent accounting period
+
+	PAGE_UISelPeriodNo         integer available to Javascript code
+	PAGE_AcctgPeriodNo         integer available to Javascript code
+
+This snippet now includes everything we always have to do on basic pages. By 'basic' pages, we mean those that show commission values
+Things that were previously in snippet 'Current Period' got moved into here
+
+{% endcomment -%}
+
+{%- assign enableDebug = false -%}
+{%- if request.params.dbg == "1" -%}
+	{%- assign enableDebug = true -%}
+{%- endif -%}
+
+{% fetchxml setupQuery -%}
+	<fetch top="1">
+		<entity name="lv_lvcompcommissionsetup">
+			<attribute name="lv_lvcompcommissionsetupid" />
+			<attribute name="lv_accountingemail" />
+			<attribute name="lv_approvaltype" />
+			<attribute name="lv_configtags" />
+			<attribute name="lv_enablecommissiondraws" />
+			<attribute name="lv_urlflowcontactwebrole" />
+		</entity>
+	</fetch>
+{% endfetchxml -%}
+
+{% comment -%} Query all web roles for role ID mapping (needed for Admin Recovery) {% endcomment -%}
+{% fetchxml fxmAllWebRoles -%}
+	<fetch>
+		<entity name="powerpagecomponent">
+			<attribute name="powerpagecomponentid" />
+			<attribute name="name" />
+			<filter>
+				<condition attribute="powerpagecomponenttypename" operator="eq" value="Web Role" />
+			</filter>
+		</entity>
+	</fetch>
+{% endfetchxml -%}
+
+{%- assign setupRecord = setupQuery.results.entities | first -%}
+
+{% comment -%} PERFORMANCE OPTIMIZATION: Skip heavy data queries when Loan Officer page needs selection dropdown only {% endcomment -%}
+{%- assign skipDataQueriesForLoanOfficerSelection = false -%}
+{%- if page.title == 'Loan Officer' -%}
+	{%- unless request.params.officer and request.params.officer != "" and request.params.officer != "all" -%}
+		{%- comment -%} CRITICAL FIX: Never skip for Branch Managers - they need branch-based loan officer discovery {%- endcomment -%}
+		{%- comment -%} Use has_role directly since is_BranchManager variable hasn't been set yet at this point {%- endcomment -%}
+		{%- assign hasBranchManagerRole = user | has_role: 'Branch Manager' -%}
+		{%- unless hasBranchManagerRole -%}
+			{%- assign skipDataQueriesForLoanOfficerSelection = true -%}
+		{%- endunless -%}
+	{%- endunless -%}
+{%- endif -%}
+
+{% comment -%} CRITICAL: Always fetch loan officer records for permission system - permissions must work regardless of performance optimizations {% endcomment -%}
+{% fetchxml allLoanOfficers -%}
+	<fetch>
+		<entity name="lv_lvcomploanofficer">
+			<attribute name="lv_lvcomploanofficerid" />
+			<attribute name="lv_name" />
+			<attribute name="lv_code" />
+			<attribute name="lv_profile" />
+			<attribute name="lv_branch" />
+			<attribute name="lv_xbranchcode" />
+			<filter>
+				<condition attribute="statuscode" operator="eq" value="1" />
+			</filter>
+		</entity>
+	</fetch>
+{% endfetchxml -%}
+
+{%- assign cfgTags = setupRecord.lv_configtags -%}
+<!-- cfgTags={{cfgTags}}-->
+{% comment -%}      As far as I can tell, Liquid does not have a 'not' operator, so we have to do this crap      {% endcomment -%}
+{%- if setupRecord.lv_configtags contains "AccountingDisabled" -%}
+	{%- assign cfgAccountingEnabled = false -%}
+{%- else -%}
+	{%- assign cfgAccountingEnabled = true -%}
+{%- endif -%}
+
+{%- if setupRecord.lv_configtags contains "BranchDisabled" -%}
+	{%- assign cfgBranchEnabled = false -%}
+{%- else -%}
+	{%- assign cfgBranchEnabled = true -%}
+{%- endif -%}
+
+{% comment -%} NOTE: the false in both cases is by design! Idea is that later we may go back to using the config option, but as of 2025-08-25 we always disabled. {% endcomment -%} 
+{%- if setupRecord.lv_configtags contains "PrintDisabled" -%}
+	{%- assign cfgPrintEnabled = false -%}
+{%- else -%}
+	{%- assign cfgPrintEnabled = false -%}
+{%- endif -%}
+
+{%- if setupRecord.lv_configtags contains "ajax" -%}
+	{%- assign cfgAjax = true -%}
+{%- else -%}
+	{%- assign cfgAjax = false -%}
+{%- endif -%}
+
+{%- assign sqApprovalType = "" -%}
+{%- assign sqUsingApprovals = false -%}
+
+{% comment -%} TEMPORARY TESTING OVERRIDE: For shared@bogus.com only, pretend approvals are "Branch Manager Only" {% endcomment -%}
+{%- assign isTestUser = false -%}
+{%- if user and user.emailaddress1 -%}
+	{%- assign userEmailLower = user.emailaddress1 | downcase -%}
+	{%- if userEmailLower == "shared@bogus.com" -%}
+		{%- assign isTestUser = true -%}
+	{%- endif -%}
+{%- endif -%}
+
+{%- if isTestUser -%}
+	{% comment -%} TESTING OVERRIDE: Force Branch Manager approval for shared@bogus.com {% endcomment -%}
+	{%- assign sqApprovalType = "BranchManager" -%}
+	{%- assign sqUsingApprovals = true -%}
+{%- else -%}
+	{% comment -%} Normal approval logic based on system setting {% endcomment -%}
+	{%- if setupRecord.lv_approvaltype.value == 124420001 -%}
+		{%- assign sqApprovalType = "BranchManager" -%}
+		{%- assign sqUsingApprovals = true -%}
+	{%- elsif setupRecord.lv_approvaltype.value == 124420002 -%}
+		{%- assign sqApprovalType = "LoanOfficer" -%}
+		{%- assign sqUsingApprovals = true -%}
+	{%- elsif setupRecord.lv_approvaltype.value == 124420003 -%}
+		{%- assign sqApprovalType = "EitherOr" -%}
+		{%- assign sqUsingApprovals = true -%}
+	{%- elsif setupRecord.lv_approvaltype.value == 124420004 -%}
+		{%- assign sqApprovalType = "BothRequired" -%}
+		{%- assign sqUsingApprovals = true -%}
+	{%- endif -%}
+{%- endif -%}
+
+{% comment -%} Map role names to role IDs for Admin Recovery functionality {% endcomment -%}
+{%- assign adminRoleId = '' -%}
+{%- assign branchRoleId = '' -%}
+{%- assign loanOfficerRoleId = '' -%}
+{%- assign assignRoleId = '' -%}
+
+{%- for role in fxmAllWebRoles.results.entities -%}
+	{%- if role.name == 'Administrators' -%}
+		{%- assign adminRoleId = role.powerpagecomponentid -%}
+	{%- elsif role.name == 'Branch Manager' -%}
+		{%- assign branchRoleId = role.powerpagecomponentid -%}
+	{%- elsif role.name == 'Loan Officer' -%}
+		{%- assign loanOfficerRoleId = role.powerpagecomponentid -%}
+	{%- elsif role.name == 'Role Assign' -%}
+		{%- assign assignRoleId = role.powerpagecomponentid -%}
+	{%- endif -%}
+{%- endfor -%}
+
+{%- if user -%}
+	{%- if user.lv_branch and user['lv_branch'].id != empty -%}
+		{%- assign userBranch = user['lv_branch'] -%}
+	{%- else -%}
+		{%- assign userBranch = '' -%}
+	{%- endif -%}
+{%- else -%}
+	{%- assign userBranch = '' -%}
+{%- endif -%}
+
+{%- if request.params.branch and request.params.branch != empty -%}
+	{%- if entities.lv_lvcompbranch -%}
+		{%- assign currentBranch = entities.lv_lvcompbranch[request.params.branch] -%}
+	{%- else -%}
+		{%- assign currentBranch = null -%}
+	{%- endif -%}
+{%- elsif user and user.lv_branch and user.lv_branch.id -%}
+	{%- if entities.lv_lvcompbranch -%}
+		{%- assign currentBranch = entities.lv_lvcompbranch[user.lv_branch.id] -%}
+	{%- else -%}
+		{%- assign currentBranch = null -%}
+	{%- endif -%}
+{%- else -%}
+	{% comment -%} Only default to first branch for pages that need it (Branch, Accounting) {% endcomment -%}
+	{%- if page.title == 'Branch' or page.title == 'Accounting' -%}
+		{% fetchxml first_branch -%}
+			<fetch top="1">
+				<entity name="lv_lvcompbranch">
+					<attribute name="lv_name" />
+				</entity>
+			</fetch>
+		{% endfetchxml -%}
+		{%- assign currentBranch = first_branch.results.entities | first -%}
+	{%- else -%}
+		{%- assign currentBranch = null -%}
+	{%- endif -%}
+{%- endif -%}
+
+{%- assign officer_id = "" -%}
+{%- if user and user.lv_loanofficer -%}
+	{%- assign officer_id = user.lv_loanofficer.id | default: "" -%}
+{%- endif -%}
+
+{%- assign cmsnProfileId = "" -%}
+
+{%- if officer_id == "" -%}
+	{%- assign sqRecLOYouAre = null -%}
+{%- else -%}
+	{% comment -%} Find the loan officer record by iterating through fetched results {% endcomment -%}
+	{%- assign sqRecLOYouAre = null -%}
+	{%- if allLoanOfficers.results.entities -%}
+		{%- for lo in allLoanOfficers.results.entities -%}
+			{%- if lo.lv_lvcomploanofficerid and lo.lv_lvcomploanofficerid == officer_id -%}
+				{%- assign sqRecLOYouAre = lo -%}
+				{%- break -%}
+			{%- endif -%}
+		{%- endfor -%}
+	{%- endif -%}
+{%- endif -%}
+
+{% comment -%} ACCOUNTING AND BRANCH PAGES: No longer default to all loan officers - show selection required {% endcomment -%}
+{%- if page.title == 'Accounting' or page.title == 'Branch' -%}
+	{%- assign sqRecLOBeingViewed = null -%}
+	{%- assign sqLOViewMode = "SELECTION_REQUIRED" -%}
+{%- elsif request.params.officer and request.params.officer != empty -%}
+	{%- if request.params.officer == "all" -%}
+		{% comment -%} "All Loan Officers" option removed for performance - redirect to show selection required {% endcomment -%}
+		{%- assign sqRecLOBeingViewed = null -%}
+		{%- assign sqLOViewMode = "SELECTION_REQUIRED" -%}
+	{%- else -%}
+		{% comment -%} Guard: Only search if not already found to prevent double execution from overwriting {% endcomment -%}
+		{%- if sqRecLOBeingViewed == null or sqRecLOBeingViewed == "" or sqRecLOBeingViewed.lv_name == "" -%}
+			{% comment -%} Find the loan officer record by iterating through fetched results {% endcomment -%}
+			{%- assign sqRecLOBeingViewed = null -%}
+
+			{%- if allLoanOfficers.results.entities -%}
+				{%- for lo in allLoanOfficers.results.entities -%}
+					{%- if lo.lv_lvcomploanofficerid and lo.lv_lvcomploanofficerid == request.params.officer -%}
+						{%- assign sqRecLOBeingViewed = lo -%}
+						{%- assign sqLOViewMode = "SPECIFIC_OFFICER" -%}
+						{%- break -%}
+					{%- endif -%}
+				{%- endfor -%}
+			{%- endif -%}
+
+			{%- if sqRecLOBeingViewed == null -%}
+			{%- endif -%}
+		{%- endif -%}
+	{%- endif -%}
+{%- else -%}
+	{% comment -%} For users with loan officer access, determine default selection {% endcomment -%}
+	{%- if is_LoanOfficer and userLoanOfficerList != "" -%}
+		{% comment -%} Count how many loan officers this user has access to {% endcomment -%}
+		{%- assign userPermittedLoanOfficerCount = 0 -%}
+		{%- assign firstPermittedLoanOfficer = null -%}
+		{%- for part in userLoanOfficerList | split: "|" -%}
+			{%- if part != "" -%}
+				{%- assign userPermittedLoanOfficerCount = userPermittedLoanOfficerCount | plus: 1 -%}
+				{%- if firstPermittedLoanOfficer == null -%}
+					{%- assign firstPermittedLoanOfficer = part -%}
+				{%- endif -%}
+			{%- endif -%}
+		{%- endfor -%}
+
+		{% comment -%} Updated default logic:
+		1. Branch managers: require selection (no auto-default to all)
+		2. Users with multiple officer access: require selection
+		3. Users with only themselves default to their own record
+		{% endcomment -%}
+		{%- if is_BranchManager or userPermittedLoanOfficerCount >= 4 -%} {% comment -%} >=4 because list format is |name|code|name|code| so 2 officers = 4 parts {% endcomment -%}
+			{%- assign sqRecLOBeingViewed = null -%}
+			{%- assign sqLOViewMode = "SELECTION_REQUIRED" -%}
+		{%- elsif sqRecLOYouAre != null -%}
+			{%- assign sqRecLOBeingViewed = sqRecLOYouAre -%}
+			{%- assign sqLOViewMode = "SPECIFIC_OFFICER" -%}
+		{%- else -%}
+			{%- assign sqRecLOBeingViewed = null -%}
+			{%- assign sqLOViewMode = "SELECTION_REQUIRED" -%}
+		{%- endif -%}
+	{%- else -%}
+		{%- assign sqRecLOBeingViewed = sqRecLOYouAre -%}               {% comment -%}  So that if logged in user is ONLY a loan officer?   {% endcomment -%}
+		{%- if sqRecLOYouAre != null -%}
+			{%- assign sqLOViewMode = "SPECIFIC_OFFICER" -%}
+		{%- else -%}
+			{%- assign sqLOViewMode = "SELECTION_REQUIRED" -%}
+		{%- endif -%}
+	{%- endif -%}
+{%- endif -%}
+
+{%- if request.params.profile_id and request.params.profile_id != empty -%}
+	{%- assign currentProfile = entities.lv_lvcompcommissionprofile[request.params.profile_id] -%}
+{%- elsif sqRecCommProfile != '' -%}
+	{%- assign currentProfile = sqRecCommProfile -%}
+{%- else -%}
+	{%- assign currentProfile = commissionProfiles.results.entities | first -%}
+{%- endif -%}
+
+<!-- sqRecLOBeingViewed:167 sqRecLOBeingViewed.lv_profile.id={{sqRecLOBeingViewed.lv_profile.id}} ; sqRecLOBeingViewed.lv_name={{sqRecLOBeingViewed.lv_name}} ; sqRecLOBeingViewed.lv_lvcomploanofficerid={{sqRecLOBeingViewed.lv_lvcomploanofficerid}}-->
+
+{%- assign sqIsCommissioned = false -%}
+{%- if sqRecLOBeingViewed and sqRecLOBeingViewed.lv_profile and sqRecLOBeingViewed.lv_profile.id != empty -%}
+	<!-- sq:03b-1 commission profile exists -->
+	{%- assign sqRecCommProfile = entities.lv_lvcompcommissionprofile[sqRecLOBeingViewed.lv_profile.id] -%}
+	{%- assign sqIsCommissioned = true -%}
+{%- else -%}
+	<!-- sq:03b-2 NO COMMISSION PROFILE FOUND -->
+	{%- assign sqRecCommProfile = null -%}
+{%- endif -%}
+<!-- sq:LO sqIsCommissioned={{sqIsCommissioned}} -->
+
+{%- assign commProfileId = sqRecLOBeingViewed.lv_profile.id | default: "" -%}
+{%- assign sId = commProfileId | default: "" -%}
+{%- assign sqHasCommissionProfile = sId != "" -%}
+
+{%- if user -%}
+	{%- assign has_admin_role = user | has_role: 'Administrators' -%}
+	{%- assign is_developer = user | has_role: 'Developer' -%}
+	{%- assign is_BranchManager = user | has_role: 'Branch Manager' -%}
+
+	{% comment -%} ROBUST BRANCH MANAGER DETECTION: Use role ID if name-based detection fails {% endcomment -%}
+	{%- if is_BranchManager == false -%}
+		{%- for role in user.roles -%}
+			{%- if role.id == branchRoleId -%}
+				{%- assign is_BranchManager = true -%}
+			{%- endif -%}
+		{%- endfor -%}
+	{%- endif -%}
+
+	{% comment -%} SIMPLIFIED LOAN OFFICER DETECTION: Based on assignments, not web role {% endcomment -%}
+	{%- assign is_LoanOfficer = false -%}
+
+	{% comment -%} Check direct loan officer assignment {% endcomment -%}
+	{%- if user.lv_loanofficer and user.lv_loanofficer.id != blank -%}
+		{%- assign is_LoanOfficer = true -%}
+	{%- endif -%}
+
+	{% comment -%} Check LOO assignments - will be verified after queries run {% endcomment -%}
+	{% comment -%} Note: This will be updated later after we build the permission lists {% endcomment -%}
+	{%- assign is_LoanVision = user | has_role: 'LoanVision' -%}
+	{%- assign is_RoleAssign = user | has_role: 'Role Assign' -%}
+{%- else -%}
+	{%- assign has_admin_role = false -%}
+	{%- assign is_developer = false -%}
+	{%- assign is_BranchManager = false -%}
+	{%- assign is_LoanOfficer = false -%}
+	{%- assign is_LoanVision = false -%}
+	{%- assign is_RoleAssign = false -%}
+	{%- assign all_user_roles = "" -%}
+	{%- assign all_user_role_ids = "" -%}
+{%- endif -%}
+
+{% comment -%} ENHANCED ADMIN LOGIC: Separate web role from backdoor access {% endcomment -%}
+{%- assign adminEmailSetting = settings['LV/Administrators'] | default: "" -%}
+{%- assign has_admin_backdoor = false -%}
+
+{%- if user -%}
+	{%- assign userEmailLower = user.emailaddress1 | downcase -%}
+	{%- assign adminEmailsLower = adminEmailSetting | downcase -%}
+
+	{% comment -%} Check if user email is found in admin emails setting (case insensitive) {% endcomment -%}
+	{%- if adminEmailsLower != "" and userEmailLower != "" -%}
+		{% comment -%} Simple contains check - much simpler and reliable {% endcomment -%}
+		{%- if adminEmailsLower contains userEmailLower -%}
+			{%- assign has_admin_backdoor = true -%}
+		{%- endif -%}
+	{%- endif -%}
+{%- endif -%}
+
+{% comment -%} Set admin status: ONLY true if user has the web role {% endcomment -%}
+{%- assign is_admin = has_admin_role -%}
+
+{%- if is_BranchManager -%}
+	{%- assign has_branch_role = true -%}
+{%- else -%}
+	{%- assign has_branch_role = false -%}
+{%- endif -%}
+
+{%- if is_LoanOfficer -%}
+	{%- assign has_loan_role = true -%}
+{%- else -%}
+	{%- assign has_loan_role = false -%}
+{%- endif -%}
+
+{%- assign has_blocking_roles = false -%}
+{%- if has_admin_role -%}
+	{%- assign has_blocking_roles = true -%}
+{%- endif -%}
+
+{%- if has_branch_role -%}
+	{%- assign has_blocking_roles = true -%}
+{%- endif -%}
+
+{%- assign is_OnlyLoanOfficer = false -%}
+
+{%- if has_loan_role -%}
+	{%- if has_blocking_roles -%}
+		{%- assign is_OnlyLoanOfficer = false -%}
+	{%- else -%}
+		{% comment -%} Always using new assignment system - removed legacy mode {% endcomment -%}
+		{% comment -%} New assignment mode: Check if user has LOO assignments - if so, they need the dropdown {% endcomment -%}
+		{%- assign hasLOOAssignments = false -%}
+
+		{% comment -%} Try multiple approaches to get the count {% endcomment -%}
+		{%- assign rawSize = fxmUserAsLOO.results.entities.size -%}
+
+		{% comment -%} Manual count as backup {% endcomment -%}
+		{%- assign manualCount = 0 -%}
+		{%- for entity in fxmUserAsLOO.results.entities -%}
+			{%- assign manualCount = manualCount | plus: 1 -%}
+		{%- endfor -%}
+
+		{% comment -%} Use the one that works {% endcomment -%}
+		{%- assign looAssignmentCount = rawSize -%}
+		{%- if looAssignmentCount == 0 or looAssignmentCount == blank or looAssignmentCount == "" -%}
+			{%- assign looAssignmentCount = manualCount -%}
+		{%- endif -%}
+
+		{% comment -%} Simple numeric comparison {% endcomment -%}
+		{%- assign countIsZero = false -%}
+		{%- if looAssignmentCount == 0 -%}
+			{%- assign countIsZero = true -%}
+		{%- endif -%}
+
+		{%- assign countIsGreaterThanZero = false -%}
+		{%- if countIsZero == false -%}
+			{%- assign countIsGreaterThanZero = true -%}
+		{%- endif -%}
+
+		{%- if countIsGreaterThanZero == true -%}
+			{% comment -%} User has loan officer oversight assignments, but check if it's just themselves {% endcomment -%}
+			{%- assign hasLOOAssignments = true -%}
+
+			{% comment -%} Special case: If user has direct LO assignment AND only oversees themselves, treat as OnlyLoanOfficer {% endcomment -%}
+			{%- if officer_id != "" and userLoanOfficerList != "" -%}
+				{% comment -%} Count unique officer IDs in the list (format is |name|id|name|id|) {% endcomment -%}
+				{%- assign looOfficerIds = "" -%}
+				{%- assign parts = userLoanOfficerList | split: "|" -%}
+				{%- assign partIndex = 0 -%}
+				{%- for part in parts -%}
+					{%- assign partIndex = partIndex | plus: 1 -%}
+					{% comment -%} Every 2nd part (2,4,6...) is an officer ID {% endcomment -%}
+					{%- assign isEvenIndex = partIndex | modulo: 2 -%}
+					{%- if isEvenIndex == 0 and part != "" -%}
+						{%- assign looOfficerIds = looOfficerIds | append: "|" | append: part | append: "|" -%}
+					{%- endif -%}
+				{%- endfor -%}
+
+				{% comment -%} If the only officer ID in LOO list is the user's own ID, treat as OnlyLoanOfficer {% endcomment -%}
+				{%- if looOfficerIds == "|" | append: officer_id | append: "|" -%}
+					{%- assign hasLOOAssignments = false -%}
+				{%- endif -%}
+			{%- endif -%}
+		{%- endif -%}
+
+		{%- if hasLOOAssignments -%}
+			{%- assign is_OnlyLoanOfficer = false -%}
+		{%- else -%}
+			{%- assign is_OnlyLoanOfficer = true -%}
+		{%- endif -%}
+		{% comment -%} End of assignment logic - removed legacy conditional {% endcomment -%}
+	{%- endif -%}
+{%- else -%}
+	{%- assign is_OnlyLoanOfficer = false -%}
+{%- endif -%}
+
+{% comment -%} OVERRIDE: Simple loan officers should always view their own data, ignoring query parameters {% endcomment -%}
+{% comment -%} FIX: Only apply override when no explicit officer parameter OR user has no management permissions {% endcomment -%}
+{%- if is_OnlyLoanOfficer == true -%}
+	{% comment -%} Check if a specific officer was requested via URL parameter {% endcomment -%}
+	{%- assign hasExplicitOfficerParam = false -%}
+	{%- if request.params.officer and request.params.officer != empty and request.params.officer != "all" -%}
+		{%- assign hasExplicitOfficerParam = true -%}
+	{%- endif -%}
+
+	{% comment -%} Only override if no explicit officer requested OR user has no management rights {% endcomment -%}
+	{%- if hasExplicitOfficerParam == false or (is_admin == false and is_BranchManager == false) -%}
+		{% comment -%} Force simple loan officers to view their own data, regardless of query string parameters {% endcomment -%}
+		{%- assign sqRecLOBeingViewed = sqRecLOYouAre -%}
+		{%- assign sqLOViewMode = "SPECIFIC_OFFICER" -%}
+	{%- endif -%}
+{%- endif -%}
+
+{%- assign has_blocking_roles_for_branch = false -%}
+{%- if has_admin_role -%}
+	{%- assign has_blocking_roles_for_branch = true -%}
+{%- endif -%}
+{%- if has_loan_role -%}
+	{%- assign has_blocking_roles_for_branch = true -%}
+{%- endif -%}
+
+{%- assign is_OnlyBranchManager = false -%}
+{%- if has_branch_role -%}
+	{%- if has_blocking_roles_for_branch -%}
+		{%- assign is_OnlyBranchManager = false -%}
+	{%- else -%}
+		{%- assign is_OnlyBranchManager = true -%}
+	{%- endif -%}
+{%- endif -%}
+
+
+{%- assign sqUserRoles = "|" -%}
+{%- if is_admin -%}
+	{%- assign sqUserRoles = sqUserRoles | append: "Administrators|" -%}
+{%- endif -%}
+{%- if is_developer -%}
+	{%- assign sqUserRoles = sqUserRoles | append: "Developer|" -%}
+{%- endif -%}
+{%- if is_BranchManager -%}
+	{%- assign sqUserRoles = sqUserRoles | append: "Branch Manager|" -%}
+{%- endif -%}
+{%- if is_LoanOfficer -%}
+	{%- assign sqUserRoles = sqUserRoles | append: "Loan Officer|" -%}
+{%- endif -%}
+{%- if is_LoanVision -%}
+	{%- assign sqUserRoles = sqUserRoles | append: "LoanVision|" -%}
+{%- endif -%}
+{%- if is_RoleAssign -%}
+	{%- assign sqUserRoles = sqUserRoles | append: "Role Assign|" -%}
+{%- endif -%}
+
+{% fetchxml currentPeriodQuery -%}
+	<fetch>
+		<entity name="lv_lvcompcommperiodcalc">
+			<attribute name="lv_lvcompcommperiodcalcid" />
+			<attribute name="lv_datefrom" />
+			<attribute name="lv_dateto" />
+			<attribute name="lv_name" />
+			<attribute name="lv_periodno" />
+			<attribute name="lv_periodcode" />
+			<filter>
+				<condition attribute="lv_visibleonweb" operator="eq" value="1" />
+			</filter>
+			<order attribute="lv_periodno" descending="true" />
+		</entity>
+	</fetch>
+{% endfetchxml -%}
+
+<!-- sq:12 -->
+
+{%- assign sqRecAcctgPeriod = currentPeriodQuery.results.entities | first -%}
+{%- assign sqAcctgPeriodNo = sqRecAcctgPeriod.lv_periodno -%}
+
+<!-- sq:13 sqAcctgPeriodNo={{sqAcctgPeriodNo}} ; intSettingNumApprovalPeriods={{intSettingNumApprovalPeriods}} ; -->
+
+{%- if request.params.period -%}
+	{% comment -%} FIX: Manual search through currentPeriodQuery results instead of entity lookup {% endcomment -%}
+	{%- assign sqRecUISelPeriod = null -%}
+	{%- for period in currentPeriodQuery.results.entities -%}
+		{%- if period.lv_lvcompcommperiodcalcid == request.params.period -%}
+			{%- assign sqRecUISelPeriod = period -%}
+			{%- break -%}
+		{%- endif -%}
+	{%- endfor -%}
+	{% comment -%} Fallback to first period if GUID lookup failed {% endcomment -%}
+	{%- if sqRecUISelPeriod == null -%}
+		{%- assign sqRecUISelPeriod = currentPeriodQuery.results.entities | first -%}
+	{%- endif -%}
+{%- else -%}
+	{%- assign sqRecUISelPeriod = currentPeriodQuery.results.entities | first -%}
+{%- endif -%}
+
+{%- assign sqUISelPeriodNo = sqRecUISelPeriod.lv_periodno | integer -%}
+
+<!-- sq:14bc user.lv_loanofficer.id={%- if user and user.lv_loanofficer -%}{{user.lv_loanofficer.id}}{%- endif -%} ;  sqUISelPeriodNo={{sqUISelPeriodNo}} -->
+
+{% comment -%} NEW PERMISSIONS SYSTEM: Build complete access lists for user {% endcomment -%}
+{% comment -%} UPDATED 2025-11-26: Migrated to new junction tables (lv_contactbranchassignment, lv_contactloanofficerrelationship) {% endcomment -%}
+
+{%- if user -%}
+	{% comment -%} CRITICAL: Always fetch permission data - permissions must work regardless of performance optimizations {% endcomment -%}
+	{% comment -%} Query Branch Manager assignments from NEW table: lv_contactbranchassignment {% endcomment -%}
+	{%- fetchxml fxmUserAsBM -%}
+		<fetch>
+			<entity name="lv_contactbranchassignment">
+				<attribute name="lv_branch" />
+				<attribute name="lv_branchcode" />
+				<attribute name="lv_branchname" />
+				<attribute name="lv_contact" />
+				<filter>
+					<condition attribute="lv_contact" operator="eq" value="{{user.id}}" />
+				</filter>
+			</entity>
+		</fetch>
+	{%- endfetchxml -%}
+
+	{% comment -%} 🚨 CRITICAL DATA INTEGRITY CHECK - Null Branch Manager Detection {% endcomment -%}
+	{% comment -%} This check applies to ALL users regardless of role - even admins {% endcomment -%}
+	{% comment -%} If ANY row exists where this user is ContactBranchManager and lv_branch is null, BLOCK LOGIN {% endcomment -%}
+	{%- assign userHasNullBranchManagerAssignment = false -%}
+	{%- assign nullBranchAssignmentCount = 0 -%}
+
+	{%- for assignment in fxmUserAsBM.results.entities -%}
+		{%- unless assignment.lv_branch -%}
+			{%- assign userHasNullBranchManagerAssignment = true -%}
+			{%- assign nullBranchAssignmentCount = nullBranchAssignmentCount | plus: 1 -%}
+		{%- endunless -%}
+	{%- endfor -%}
+
+	{%- if userHasNullBranchManagerAssignment -%}
+		<!-- CRITICAL ERROR DETECTED: Null branch manager assignment -->
+		<script>
+		// Block all page rendering with full-screen white overlay
+		document.write('<div id="criticalErrorOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:999999;display:flex;align-items:center;justify-content:center;"><div style="text-align:center;"><h2>Processing...</h2><p>Please wait while we verify your account.</p></div></div>');
+
+		// Wait for page to fully load to ensure writeToLogTable function is available
+		window.addEventListener('DOMContentLoaded', async function() {
+			console.error('CRITICAL: Null branch manager assignment detected. Logging and blocking login.');
+
+			const logDetail = 'User {{ user.fullname }} ({{ user.emailaddress1 }}) has {{ nullBranchAssignmentCount }} branch manager assignment(s) with NULL branch value. UserID: {{ user.id }}';
+
+			// Write log entry and wait for completion
+			if (typeof writeToLogTable === 'function') {
+				try {
+					await writeToLogTable(
+						'LOGIN_BLOCKED_NULL_BM',
+						logDetail,
+						'UserID', '{{ user.id }}',
+						'NullCount', '{{ nullBranchAssignmentCount }}',
+						{ userEmail: '{{ user.emailaddress1 }}', userName: '{{ user.fullname }}' },
+						true  // Wait for completion
+					);
+					console.log('Critical error logged successfully');
+				} catch (error) {
+					console.error('Failed to log critical error:', error);
+					// Proceed with redirect anyway - don't let logging failure prevent security block
+				}
+			} else {
+				console.error('writeToLogTable function not available - proceeding with redirect anyway');
+			}
+
+			// Redirect after logging (or immediately if logging failed)
+			window.location.href = '/access-denied/?reason=null-branch-data&count={{ nullBranchAssignmentCount }}';
+		});
+		</script>
+
+		{% comment -%} Stop further Liquid processing - everything below this point should not execute {% endcomment -%}
+		<noscript>
+			<meta http-equiv="refresh" content="0; url=/access-denied/?reason=null-branch-data-nojs">
+		</noscript>
+	{%- endif -%}
+
+	{% comment -%} Query Loan Officer Oversight assignments from NEW table: lv_contactloanofficerrelationship {% endcomment -%}
+	{%- fetchxml fxmUserAsLOO -%}
+		<fetch>
+			<entity name="lv_contactloanofficerrelationship">
+				<attribute name="lv_loanofficer" />
+				<attribute name="lv_loanofficercode" />
+				<attribute name="lv_loanofficername" />
+				<attribute name="lv_contact" />
+				<attribute name="lv_relationshiptype" />
+				<filter type="and">
+					<condition attribute="lv_contact" operator="eq" value="{{user.id}}" />
+					<condition attribute="lv_relationshiptype" operator="eq" value="O" />
+				</filter>
+			</entity>
+		</fetch>
+	{%- endfetchxml -%}
+
+	<!-- Build BRANCH LIST from both Branch Manager and Loan Officer Oversight assignments -->
+	{%- assign userBranchList = "" -%}
+
+	{% comment -%} Count branch manager assignments for debugging {% endcomment -%}
+	{%- assign bmAssignmentCount = 0 -%}
+	{%- for row in fxmUserAsBM.results.entities -%}
+		{%- assign bmAssignmentCount = bmAssignmentCount | plus: 1 -%}
+	{%- endfor -%}
+
+	{% comment -%} ASSIGNMENT-BASED BRANCH MANAGER DETECTION: If user has branch assignments, they should have Branch Manager access {% endcomment -%}
+	{%- if user and bmAssignmentCount > 0 -%}
+		{%- assign is_BranchManager = true -%}
+	{%- endif -%}
+
+	{% comment -%} Add branches from Branch Manager assignments (NEW TABLE: lv_contactbranchassignment) {% endcomment -%}
+	{% comment -%} CRITICAL: Use branch CODES (lv_branchcode) not GUIDs - all commission filtering uses lv_xbranchcode {% endcomment -%}
+	{%- assign userBranchCodeList = "" -%}
+	{%- for row in fxmUserAsBM.results.entities -%}
+		{%- assign currentBranchCode = row.lv_branchcode -%}
+		{%- if currentBranchCode and currentBranchCode != blank -%}
+			{%- assign checkString = "|" | append: currentBranchCode | append: "|" -%}
+			{%- unless userBranchCodeList contains checkString -%}
+				{%- assign userBranchCodeList = userBranchCodeList | append: "|" | append: currentBranchCode | append: "|" -%}
+			{%- endunless -%}
+		{%- endif -%}
+		{% comment -%} Also maintain legacy userBranchList with GUID for backwards compatibility {% endcomment -%}
+		{%- assign currentBranchId = row.lv_branch -%}
+		{%- assign checkString = "|" | append: currentBranchId | append: "|" -%}
+		{%- unless userBranchList contains checkString -%}
+			{%- assign userBranchList = userBranchList | append: "|" | append: row.lv_branchname | append: "|" | append: currentBranchId | append: "|" -%}
+		{%- endunless -%}
+	{%- endfor -%}
+
+	{% comment -%} NOTE: LOO assignments (lv_contactloanofficerrelationship) link to loan officers, NOT branches {% endcomment -%}
+	{% comment -%} LOO users get access to specific loan officers, not branch-wide access {% endcomment -%}
+	{% comment -%} Branch list is ONLY populated from Branch Manager assignments {% endcomment -%}
+
+
+
+	{% comment -%} REMOVED: Legacy branch assignment from contact record {% endcomment -%}
+	{% comment -%} CRITICAL FIX: Contact.lv_branch is assignment TO a branch, not authority OVER a branch {% endcomment -%}
+	{% comment -%} Authority must come only from lv_contactbranchassignment records {% endcomment -%}
+
+
+
+	{% comment -%} APPROVAL-SPECIFIC PERMISSION: Only non-admin users with branch assignments can approve commissions {% endcomment -%}
+	{%- assign canApproveCommissions = false -%}
+	{%- if user and bmAssignmentCount > 0 and is_admin == false -%}
+		{%- assign canApproveCommissions = true -%}
+	{%- endif -%}
+
+	<!-- Build COMPREHENSIVE LOAN OFFICER LIST: All LOs user can view -->
+	{%- assign userLoanOfficerList = "" -%}
+
+	{%- comment -%} PERFORMANCE: Skip building userLoanOfficerList for Admins - they can see everything anyway {%- endcomment -%}
+	{%- if is_admin != true -%}
+
+		{%- comment -%} SOURCE 1: Direct loan officer assignment {%- endcomment -%}
+		{%- if user.lv_loanofficer and user.lv_loanofficer.id != blank -%}
+			{%- assign directOfficerId = user.lv_loanofficer.id -%}
+			{%- assign directOfficerCode = "" -%}
+			{%- assign directOfficerName = user.lv_loanofficer.name -%}
+
+			{% comment -%} Look up the loan officer code from allLoanOfficers collection {% endcomment -%}
+			{%- assign foundMatch = false -%}
+			{%- for loanofficer in allLoanOfficers.results.entities -%}
+				{%- if loanofficer.lv_lvcomploanofficerid and loanofficer.lv_lvcomploanofficerid == directOfficerId -%}
+					{%- assign directOfficerCode = loanofficer.lv_code -%}
+					{%- assign foundMatch = true -%}
+					{%- break -%}
+				{%- endif -%}
+			{%- endfor -%}
+
+			{%- if directOfficerCode != "" -%}
+				{%- assign userLoanOfficerList = userLoanOfficerList | append: "|" | append: directOfficerName | append: "|" | append: directOfficerCode | append: "|" -%}
+			{%- endif -%}
+		{%- endif -%}
+
+		{% comment -%} SOURCE 2: Explicit LOO assignments (NEW TABLE: lv_contactloanofficerrelationship) {% endcomment -%}
+		{%- for row in fxmUserAsLOO.results.entities -%}
+			{%- assign currentOfficerCode = row.lv_loanofficercode -%}
+			{%- assign currentOfficerName = row.lv_loanofficername -%}
+
+			{%- if currentOfficerCode != "" and currentOfficerCode != blank -%}
+				{%- assign checkString = "|" | append: currentOfficerCode | append: "|" -%}
+				{%- unless userLoanOfficerList contains checkString -%}
+					{%- assign userLoanOfficerList = userLoanOfficerList | append: "|" | append: currentOfficerName | append: "|" | append: currentOfficerCode | append: "|" -%}
+				{%- endunless -%}
+			{%- endif -%}
+		{%- endfor -%}
+
+		{% comment -%} SOURCE 3: REMOVED - Old junction table had LOs embedded, new lv_contactbranchassignment does not {% endcomment -%}
+		{% comment -%} Branch Managers now get LO access via SOURCE 4 (branch-based LO discovery) {% endcomment -%}
+
+		{% comment -%} SOURCE 4: Branch-Based Loan Officer Discovery for Branch Managers {% endcomment -%}
+		{% comment -%} CRITICAL: Derive LO list from COMMISSION DATA, NOT from lv_lvcomploanofficer table {% endcomment -%}
+		{% comment -%} See doc/SecurityPermissions.md "ABSOLUTE RULE: Commission Data is Single Source of Truth" {% endcomment -%}
+		{%- if is_BranchManager and userBranchCodeList != blank and userBranchCodeList != "" and userBranchCodeList != "|" and skipDataQueriesForLoanOfficerSelection == false -%}
+
+			<!-- DEBUG:SQ:SOURCE4 Branch Manager LO discovery from COMMISSION DATA -->
+			<!-- DEBUG:SQ:SOURCE4 userBranchCodeList={{userBranchCodeList}} -->
+
+			{% comment -%} Query commissions to find LOs with data in user's managed branches {% endcomment -%}
+			{% comment -%} We query recent commissions and filter by branch code client-side {% endcomment -%}
+			{%- fetchxml source4Commissions -%}
+				<fetch distinct="true">
+					<entity name="lv_lvcompcommission">
+						<attribute name="lv_xloanofficercode" />
+						<attribute name="lv_xloanofficername" />
+						<attribute name="lv_xbranchcode" />
+						<filter type="and">
+							<condition attribute="statuscode" operator="eq" value="1" />
+							<condition attribute="lv_xloanofficercode" operator="not-null" />
+							<condition attribute="lv_xbranchcode" operator="not-null" />
+						</filter>
+					</entity>
+				</fetch>
+			{%- endfetchxml -%}
+
+			<!-- DEBUG:SQ:SOURCE4 Queried {{source4Commissions.results.entities.size}} commission records -->
+
+			{%- assign source4AddedCount = 0 -%}
+			{%- assign source4UniqueLoCodesFound = "" -%}
+
+			{% comment -%} Scan commissions and find LOs with data in managed branches {% endcomment -%}
+			{%- for commission in source4Commissions.results.entities -%}
+				{%- if commission.lv_xbranchcode and commission.lv_xloanofficercode -%}
+					{% comment -%} Check if this commission's branch is in user's managed branches {% endcomment -%}
+					{%- assign branchCheckString = "|" | append: commission.lv_xbranchcode | append: "|" -%}
+					{%- if userBranchCodeList contains branchCheckString -%}
+						{% comment -%} This commission is in a managed branch - add LO if not already added {% endcomment -%}
+						{%- assign loCheckString = "|" | append: commission.lv_xloanofficercode | append: "|" -%}
+						{%- unless source4UniqueLoCodesFound contains loCheckString -%}
+							{%- assign source4UniqueLoCodesFound = source4UniqueLoCodesFound | append: loCheckString -%}
+
+							{% comment -%} Look up full LO name from allLoanOfficers {% endcomment -%}
+							{%- assign loName = commission.lv_xloanofficername -%}
+							{%- assign loCode = commission.lv_xloanofficercode -%}
+
+							{% comment -%} Try to get better name from allLoanOfficers if available {% endcomment -%}
+							{%- for officer in allLoanOfficers.results.entities -%}
+								{%- if officer.lv_code == loCode -%}
+									{%- assign loName = officer.lv_name -%}
+									{%- break -%}
+								{%- endif -%}
+							{%- endfor -%}
+
+							{% comment -%} Add to userLoanOfficerList if not already present {% endcomment -%}
+							{%- assign officerCheckString = "|" | append: loCode | append: "|" -%}
+							{%- unless userLoanOfficerList contains officerCheckString -%}
+								{%- assign userLoanOfficerList = userLoanOfficerList | append: "|" | append: loName | append: "|" | append: loCode | append: "|" -%}
+								{%- assign source4AddedCount = source4AddedCount | plus: 1 -%}
+								<!-- DEBUG:SQ:SOURCE4 Added {{loName}} ({{loCode}}) from branch {{commission.lv_xbranchcode}} -->
+							{%- endunless -%}
+						{%- endunless -%}
+					{%- endif -%}
+				{%- endif -%}
+			{%- endfor -%}
+
+			<!-- DEBUG:SQ:SOURCE4 Added {{source4AddedCount}} loan officers from commission data -->
+
+		{%- else -%}
+			<!-- DEBUG:SQ:SOURCE4 SKIPPED - is_BranchManager={{is_BranchManager}} userBranchCodeList={{userBranchCodeList}} skipDataQueries={{skipDataQueriesForLoanOfficerSelection}} -->
+		{%- endif -%}
+
+	{%- endif -%} {%- comment -%} End of: Skip building userLoanOfficerList for Admins {%- endcomment -%}
+
+	{%- comment -%} UPDATE is_LoanOfficer based on final loan officer list {%- endcomment -%}
+	{%- if userLoanOfficerList != "" and userLoanOfficerList != "|" -%}
+		{%- assign is_LoanOfficer = true -%}
+	{%- endif -%}
+
+	{%- comment -%} ============================================================ {%- endcomment -%}
+	{%- comment -%} NEW: Build EXCLUSION LIST from lv_contactloanofficerrelationship {%- endcomment -%}
+	{%- comment -%} This list contains LO codes that should be HIDDEN from this user {%- endcomment -%}
+	{%- comment -%} See docs/ContactAssignment_Refactoring_Plan.md for details {%- endcomment -%}
+	{%- comment -%} ============================================================ {%- endcomment -%}
+	{%- assign userExclusionLOList = "" -%}
+
+	{%- comment -%} Query new exclusion table (type='X' means eXclusion) {%- endcomment -%}
+	{%- comment -%} NOTE: This query will fail gracefully if table doesn't exist yet {%- endcomment -%}
+	{%- fetchxml fxmUserExclusions -%}
+		<fetch>
+			<entity name="lv_contactloanofficerrelationship">
+				<attribute name="lv_loanofficercode" />
+				<attribute name="lv_loanofficername" />
+				<filter type="and">
+					<condition attribute="lv_contact" operator="eq" value="{{user.id}}" />
+					<condition attribute="lv_relationshiptype" operator="eq" value="X" />
+				</filter>
+			</entity>
+		</fetch>
+	{%- endfetchxml -%}
+
+	{%- comment -%} Build exclusion list from query results {%- endcomment -%}
+	{%- for exclusion in fxmUserExclusions.results.entities -%}
+		{%- if exclusion.lv_loanofficercode != blank and exclusion.lv_loanofficercode != "" -%}
+			{%- assign checkString = "|" | append: exclusion.lv_loanofficercode | append: "|" -%}
+			{%- unless userExclusionLOList contains checkString -%}
+				{%- assign userExclusionLOList = userExclusionLOList | append: "|" | append: exclusion.lv_loanofficercode | append: "|" -%}
+			{%- endunless -%}
+		{%- endif -%}
+	{%- endfor -%}
+
+	{% comment -%} Ensure all permission lists end with proper delimiter {% endcomment -%}
+	{%- if userLoanOfficerList != "" and userLoanOfficerList != "|" -%}
+		{%- unless userLoanOfficerList contains "||" -%}
+			{%- assign userLoanOfficerList = userLoanOfficerList | append: "|" -%}
+		{%- endunless -%}
+	{%- endif -%}
+
+	{%- if userBranchList != "" and userBranchList != "|" -%}
+		{%- unless userBranchList contains "||" -%}
+			{%- assign userBranchList = userBranchList | append: "|" -%}
+		{%- endunless -%}
+	{%- endif -%}
+
+{%- else -%}
+	{% comment -%} User not authenticated - set empty permission lists {% endcomment -%}
+	{%- assign userLoanOfficerList = "" -%}
+	{%- assign userBranchList = "" -%}
+{%- endif -%}
+
+<!-- userBranchList={{userBranchList}} -->
+<!-- userLoanOfficerList={{userLoanOfficerList}} -->
+<!-- userExclusionLOList={{userExclusionLOList}} -->
+
+{% comment -%} === RECALCULATE is_OnlyLoanOfficer NOW THAT userLoanOfficerList IS COMPLETE === {% endcomment -%}
+{% comment -%} Override the earlier calculation that used empty userLoanOfficerList {% endcomment -%}
+{%- if has_loan_role -%}
+	{%- if has_blocking_roles or is_BranchManager -%}
+		{%- assign is_OnlyLoanOfficer = false -%}
+	{%- else -%}
+		{% comment -%} Always using new assignment system - removed legacy mode {% endcomment -%}
+		{% comment -%} Check if user only oversees themselves {% endcomment -%}
+		{%- if officer_id != "" and userLoanOfficerList != "" and userLoanOfficerList != "|" -%}
+			{% comment -%} Extract officer IDs from userLoanOfficerList (format: |name|id|name|id|) {% endcomment -%}
+			{%- assign looOfficerIds = "" -%}
+			{%- assign parts = userLoanOfficerList | split: "|" -%}
+			{%- assign partIndex = 0 -%}
+			{%- for part in parts -%}
+				{%- assign partIndex = partIndex | plus: 1 -%}
+				{%- assign isEvenIndex = partIndex | modulo: 2 -%}
+				{%- if isEvenIndex == 0 and part != "" -%}
+					{%- assign looOfficerIds = looOfficerIds | append: "|" | append: part | append: "|" -%}
+				{%- endif -%}
+			{%- endfor -%}
+
+			{% comment -%} Find the user's own officer code to compare properly {% endcomment -%}
+			{%- assign userOfficerCode = "" -%}
+			{%- if sqRecLOYouAre and sqRecLOYouAre.lv_code -%}
+				{%- assign userOfficerCode = sqRecLOYouAre.lv_code -%}
+			{%- endif -%}
+
+			{% comment -%} Build the expected string for comparison - GRANULAR STEPS FOR LIQUID {% endcomment -%}
+			{%- assign expectedString = "|" -%}
+			{%- assign expectedString = expectedString | append: userOfficerCode -%}
+			{%- assign expectedString = expectedString | append: "|" -%}
+
+			{% comment -%} Test if they match {% endcomment -%}
+			{%- assign stringsMatch = false -%}
+			{%- if looOfficerIds == expectedString -%}
+				{%- assign stringsMatch = true -%}
+			{%- endif -%}
+
+			{% comment -%} If user only oversees themselves (comparing codes), treat as OnlyLoanOfficer {% endcomment -%}
+			{%- if userOfficerCode != "" and stringsMatch == true -%}
+				{%- assign is_OnlyLoanOfficer = true -%}
+			{%- else -%}
+				{%- assign is_OnlyLoanOfficer = false -%}
+			{%- endif -%}
+		{%- else -%}
+			{%- assign is_OnlyLoanOfficer = true -%}
+		{%- endif -%}
+		{% comment -%} End of assignment logic - removed legacy conditional {% endcomment -%}
+	{%- endif -%}
+{%- else -%}
+	{%- assign is_OnlyLoanOfficer = false -%}
+{%- endif -%}
+
+{% comment -%}
+
+See discussion on different 'kinds' of period above at tag=2506061614
+
+PAGE_UISelPeriodNo     Set from sqRecUISelPeriod.lv_periodno, the value that is actually important as key
+PAGE_AcctgPeriodNo     Set from sqRecAcctgPeriod.lv_periodno
+PAGE_UISelPeriodCode   Used in user interaction: users do not know anything about period numbers, they see period codes. Set from Set from sqRecUISelPeriod.lv_name (period code)
+PAGE_AcctgPeriodCode   Used in user interaction: users do not know anything about period numbers, they see period codes. Set from Set from sqRecAcctgPeriod.lv_name (period code)
+
+{% endcomment -%}
+
+<script id="jsSetupQuery">
+	// 2506040742 Javascript from SetupQuery
+	if (typeof window.PAGE_LOID_BEINGVIEWED === 'undefined') {
+		window.PAGE_LOID_BEINGVIEWED = "{{sqRecLOBeingViewed.lv_lvcomploanofficerid}}";
+		window.PAGE_LOCODE_BEINGVIEWED = "{{sqRecLOBeingViewed.lv_code}}";
+		window.PAGE_LONAME_BEINGVIEWED = "{{sqRecLOBeingViewed.lv_name}}";
+		window.PAGE_LOID_YOUARE = "{{sqRecLOYouAre.lv_lvcomploanofficerid}}";
+
+		window.PAGE_USERID = "{%- if user -%}{{user.id}}{%- endif -%}";
+		window.PAGE_USEREMAIL = "{%- if user -%}{{user.emailaddress1}}{%- endif -%}";
+		window.PAGE_USERNAME = "{%- if user -%}{{user.fullname}}{%- endif -%}";
+		window.PAGE_USERROLES = "{{sqUserRoles}}";
+
+		window.cfgAjax = {%- if cfgAjax -%}true{%- else -%}false{%- endif -%};
+
+		// Permission variables for JavaScript access
+		window.userLoanOfficerList = "{{userLoanOfficerList}}";
+		window.userBranchList = "{{userBranchList}}";
+		window.userExclusionLOList = "{{userExclusionLOList}}"; // NEW: Excluded loan officers
+		window.is_admin = {%- if is_admin == true -%}true{%- else -%}false{%- endif -%};
+
+		{% comment -%} Best safety for both the javascript and liquid side {% endcomment -%}
+		window.PAGE_UISelPeriodNo = parseInt({{ sqRecUISelPeriod.lv_periodno | default: 0 }}) || 0;
+		window.PAGE_AcctgPeriodNo = parseInt({{ sqRecAcctgPeriod.lv_periodno | default: 0 }}) || 0;
+
+		window.PAGE_UISelPeriodCode = "{{sqRecUISelPeriod.lv_name}}";
+		window.PAGE_AcctgPeriodCode = "{{sqRecAcctgPeriod.lv_name}}";
+
+		window.G_Roles = {
+			isAdmin: {%- if is_admin == true -%}true{%- else -%}false{%- endif -%},
+			isBranch: {%- if is_BranchManager == true -%}true{%- else -%}false{%- endif -%},
+			isLO: {%- if is_LoanOfficer == true -%}true{%- else -%}false{%- endif -%},
+			isAssign: {%- if is_RoleAssign == true -%}true{%- else -%}false{%- endif -%},
+			isDev: {%- if is_developer == true -%}true{%- else -%}false{%- endif -%}
+		};
+
+		// Global variables needed for Admin Recovery functionality - set from SetupQuery
+		window.adminRoleId = "{{adminRoleId}}";
+		window.contactId = "{%- if user -%}{{user.id}}{%- endif -%}";
+		window.urlContactWebRole = "{{setupRecord.lv_urlflowcontactwebrole}}";
+
+
+		// Validate urlContactWebRole configuration at source
+		if (!window.urlContactWebRole || window.urlContactWebRole.trim() === '') {
+			console.error("❌ SYSTEM ERROR: urlContactWebRole is not configured in setup record!");
+			console.error("❌ This will cause failures in user role assignment functionality");
+		} else if (!window.urlContactWebRole.startsWith('http')) {
+			console.error("❌ SYSTEM ERROR: urlContactWebRole appears to be invalid format:", window.urlContactWebRole);
+			console.error("❌ Expected HTTP/HTTPS URL for Power Automate flow");
+		}
+
+		console.log("SetupQuery: Admin Recovery variables set - adminRoleId:", window.adminRoleId, "contactId:", window.contactId, "urlContactWebRole:", window.urlContactWebRole);
+
+	}
+</script>
+
+<!-- <<LEAVE SetupQuery -->
+
+<!-- Last modified Mon Oct 06 3:20PM -->
+<!-- Last modified Wed Oct 29 8:37AM -->
+<!-- Last modified Wed Oct 29 3:36PM -->
+<!-- Last modified Thu Oct 30 3:22PM -->

@@ -1,0 +1,12 @@
+adx_append: true
+adx_appendto: true
+adx_create: true
+adx_delete: true
+adx_entitylogicalname: lv_lvcompregionbranchloanofficer
+adx_entityname: lvcRegionBranchLoanOfficer
+adx_entitypermission_webrole:
+- e1e17fc7-e0e5-4803-b01b-0ba213d4c790
+adx_entitypermissionid: e027a343-1a19-f011-9989-002248045044
+adx_read: true
+adx_scope: 756150000
+adx_write: true

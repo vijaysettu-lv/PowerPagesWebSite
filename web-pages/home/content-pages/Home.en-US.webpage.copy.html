@@ -1,0 +1,46 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Tue Sep 30 7:09AM -->
+<!-- Last modified Mon Sep 29 6:43PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+{% if user %}
+  {% if user.roles contains 'Administrators' %}
+    {% assign redirectURL = '/Accounting' %}
+  {% elsif user.roles contains 'Region Manager' %}
+    {% assign redirectURL = '/Region' %}
+  {% elsif user.roles contains 'Branch Manager' %}
+    {% assign redirectURL = '/Branch' %}
+  {% elsif user.roles contains 'Loan Officer' %}
+    {% assign redirectURL = '/Loan-Officer' %}
+  {% endif %}
+{% else %}
+  {% comment %} Auto-redirect unauthenticated users to sign-in page {% endcomment %}
+  {% assign redirectURL = '/Account/Login/' %}
+{% endif %}
+
+{% if redirectURL %}
+<script>
+  window.location.href = '{{ redirectURL }}';
+</script>
+{% endif %}
+
+<div data-component-theme="" class="row sectionBlockLayout text-start" style="display: flex; flex-wrap: wrap; margin: 0px; min-height: auto; padding: 8px;">
+	<div class="container" style="padding: 0px; display: flex; flex-wrap: wrap;">
+	  <div class="col-lg-12 columnBlockLayout" style="flex-grow: 1; display: flex; flex-direction: column; min-width: 250px; word-break: break-word;">
+		<h1 style="text-align: left;">Welcome to the Loan Vision Commissions Portal</h1>
+		{% if user %}
+			<p>If you are seeing this page, it means you have been set up as a valid system user, but you have not been assigned any roles</p>
+			<p>Contact your system administrator and request to be assigned to a valid role.</p>
+			<p>Message ID: 12208</p>
+		{% else %}
+			<div class="container">
+				<h1>Redirecting to Sign In...</h1>
+				<p>Please wait while we redirect you to the sign-in page.</p>
+			</div>
+		{% endif %}
+	  </div>
+	</div>
+</div>
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Mon Sep 29 6:43PM -->
+<!-- Last modified Tue Sep 30 7:09AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

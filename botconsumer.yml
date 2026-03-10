@@ -1,0 +1,24 @@
+- adx_botconsumerid: 09e657b2-6824-f011-8c4d-6045bd078e56
+  adx_botschemaname: crdc7_5ebf57f0-2c07-4e0b-83a0-732e1cc5cf68
+  adx_configjson: '{"skillConfigViewName":"LVSiteNameDuringReactivate bot Answers"}'
+  adx_name: Bot Consumer
+- adx_botconsumerid: 1111878d-1961-f011-bec3-00224804514d
+  adx_botschemaname: cr4fe_d1299771-3089-4a79-94c7-a249f2d12f22
+  adx_configjson: '{"skillConfigViewName":"Loan Vision Commission Portal bot Answers"}'
+  adx_name: Bot Consumer
+- adx_botconsumerid: 68adacd2-be14-f011-998a-002248045044
+  adx_botschemaname: crc9f_18ce68e2-e247-4bd4-b7c0-60e9f176cd40
+  adx_configjson: '{"skillConfigViewName":"LVCP bot Answers"}'
+  adx_name: Bot Consumer
+- adx_botconsumerid: 7105b722-b688-f011-b4cc-6045bdeb6f62
+  adx_botschemaname: cr13a_5464676f-61f5-4db6-a68d-9b41e020dd8d
+  adx_configjson: '{"skillConfigViewName":"LVCP - Test bot Answers"}'
+  adx_name: Bot Consumer
+- adx_botconsumerid: 84f90ce8-65c1-f011-bbd3-000d3a593131
+  adx_botschemaname: cr21a_ec008a12-bc91-4b0e-842f-06da606fc8b9
+  adx_configjson: '{"skillConfigViewName":"Loan Vision Commission Portal bot Answers"}'
+  adx_name: Bot Consumer
+- adx_botconsumerid: c128252b-cf1e-f011-998a-7c1e521b1a65
+  adx_botschemaname: cr2de_1332f292-0567-4394-8b43-b572e5cf46de
+  adx_configjson: '{"skillConfigViewName":"CommPortalRCMDev bot Answers"}'
+  adx_name: Bot Consumer

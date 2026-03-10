@@ -1,0 +1,29 @@
+- adx_anonymoususersrole: false
+  adx_authenticatedusersrole: false
+  adx_name: Administrators
+  adx_webroleid: 007ff13c-35b2-410f-aaff-3b671f3876bd
+- adx_anonymoususersrole: false
+  adx_authenticatedusersrole: false
+  adx_name: Loan Officer
+  adx_webroleid: 40653bb0-5116-f011-9989-002248045044
+- adx_anonymoususersrole: false
+  adx_authenticatedusersrole: false
+  adx_description: Intended for any features we want to display only to Loan Vision staff, typically testers or developers.
+  adx_name: LoanVision
+  adx_webroleid: 862bea8f-c12a-f011-8c4d-6045bd078e56
+- adx_anonymoususersrole: false
+  adx_authenticatedusersrole: false
+  adx_name: Branch Manager
+  adx_webroleid: 940ca42e-4f16-f011-9989-002248045044
+- adx_anonymoususersrole: true
+  adx_authenticatedusersrole: false
+  adx_name: Anonymous Users
+  adx_webroleid: c981d735-6bd3-4298-8a60-aea60893f919
+- adx_anonymoususersrole: false
+  adx_authenticatedusersrole: true
+  adx_name: Authenticated Users
+  adx_webroleid: e1e17fc7-e0e5-4803-b01b-0ba213d4c790
+- adx_anonymoususersrole: false
+  adx_authenticatedusersrole: false
+  adx_name: Developer
+  adx_webroleid: e8341cc3-a325-f011-8c4d-6045bd078e56

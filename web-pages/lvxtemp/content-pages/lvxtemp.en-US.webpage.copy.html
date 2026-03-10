@@ -1,0 +1,374 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<p>Last modified sun aug 3 7:03pm</p>
+<!-- Commission Query Test with SetupQuery -->
+
+{% include 'snippet' snippet_name:'FetchXML - SetupQuery' %}
+
+<div class="row sectionBlockLayout text-start" style="display: flex; flex-wrap: wrap; margin: 0px; min-height: auto; padding: 8px;">
+    <div class="container" style="display: flex; flex-wrap: wrap;">
+        <div class="col-lg-12 columnBlockLayout" style="flex-grow: 1; display: flex; flex-direction: column; min-width: 250px; padding: 16px; margin: 60px 0px;">
+            
+            <h2>Commission Query Test with FULL SetupQuery and Commission Filter</h2>
+            
+            <div style="background: #e8f4fd; padding: 15px; margin-bottom: 20px; border: 1px solid #bee5eb; border-radius: 5px;">
+                <h4>✅ SetupQuery Results (Proof it's running):</h4>
+                <ul style="margin: 10px 0; font-family: monospace; font-size: 12px;">
+                    <li><strong>Periods found:</strong> {{currentPeriodQuery.results.entities.size}}</li>
+                    <li><strong>Selected period:</strong> {{sqRecUISelPeriod.lv_name}} ({{sqUISelPeriodNo}})</li>
+                    <li><strong>Accounting period:</strong> {{sqRecAcctgPeriod.lv_name}} ({{sqAcctgPeriodNo}})</li>
+                    <li><strong>User roles:</strong> Admin={{is_admin}} BranchMgr={{is_BranchManager}} LO={{is_OnlyLoanOfficer}}</li>
+                    <li><strong>Branch access:</strong> {{userBranchList | truncate: 50}}</li>
+                    <li><strong>LO access:</strong> {{userLoanOfficerList | truncate: 50}}</li>
+                    <li><strong>Branches loaded:</strong> {{branchQuery.results.entities.size}}</li>
+                    <li><strong>Loan officers loaded:</strong> {{allLoanOfficers.results.entities.size}}</li>
+                </ul>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label for="period-select" style="display: block; margin-bottom: 5px;">Period:</label>
+                <select id="period-select" onchange="setPeriodFilter()" style="padding: 8px; width: 300px;">
+                    <option value="">-- Select Period --</option>
+                    {% for period in currentPeriodQuery.results.entities %}
+                        <option value="{{period.lv_lvcompcommperiodcalcid}}" 
+                            {% if period.lv_lvcompcommperiodcalcid == request.params.period %} selected {% endif %} 
+                            data-periodno="{{period.lv_periodno}}">
+                            {{ period.lv_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="background: #f8f9fa; border: 2px solid #007bff; padding: 20px; margin-bottom: 20px; border-radius: 8px;">
+                <h4 style="color: #007bff; margin-top: 0;">🧪 Performance Testing Controls</h4>
+                <form id="perf-controls-form" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items: start;">
+                    <div>
+                        <h5>Commission Processing:</h5>
+                        <label style="display: block; margin: 5px 0;">
+                            <input type="checkbox" id="enable-comm-filtering" 
+                                {% if request.params.enableCommFiltering != "false" %} checked {% endif %}>
+                            Enable Commission Filtering Loop
+                        </label>
+                        <label style="display: block; margin: 5px 0;">
+                            <input type="checkbox" id="enable-comm-permissions" 
+                                {% if request.params.enableCommPermissions != "false" %} checked {% endif %}>
+                            Enable Commission Permission Checks
+                        </label>
+                        <label style="display: block; margin: 5px 0;">
+                            <input type="checkbox" id="enable-comm-html" 
+                                {% if request.params.enableCommHtml != "false" %} checked {% endif %}>
+                            Enable Commission HTML Generation
+                        </label>
+                    </div>
+                    <div>
+                        <h5>Adjustment Processing:</h5>
+                        <label style="display: block; margin: 5px 0;">
+                            <input type="checkbox" id="enable-adj-filtering" 
+                                {% if request.params.enableAdjFiltering != "false" %} checked {% endif %}>
+                            Enable Adjustment Filtering Loop
+                        </label>
+                        <label style="display: block; margin: 5px 0;">
+                            <input type="checkbox" id="enable-adj-permissions" 
+                                {% if request.params.enableAdjPermissions != "false" %} checked {% endif %}>
+                            Enable Adjustment Permission Checks
+                        </label>
+                    </div>
+                    <div>
+                        <h5>Record Limits:</h5>
+                        <label style="display: block; margin: 5px 0;">
+                            Commission Limit: 
+                            <input type="number" id="comm-limit" value="{{request.params.commLimit | default: '10'}}" 
+                                placeholder="10" style="width: 80px; margin-left: 5px;">
+                        </label>
+                        <label style="display: block; margin: 5px 0;">
+                            Adjustment Limit: 
+                            <input type="number" id="adj-limit" value="{{request.params.adjLimit | default: ''}}" 
+                                placeholder="All" style="width: 80px; margin-left: 5px;">
+                        </label>
+                        <label style="display: block; margin: 5px 0;">
+                            <input type="checkbox" id="use-simple-html" 
+                                {% if request.params.useSimpleHtml == "true" %} checked {% endif %}>
+                            Use Simple HTML (skip template generation)
+                        </label>
+                        <label style="display: block; margin: 5px 0;">
+                            <input type="checkbox" id="use-raw-data" 
+                                {% if request.params.useRawData == "true" %} checked {% endif %}>
+                            Use Raw Data + JS Formatting (fastest)
+                        </label>
+                        <label style="display: block; margin: 5px 0;">
+                            HTML Chunk Size: 
+                            <input type="number" id="chunk-size" value="{{request.params.chunkSize | default: '100'}}" 
+                                placeholder="100" style="width: 80px; margin-left: 5px;">
+                        </label>
+                    </div>
+                    <div>
+                        <button type="button" onclick="applyPerfControls()" 
+                            style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                            🚀 Apply & Test
+                        </button>
+                        <button type="button" onclick="resetPerfControls()" 
+                            style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-left: 10px;">
+                            Reset All
+                        </button>
+                    </div>
+                </form>
+                <div style="margin-top: 15px; padding: 10px; background: #e9ecef; border-radius: 4px; font-size: 12px;">
+                    <strong>Current URL Parameters:</strong><br>
+                    enableCommFiltering={{request.params.enableCommFiltering | default: "true"}}, 
+                    enableCommPermissions={{request.params.enableCommPermissions | default: "true"}}, 
+                    enableCommHtml={{request.params.enableCommHtml | default: "true"}}, 
+                    enableAdjFiltering={{request.params.enableAdjFiltering | default: "true"}}, 
+                    enableAdjPermissions={{request.params.enableAdjPermissions | default: "true"}}, 
+                    commLimit={{request.params.commLimit | default: "none"}}, 
+                    adjLimit={{request.params.adjLimit | default: "none"}}, 
+                    chunkSize={{request.params.chunkSize | default: "100"}}
+                </div>
+            </div>
+            
+            {% comment %} Commission Filter included for granular performance testing {% endcomment %}
+            {% include 'snippet' snippet_name:'Commission Filter' %}
+            
+            {% if sqUISelPeriodNo and sqUISelPeriodNo != 0 %}
+                <div style="background: #fff3cd; padding: 15px; margin: 10px 0; border: 1px solid #ffeaa7; border-radius: 5px;">
+                    <h4>✅ Commission Filter Results (Performance Testing Mode):</h4>
+                    <ul style="margin: 10px 0; font-family: monospace; font-size: 12px;">
+                        <li><strong>Raw commissions loaded:</strong> {{allLoanBasedCommissions.results.entities.size}}</li>
+                        <li><strong>Filtered commission count:</strong> {{cpCommCount}}</li>
+                        <li><strong>Commission total:</strong> ${{cpCommTotal}}</li>
+                        <li><strong>Adjustment count:</strong> {{cpAdjuCount}}</li>
+                        <li><strong>Adjustment total:</strong> ${{cpAdjuTotal}}</li>
+                        <li><strong>Period adjustments loaded:</strong> {{allPeriodBasedCommissions.results.entities.size}}</li>
+                        <li><strong>cfgAjax mode:</strong> {{cfgAjax}}</li>
+                    </ul>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <h3>Results for Period {{sqUISelPeriodNo}} ({{sqRecUISelPeriod.lv_name}})</h3>
+                    
+                    {% if cpCommCount > 0 %}
+                        <p>Found {{cpCommCount}} filtered records out of {{allLoanBasedCommissions.results.entities.size}} total</p>
+                        
+                        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+                            <thead>
+                                <tr>
+                                    <th>Entry No</th>
+                                    <th>Amount</th>
+                                    <th>Borrower</th>
+                                    <th>Loan</th>
+                                    <th>Branch</th>
+                                    <th>Loan Officer</th>
+                                    <th>Commission Date</th>
+                                    <th>Base Amount</th>
+                                    <th>LO Split</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% comment %} Use filtered results from Commission Filter instead of raw data {% endcomment %}
+                                {{ cfCommissionTableRows }}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No loan-based records found for period {{sqUISelPeriodNo}} ({{sqRecUISelPeriod.lv_name}})</p>
+                    {% endif %}
+                </div>
+            {% else %}
+                <p>Select a period from the dropdown above to test the query.</p>
+            {% endif %}
+            
+            <script>
+                // Spinner functions for lvxtemp page (since Footer may not be included)
+                const SPIN_CONT_ID = 'global-spinner-container';
+                const SPIN_ELEM_ID = 'global-spinner-elem';
+
+                function spinInit() {
+                    if (document.getElementById(SPIN_CONT_ID)) return; // Already exists
+                    
+                    // Create spinner container
+                    const container = document.createElement('div');
+                    container.id = SPIN_CONT_ID;
+                    container.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10001; display: none;';
+                    
+                    // Create spinner element
+                    const spinner = document.createElement('div');
+                    spinner.id = SPIN_ELEM_ID;
+                    spinner.style.cssText = 'border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 2s linear infinite; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1);';
+                    
+                    // Add CSS animation
+                    const style = document.createElement('style');
+                    style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+                    document.head.appendChild(style);
+                    
+                    container.appendChild(spinner);
+                    document.body.appendChild(container);
+                }
+
+                function spinShow(state) {
+                    spinInit(); // Auto-create if not exists
+                    const spinCont = document.getElementById(SPIN_CONT_ID);
+                    
+                    if (state === true) {
+                        spinCont.style.display = 'flex';
+                    } else if (state === false) {
+                        spinCont.style.display = 'none';
+                    } else {
+                        spinCont.style.display = spinCont.style.display === 'none' || spinCont.style.display === '' ? 'flex' : 'none';
+                    }
+                }
+
+                function setPeriodFilter() {
+                    // Show spinner immediately 
+                    spinShow(true);
+                    
+                    // Capture timing before page refresh
+                    localStorage.setItem('TimeOfLastChangeOfPeriodDropdown', Date.now().toString());
+                    
+                    const select = document.getElementById('period-select');
+                    const periodId = select.value;
+                    const baseUrl = periodId ? `/lvxtemp?period=${periodId}` : '/lvxtemp';
+                    
+                    // Preserve current performance control parameters
+                    const currentParams = new URLSearchParams(window.location.search);
+                    const perfParams = ['enableCommFiltering', 'enableCommPermissions', 'enableCommHtml', 
+                                       'enableAdjFiltering', 'enableAdjPermissions', 'commLimit', 'adjLimit', 'chunkSize', 'useSimpleHtml', 'useRawData'];
+                    
+                    const url = new URL(baseUrl, window.location.origin);
+                    perfParams.forEach(param => {
+                        if (currentParams.has(param)) {
+                            url.searchParams.set(param, currentParams.get(param));
+                        }
+                    });
+                    
+                    window.location.href = url.toString();
+                }
+
+                function applyPerfControls() {
+                    // Show spinner immediately 
+                    spinShow(true);
+                    
+                    // Capture timing before page refresh
+                    localStorage.setItem('TimeOfLastChangeOfPeriodDropdown', Date.now().toString());
+                    
+                    const currentParams = new URLSearchParams(window.location.search);
+                    const url = new URL(window.location.pathname, window.location.origin);
+                    
+                    // Preserve period parameter
+                    if (currentParams.has('period')) {
+                        url.searchParams.set('period', currentParams.get('period'));
+                    }
+                    
+                    // Add performance control parameters
+                    url.searchParams.set('enableCommFiltering', document.getElementById('enable-comm-filtering').checked);
+                    url.searchParams.set('enableCommPermissions', document.getElementById('enable-comm-permissions').checked);
+                    url.searchParams.set('enableCommHtml', document.getElementById('enable-comm-html').checked);
+                    url.searchParams.set('enableAdjFiltering', document.getElementById('enable-adj-filtering').checked);
+                    url.searchParams.set('enableAdjPermissions', document.getElementById('enable-adj-permissions').checked);
+                    url.searchParams.set('useSimpleHtml', document.getElementById('use-simple-html').checked);
+                    url.searchParams.set('useRawData', document.getElementById('use-raw-data').checked);
+                    
+                    const commLimit = document.getElementById('comm-limit').value;
+                    const adjLimit = document.getElementById('adj-limit').value;
+                    const chunkSize = document.getElementById('chunk-size').value;
+                    if (commLimit) url.searchParams.set('commLimit', commLimit);
+                    if (adjLimit) url.searchParams.set('adjLimit', adjLimit);
+                    if (chunkSize) url.searchParams.set('chunkSize', chunkSize);
+                    
+                    window.location.href = url.toString();
+                }
+
+                function resetPerfControls() {
+                    // Show spinner immediately 
+                    spinShow(true);
+                    
+                    // Capture timing before page refresh
+                    localStorage.setItem('TimeOfLastChangeOfPeriodDropdown', Date.now().toString());
+                    
+                    const currentParams = new URLSearchParams(window.location.search);
+                    const url = new URL(window.location.pathname, window.location.origin);
+                    
+                    // Only preserve period parameter
+                    if (currentParams.has('period')) {
+                        url.searchParams.set('period', currentParams.get('period'));
+                    }
+                    
+                    window.location.href = url.toString();
+                }
+                
+                // Format raw data rows with JavaScript (much faster than Liquid formatting)
+                function formatRawDataRows() {
+                    const rawRows = document.querySelectorAll('.raw-data-row');
+                    console.log(`Formatting ${rawRows.length} raw data rows with JavaScript...`);
+                    
+                    rawRows.forEach(row => {
+                        // Get raw data from attributes
+                        const loan = row.dataset.loan || 'N/A';
+                        const borrower = row.dataset.borrower || 'N/A';
+                        const amount = parseFloat(row.dataset.amount) || 0;
+                        const date = row.dataset.date ? new Date(row.dataset.date) : null;
+                        const base = parseFloat(row.dataset.base) || 0;
+                        const bps = parseFloat(row.dataset.bps) || 0;
+                        const calc = row.dataset.calc || 'Unknown';
+                        const branch = row.dataset.branch || 'N/A';
+                        const lo = row.dataset.lo || 'N/A';
+                        const split = parseFloat(row.dataset.split) || 100;
+                        
+                        // Format and populate cells
+                        const loanCol = row.querySelector('.loan-col');
+                        const borrowerCol = row.querySelector('.borrower-col');
+                        const dateCol = row.querySelector('.date-col');
+                        const baseCol = row.querySelector('.base-col');
+                        const amountCol = row.querySelector('.amount-col');
+                        const bpsCol = row.querySelector('.bps-col');
+                        const calcCol = row.querySelector('.calc-col');
+                        const branchCol = row.querySelector('.branch-col');
+                        const loCol = row.querySelector('.lo-col');
+                        const splitCol = row.querySelector('.split-col');
+                        
+                        if (loanCol) loanCol.textContent = loan;
+                        if (borrowerCol) borrowerCol.textContent = borrower;
+                        if (dateCol) dateCol.textContent = date ? date.toLocaleDateString() : 'No Date';
+                        if (baseCol) baseCol.textContent = base.toLocaleString('en-US', {style: 'currency', currency: 'USD'});
+                        if (amountCol) amountCol.textContent = amount.toLocaleString('en-US', {style: 'currency', currency: 'USD'});
+                        if (bpsCol) bpsCol.textContent = bps.toFixed(2);
+                        if (calcCol) calcCol.textContent = calc;
+                        if (branchCol) branchCol.textContent = branch;
+                        if (loCol) loCol.textContent = lo;
+                        if (splitCol) splitCol.textContent = split.toFixed(2) + '%';
+                    });
+                }
+
+                // Document ready: Calculate and display timing + format raw data
+                $(document).ready(function() {
+                    const startTime = localStorage.getItem('TimeOfLastChangeOfPeriodDropdown');
+                    if (startTime) {
+                        const endTime = Date.now();
+                        const deltaMs = endTime - parseInt(startTime);
+                        const deltaSeconds = (deltaMs / 1000).toFixed(1);
+                        
+                        // Insert timing display at top of page
+                        const timingHtml = `
+                            <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 10px; margin-bottom: 20px; border-radius: 5px; font-weight: bold; text-align: center;">
+                                ⏱️ Refresh time: ${deltaSeconds} seconds
+                            </div>
+                        `;
+                        
+                        // Insert after the h2 title
+                        $('h2').first().after(timingHtml);
+                        
+                        // Clear the timing data for next measurement
+                        localStorage.removeItem('TimeOfLastChangeOfPeriodDropdown');
+                    }
+                    
+                    // Format raw data rows if present
+                    setTimeout(() => {
+                        formatRawDataRows();
+                    }, 100);
+                });
+            </script>
+            
+        </div>
+    </div>
+</div>
+
+<p>Last modified sun aug 3 7:03pm</p>
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

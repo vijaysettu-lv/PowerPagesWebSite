@@ -1,0 +1,94 @@
+- adx_name: Restrict Read on Commissions
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 862bea8f-c12a-f011-8c4d-6045bd078e56
+  adx_webpageaccesscontrolruleid: 0b0a9962-ffa9-c28a-15eb-c023350be47e
+  adx_webpageid: 3904d53f-e8bc-9c7d-8920-cda5e7854416
+- adx_name: Restrict Read on Diag
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - e1e17fc7-e0e5-4803-b01b-0ba213d4c790
+  adx_webpageaccesscontrolruleid: 33a02b9f-2c86-1475-7d69-f757447f5457
+  adx_webpageid: 1fbe1936-197c-95df-44ed-0821fb35ea91
+- adx_name: Restrict Read on Accounting
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 007ff13c-35b2-410f-aaff-3b671f3876bd
+  adx_webpageaccesscontrolruleid: 35b2a789-e560-fafe-5244-c7401b6bf235
+  adx_webpageid: f9e4fac8-bb2b-fab4-760d-3e3ce999cadb
+- adx_name: Restrict Read on lvcpdev
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 007ff13c-35b2-410f-aaff-3b671f3876bd
+  adx_webpageaccesscontrolruleid: 41a0f5bb-a6ea-f8ba-1241-05d6374e8844
+  adx_webpageid: 09d0b2e7-1cc7-4019-0111-1a7b1ae522ee
+- adx_name: Restrict Read on Add Profile
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 007ff13c-35b2-410f-aaff-3b671f3876bd
+  adx_webpageaccesscontrolruleid: 6e0b93be-6047-f78e-b886-8b0efe8085dc
+  adx_webpageid: 3f0ecd35-28c0-b41c-917e-13f607a1b552
+- adx_name: Restrict Read on Officer
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 862bea8f-c12a-f011-8c4d-6045bd078e56
+  adx_webpageaccesscontrolruleid: 7ee3ba34-142e-5460-bff9-6f1b26e72b10
+  adx_webpageid: c1ef6594-65b9-da78-629d-3b29fc0ffa20
+- adx_name: Restrict Read on Setup
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 007ff13c-35b2-410f-aaff-3b671f3876bd
+  adx_webpageaccesscontrolruleid: b11043e7-6359-e0fc-2c96-0c0e985e1c1a
+  adx_webpageid: e4c0967d-c896-24d8-112b-9cca36ce4dfd
+- adx_name: Restrict Read on Officers
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 007ff13c-35b2-410f-aaff-3b671f3876bd
+  adx_webpageaccesscontrolruleid: b51e5af7-d8b9-6061-218c-8ff7424b1502
+  adx_webpageid: bc5cb3c0-d9a9-5307-6549-e3b12b00e1f7
+- adx_name: Restrict Read on Email Log
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - e1e17fc7-e0e5-4803-b01b-0ba213d4c790
+  adx_webpageaccesscontrolruleid: b925f8b3-f901-a689-4b75-fc339e5d6ac9
+  adx_webpageid: e4b15869-ccb3-d282-6d12-4396b31c7b66
+- adx_name: Grant Change to Administrators
+  adx_right: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 007ff13c-35b2-410f-aaff-3b671f3876bd
+  adx_webpageaccesscontrolruleid: c6a3b001-9a70-4636-80cf-9f3e15667931
+  adx_webpageid: 362995e0-7dc5-4bbf-9595-062f468d2d44
+- adx_name: Restrict Read on Commission
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 862bea8f-c12a-f011-8c4d-6045bd078e56
+  adx_webpageaccesscontrolruleid: ca3e1c12-ade7-99cf-f8f3-81268b6a895c
+  adx_webpageid: 587a042c-49d2-39a4-d2bb-f714b1dac383
+- adx_name: Restrict Read on lvxtemp
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 862bea8f-c12a-f011-8c4d-6045bd078e56
+  - e8341cc3-a325-f011-8c4d-6045bd078e56
+  adx_webpageaccesscontrolruleid: d1429076-6696-b6df-a574-fa11afd672f2
+  adx_webpageid: 6815ddcc-72c6-cdbf-5886-5a13849cc756
+- adx_name: Restrict Read on LV
+  adx_right: 2
+  adx_scope: 1
+  adx_webpageaccesscontrolrule_webrole:
+  - 862bea8f-c12a-f011-8c4d-6045bd078e56
+  adx_webpageaccesscontrolruleid: dd5a91fe-febd-5e6b-fca7-4e90174f60f9
+  adx_webpageid: 3b1e05e6-559b-fa2d-91ca-5743d4c373c4
+- adx_name: Grant Change to Content
+  adx_right: 1
+  adx_webpageaccesscontrolruleid: fe5f5e43-8df8-4afc-a231-f9e96cb35d9a

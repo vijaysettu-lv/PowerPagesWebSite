@@ -1,0 +1,90 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified sun aug 3 8:17pm -->
+<!-- Last modified tue jul 8 1:07pm -->
+<!-- Last modified tue jul 8 11:26am -->
+<!-- Snippet: ~ddBranch Selection -->
+
+
+<div class="selector-container">
+	<h3 for="branch-select">Branch Selection</h3>
+	<select name="branch-select" id="branch-select" onchange="setBranchFilter(this.value)">
+		{% comment %} Add "All Branches" option for users with multiple branch access {% endcomment %}
+		{% assign userPermittedBranchCount = 0 %}
+		{% for branch in branchQuery.results.entities %}
+			{% assign found = is_admin %}
+			{% if found == false %}
+				{% comment %} Use same checkString approach as Commission Filter and SetupQuery {% endcomment %}
+				{% assign branchCheckString = "|" | append: branch.lv_lvcompbranchid | append: "|" %}
+				{% if userBranchList contains branchCheckString %}
+					{% assign found = true %}
+				{% endif %}
+			{% endif %}
+			{% if found == true %}
+				{% assign userPermittedBranchCount = userPermittedBranchCount | plus: 1 %}
+			{% endif %}
+		{% endfor %}
+		
+		
+		{% comment %} For Administrators: Show "Please select a branch" instead of "All Branches" {% endcomment %}
+		{% if is_admin %}
+			<option value="" {% if request.params.branch == empty or request.params.branch == "" %} selected {% endif %}>Please select a branch</option>
+		{% elsif userPermittedBranchCount > 1 %}
+			<option value="all" {% if request.params.branch == "all" or request.params.branch == empty %} selected {% endif %}>All Branches</option>
+		{% endif %}
+		
+		{% for branch in branchQuery.results.entities %}
+			{% assign found = is_admin %}
+			{% if found == false %}
+				{% comment %} Use same checkString approach as Commission Filter and SetupQuery {% endcomment %}
+				{% assign branchCheckString = "|" | append: branch.lv_lvcompbranchid | append: "|" %}
+				{% if userBranchList contains branchCheckString %}
+					{% assign found = true %}
+				{% endif %}
+			{% endif %}
+			{% if found == true %}
+				<option value="{{branch.lv_lvcompbranchid}}" {% if branch.lv_lvcompbranchid == currentBranch.lv_lvcompbranchid and request.params.branch != "all" %} selected {% endif %}>{{branch.lv_name}} ({{branch.lv_code}})</option>
+			{% endif %}
+	    {% endfor %}
+	    
+	</select>
+</div>
+
+<script>
+function setBranchFilter(value) {
+	spinShow(true);
+	
+	// Performance timing: Track when branch selection changes
+	localStorage.setItem('TimeOfLastChangeOfPeriodDropdown', Date.now().toString());
+	
+	const baseUrl = window.location.origin;
+	let newUrl = new URL(window.location.pathname, baseUrl);
+	let currentQueryParams = new URLSearchParams(window.location.search);
+
+	localStorage.setItem('selectedBranch', value);
+
+	const oSel = getSelectSelected('#branch-select');
+
+	//If no current query params exist go ahead add the one we need
+	if (currentQueryParams.size === 0) {
+		newUrl.searchParams.append('branch', value);
+	} else {
+		if (currentQueryParams.has('branch')) {
+			currentQueryParams.set('branch', value);
+		} else {
+			// If 'branch' does not exist, append it
+			currentQueryParams.append('branch', value);
+		}
+
+		// Reconstruct the URL with the updated query parameters
+		newUrl.search = currentQueryParams.toString();
+	}
+
+	window.open(newUrl.toString(), '_self');
+
+	logSelect("Branch", oSel);
+}
+</script>
+<!-- Last modified sun aug 3 8:17pm -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

@@ -1,0 +1,21 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+{% fetchxml regionQuery %}
+<fetch>
+	<!-- Table -->
+	<entity name="account">
+		<!-- Columns -->
+		<attribute name="accountid" />
+		<attribute name="name" />
+		<!-- Filter By -->
+		<filter type="and">
+			<condition attribute="statecode" operator="eq" value="0" />
+		</filter>
+		<order attribute="name" />
+	</entity>
+</fetch>
+{% endfetchxml %}
+{% assign regionQuerySize = regionQuery.results.entities.size %}
+{% assign regions = regionQuery.results.entities %}
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

@@ -1,0 +1,830 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+
+
+/* Box sizing rules */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Prevent font size inflation */
+html {
+  -moz-text-size-adjust: none;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
+
+/* Remove default margin in favour of better control in authored CSS */
+body,
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin-block-end: 0;
+}
+
+/* Remove list styles on ul, ol elements with a list role, which suggests default styling will be removed */
+ul[role='list'],
+ol[role='list'] {
+  list-style: none;
+}
+
+/* Set core body defaults */
+body {
+  line-height: 1.5;
+}
+
+/* Set shorter line heights on headings and interactive elements */
+h1,
+h2,
+h3,
+h4,
+button,
+input,
+label {
+  line-height: 1.1;
+}
+
+/* Balance text wrapping on headings */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
+/* A elements that don't have a class get default styles */
+a:not([class]) {
+  text-decoration-skip-ink: auto;
+  color: currentColor;
+}
+
+/* Make images easier to work with */
+img,
+picture {
+  max-width: 100%;
+  display: block;
+}
+
+/* Inherit fonts for inputs and buttons */
+input,
+button,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Make sure textareas without a rows attribute are not tiny */
+textarea:not([rows]) {
+  min-height: 10em;
+}
+
+/* Anything that has been anchored to should have extra scroll margin */
+:target {
+  scroll-margin-block: 5ex;
+}
+
+
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.noselect {
+  -webkit-touch-callout: none;
+  /* iOS Safari */
+  -webkit-user-select: none;
+  /* Safari */
+  -khtml-user-select: none;
+  /* Konqueror HTML */
+  -moz-user-select: none;
+  /* Old versions of Firefox */
+  -ms-user-select: none;
+  /* Internet Explorer/Edge */
+  user-select: none;
+  /* Non-prefixed version, currently
+									supported by Chrome, Edge, Opera and Firefox */
+}
+
+/* Improved Form Styles - Theme Aligned */
+
+/* Form Container */
+#EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 {
+  max-width: 600px;
+  padding: 2rem;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Form Title and Labels */
+#EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 .cell label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--portalThemeColor1);
+  /* Dark purple color for labels */
+}
+
+/* Required Field Indicator */
+#EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 .cell label[id$="_label"] {
+  position: relative;
+}
+
+#EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 .cell label[id$="_label"]::after {
+  content: ' *';
+  color: #ff0000;
+  /* Red asterisk for required fields */
+}
+
+/* Form Fields */
+#EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 .cell input[type="text"],
+#EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 .cell select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Dropdown Styling */
+#EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 .cell select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23333' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 12px;
+  padding-right: 2rem;
+}
+
+/* Description Text */
+#EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 .description {
+  font-size: 0.875rem;
+  color: #666666;
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Submit Button */
+#UpdateButton {
+  background-color: var(--portalThemeColor9);
+  /* Bright purple color for the button */
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+
+#UpdateButton:hover {
+  background-color: var(--portalThemeColor1);
+  /* Slightly darker purple on hover */
+}
+
+.crmEntityFormView .actions {
+  border-top: none !important;
+}
+
+.crmEntityFormView,
+.entitylist,
+.modal-content,
+.popover-content {
+  border: none !important;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  #EntityFormControl_2eb44d51917aef11a6716045bda6e4f2 {
+    padding: 1.5rem;
+  }
+}
+
+.admin-panel {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+}
+
+.admin-panel-nav {
+  padding: 1rem;
+}
+
+.panel-nav-items {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0;
+}
+
+.admin-panel-nav h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.panel-nav-item {
+  width: fit-content;
+  padding: 1rem;
+}
+
+.panel-nav-item>a {
+  width: fit-content;
+  display: flex;
+  gap: 1rem;
+}
+
+.nav-link-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.nav-link-button small {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.nav-link-button:hover {
+  background-color: var(--portalThemeColor2);
+  color: var(--portalThemeOnColor1);;
+  /* Lighten or darken as needed */
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link-button:focus {
+  color: var(--portalThemeOnColor1);
+  /* Highlight color */
+  outline-offset: 2px;
+  background-color: var(--portalThemeColor2);
+}
+
+.nav-link-button svg {
+  flex-shrink: 0;
+  transition: fill 0.3s ease;
+}
+
+.nav-link-button:hover svg,
+.nav-link-button:focus svg {
+  fill: var(--portalThemeOnColor1);
+  /* Change icon color on hover/focus */
+}
+
+.nav-logo {
+  vertical-align: auto;
+}
+
+
+#mainContent>div.xrm-editable-html.xrm-attribute.page-copy>div>p {
+  padding-block-start: 1rem;
+}
+
+.profile-page-heading {
+  padding-block: 1.25rem !important;
+}
+
+
+.grid-container {
+  display: grid;
+  padding-inline: 1rem;
+  padding-block: 2rem;
+}
+
+.page-link {
+  width: inherit !important;
+}
+
+.selector-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.selector-container h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.selector-container select {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #f9f9f9;
+  width: 100%;
+  max-width: 300px;
+}
+
+.selector-container select:focus {
+  border-color: var(--portalThemeColor1);
+  outline: none;
+}
+
+.employee-container {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.employee {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.employee:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.employee-name {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--portalThemeColor1);
+  margin-bottom: 0.5rem;
+  border-bottom: 2px solid var(--portalThemeColor2);
+  padding-bottom: 0.5rem;
+}
+
+.compensation {
+  background-color: #f9f9f9;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.compensation-type {
+  font-weight: bold;
+  color: var(--portalThemeColor2);
+  margin-bottom: 0.25rem;
+}
+
+.compensation-amount {
+  font-weight: bold;
+  text-align: right;
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.loan-officers-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2rem;
+}
+
+.loan-officers-pagination__button {
+  background-color: var(--portalThemeColor2);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  margin: 0 0.5rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.loan-officers-pagination__button:hover {
+  background-color: var(--portalThemeColor1);
+}
+
+.loan-officers-pagination__button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.loan-officers-pagination__info {
+  margin: 0 1rem;
+  font-weight: bold;
+  color: var(--portalThemeColor1);
+}
+
+/* Adding this from GPT */
+.employee-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.employee-link,
+.compensation-link {
+  color: var(--portalThemeColor1);
+  font-size: 1.2rem;
+  transition: color 0.3s ease;
+  margin-left: 0.5rem;
+}
+
+.employee-link:hover,
+.compensation-link:hover {
+  color: var(--portalThemeColor2);
+}
+
+.compensation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.compensation-link {
+  font-size: 1rem;
+  margin-left: 0.5rem;
+}
+
+
+@media (max-width: 600px) {
+  body {
+    padding: 1rem;
+  }
+
+  .container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pagination-container {
+  display: flex;
+  margin: 20px 0;
+  justify-content: end;
+}
+
+.pagination-container button {
+  background-color: var(--portalThemeColor1);
+  /* Green background */
+  color: var(--portalThemeColor5);
+  /* White text */
+  border: none;
+  padding: 10px 15px;
+  margin: 0 5px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+}
+
+.pagination-container button:hover {
+  background-color: var(--portalThemeColor1);
+  /* Darker green */
+}
+
+.pagination-container button:disabled {
+  background-color: #ccc;
+  /* Grey background for disabled button */
+  cursor: not-allowed;
+}
+
+.pagination-container button:disabled:hover {
+  background-color: #ccc;
+  /* No color change on hover for disabled button */
+}
+
+.pagination-details {
+  text-align: right;
+  font-size: 0.9em;
+  color: #333;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.pagination-details span {
+  background-color: var(--portalThemeColor7);
+  padding: 5px 10px;
+  border-radius: 4px;
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.1);
+  display: inline-block;
+}
+
+.pagination-details span#currentPage,
+.pagination-details span#totalPages {
+  font-weight: bold;
+  color: #007bff;
+}
+
+
+
+/* Table Styles */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: .9rem;
+  text-align: left;
+  overflow-x: auto;
+  display: block;
+}
+
+/* Table Scrollable */
+.data-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Table Header and Cell Styling */
+.data-table th,
+.data-table td {
+  padding: 8px 12px;
+  /* Increased padding for better spacing */
+  border: 1px solid var(--portalThemeColor5);
+  white-space: nowrap;
+  /* Prevent text wrapping */
+}
+
+
+
+
+/* Table Header Styling */
+.data-table-head th {
+  background-color: var(--portalThemeColor1);
+  color: var(--portalThemeColor5);
+  font-weight: bold;
+  position: sticky;
+  /* Sticky header for better usability */
+  top: 0;
+  z-index: 2;
+}
+
+/* Table Row Styling */
+.data-table-body tr:nth-of-type(even) {
+  background-color: var(--portalThemeColor5);
+}
+
+.data-table-body tr:hover {
+  background-color: var(--portalThemeColor5);
+  cursor: pointer;
+}
+
+/* Table Cell Styling */
+.data-table td {
+  padding: 10px;
+}
+
+/* Make the last column sticky */
+.data-table-action td:last-child {
+  position: sticky;
+  right: 0;
+  background-color: inherit;
+  /* Adjust to match your table background */
+  z-index: 1;
+  box-shadow: -2px 0px 5px rgba(0, 0, 0, 0.1);
+  /* Optional: Adds a shadow effect */
+}
+
+/* Responsive Design */
+@media (max-width: 900px) {
+
+  .data-table,
+  .data-table thead,
+  .data-table tbody,
+  .data-table th,
+  .data-table td,
+  .data-table tr {
+    display: block;
+  }
+
+  .data-table thead {
+    display: none;
+    /* Hide thead for mobile */
+  }
+
+  .data-table tr {
+    margin-bottom: 15px;
+    border-bottom: 2px solid #ddd;
+  }
+
+  .data-table td {
+    text-align: right;
+    padding-left: 50%;
+    position: relative;
+    white-space: normal;
+    /* Allow wrapping on smaller screens */
+  }
+
+  .data-table td:before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    width: 50%;
+    padding-left: 15px;
+    font-weight: bold;
+    text-align: left;
+    white-space: nowrap;
+  }
+}
+
+/* Scrollbar Styling */
+.data-table-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.data-table-wrapper::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 3px;
+}
+
+.data-table-wrapper::-webkit-scrollbar-track {
+  background-color: var(--portalThemeColor5);
+}
+
+
+
+.myFlexContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0px;
+  width: 100%;
+  font-family: inherit;
+  max-width: 280px;
+}
+
+.myFlexContainer>div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  /* Added a bit of padding for better spacing */
+  background-color: var(--portalThemeColor7);
+  /* Ensures it uses the themed background color */
+  border-bottom: 1px solid #ddd;
+  /* Adds a subtle border for separation */
+  max-height: 40px;
+  /* Increased height for better readability */
+  width: 100%;
+  transition: background-color 0.3s ease;
+  /* Adds a transition effect on hover */
+}
+
+.myFlexContainer>div p {
+  margin: 0;
+  color: #333;
+  /* Darker text for better readability */
+  font-weight: 500;
+  /* Slightly bolder text for emphasis */
+  font-size: 0.95rem;
+  /* Slightly smaller font for a compact look */
+}
+
+.myFlexContainer>div:last-child {
+  border-bottom: none;
+  /* Removes the border on the last item */
+}
+
+.myFlexContainer>div p:last-child {
+  text-align: right;
+  /* Aligns the right-side text properly */
+  color: #555;
+  /* Gives the right-side text a slightly lighter color for differentiation */
+}
+
+.dashboard {
+  background-color: var(--portalThemeColor7);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.dashboard__header {
+  background-color: var(--portalThemeColor1);
+  color: white;
+  padding: 20px;
+  margin: 0;
+  font-size: 24px;
+}
+
+.dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.dashboard__card {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.dashboard__card-title {
+  font-size: 18px;
+  margin-top: 0;
+  color: var(--portalThemeColor1);
+  border-bottom: 2px solid var(--portalThemeColor2);
+  padding-bottom: 10px;
+}
+
+.dashboard__info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.dashboard__info-label {
+  font-weight: bold;
+  color: var(--portalThemeColor1);
+  margin: 0;
+}
+
+.dashboard__info-value {
+  color: #2980b9;
+  margin: 0;
+}
+
+/* LoanVision Added */
+
+.p911button {
+	align-items: center; 
+	border-radius: 8px 8px 8px 8px; 
+	display: flex; 
+	justify-content: center; 
+	max-width: auto; 
+	width: auto; 
+	height: 45px; 
+	flex-grow: 0; 
+	flex-shrink: 0; 
+	flex-basis: 160px;
+}
+
+/* Base styling for Select2 to match Bootstrap */
+.select2-container .select2-selection--single {
+    height: 38px !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 0.25rem !important;
+    background-color: #fff !important;
+    overflow: hidden !important;
+}
+
+/* Fix text alignment and spacing */
+.select2-container .select2-selection--single .select2-selection__rendered {
+    padding-left: 0.75rem !important;
+    padding-right: 2rem !important;
+    line-height: 38px !important;
+    color: #212529 !important;
+    font-family: inherit !important;
+    font-size: 1rem !important;
+    text-align: left !important;
+}
+
+/* Style the dropdown arrow */
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 36px !important;
+    width: 30px !important;
+    right: 3px !important;
+}
+
+/* Position the clear button */
+.select2-container--default .select2-selection--single .select2-selection__clear {
+    right: 25px !important;
+    position: absolute !important;
+    margin-right: 0 !important;
+}
+
+/* Style the dropdown and search field */
+.select2-dropdown {
+    border: 1px solid #ced4da !important;
+    border-radius: 0.25rem !important;
+    background-color: #fff !important;
+    z-index: 1056 !important;
+    margin-top: 1px !important;
+}
+
+.select2-search--dropdown .select2-search__field {
+    border: 1px solid #ced4da !important;
+    border-radius: 0.25rem !important;
+    padding: 0.375rem 0.75rem !important;
+}
+
+/* Fix results container */
+.select2-results {
+    padding: 0.375rem 0 !important;
+    overflow: hidden !important;
+}
+
+/* Fix results options */
+.select2-results__option {
+    padding: 0.375rem 0.75rem !important;
+}

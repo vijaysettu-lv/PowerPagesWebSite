@@ -1,0 +1,45 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sun Aug 31 5:00PM -->
+{% comment %} Define our own FetchXML query identical to Commission Filter {% endcomment %}
+{% fetchxml loanOfficerCommissions %}
+	<fetch>
+		<entity name="lv_lvcompcommission">
+			<attribute name="lv_lvcompcommissionid" />
+			<attribute name="lv_entryno" />
+			<attribute name="lv_amount" />
+			<attribute name="lv_type" />
+			<attribute name="lv_branch" />
+			<attribute name="lv_loanofficer" />
+			<attribute name="lv_borrowername" />
+			<attribute name="lv_commissiondate" />
+			<attribute name="lv_commissionbaseamount" />
+			<attribute name="lv_bpscalculated" />
+			<attribute name="lv_calculationtype" />
+			<attribute name="lv_loan" />
+			<attribute name="lv_xloan" />
+			<attribute name="lv_losplit" />
+			<attribute name="lv_cappedcommissionbaseamount" />
+			<attribute name="lv_calculationschemalineno" />
+			<attribute name="lv_calculationdate" />
+			<attribute name="lv_description" />
+			<attribute name="lv_periodno" />
+			<attribute name="lv_xprofile" />
+			<attribute name="lv_xloanamount" />
+			<attribute name="lv_xloanofficername" />
+			<attribute name="lv_xloanofficercode" />
+			<attribute name="lv_loancardurl" />
+
+			<filter type="and">
+				<condition attribute="lv_type" operator="eq" value="Loan Based" />
+				<condition attribute="lv_periodno" operator="eq" value="{{sqUISelPeriodNo}}" />
+			</filter>
+			<order attribute="lv_xloanofficername" />
+		</entity>
+	</fetch>
+{% endfetchxml %}
+
+{% assign valuesByLoanOfficerQuery = loanOfficerCommissions.results.entities %}
+
+<!-- LEAVE:Snippet: FetchXML - Commission Values by Loan Officer 2504220755bbc -->
+<!-- Last modified Sun Aug 31 5:00PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

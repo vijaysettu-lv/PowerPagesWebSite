@@ -1,0 +1,1558 @@
+<!-- Last modified Mon Nov 10 1:28PM -->
+<!-- Last modified Tue Oct 28 10:07AM -->
+<!-- Last modified Fri Oct 24 3:47PM -->
+
+<!-- ENTER: Content Snippet: Commission-Filter Tue 2025-07-30 0752 abananaa  -->
+
+{%- comment -%} 
+	=== COMMISSION FILTERING LOGIC ===
+	This snippet runs AFTER BranchQuery sets the final currentBranch value.
+	Config-driven approach: cfgAjax controls server vs client data loading
+{%- endcomment -%}
+
+{%- comment -%} cfPageSize should be defined by each page before including this snippet {%- endcomment -%}
+
+{%- comment -%} === PERFORMANCE TEST: RESTORING DATABASE QUERIES === {%- endcomment -%}
+{%- comment -%} STEP 4: Testing database queries impact on performance {%- endcomment -%}
+
+{%- comment -%} ACCOUNTING PAGE: Always use AJAX mode (load initial page), OTHER PAGES: Load full dataset {%- endcomment -%}
+{%- assign initialPageSize = request.params.pageSize | default: "10" -%}
+
+<!-- DEBUG:CF:FetchXml: page.title="{{page.title}}" sqLOViewMode="{{sqLOViewMode}}" sqRecLOBeingViewed.lv_code="{{sqRecLOBeingViewed.lv_code}}" -->
+
+{%- comment -%} Create temporary variable for fetch count attribute {%- endcomment -%}
+{%- assign fetchCount = "" -%}
+{%- if request.params.commLimit and request.params.commLimit != "" -%}
+	{%- assign fetchCount = ' count="' | append: request.params.commLimit | append: '"' -%}
+{%- elsif page.title == 'Accounting' -%}
+	{%- assign fetchCount = ' count="' | append: initialPageSize | append: '"' -%}
+{%- endif -%}
+
+{%- comment -%} Create debug variables for FetchXML filtering logic per Security Specification {%- endcomment -%}
+{%- assign fetchXmlFilterDebug = "NONE"  -%}
+{%- if page.title == 'Branch' and currentBranch.lv_code  -%}
+	{%- assign fetchXmlFilterDebug = "BRANCH_PAGE: Filter by branch code = " | append: currentBranch.lv_code  -%}
+{%- elsif page.title == 'Loan Officer' and sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code  -%}
+	{%- assign fetchXmlFilterDebug = "LO_PAGE: Filter by loan officer code = " | append: sqRecLOBeingViewed.lv_code  -%}
+{%- else -%}
+	{%- comment -%} Convert variables to strings to avoid Liquid errors {%- endcomment -%}
+	{%- assign currentBranchStr = currentBranch | default: "null"  -%}
+	{%- assign sqLOViewModeStr = sqLOViewMode | default: "null"  -%}
+	{%- assign fetchXmlFilterDebug = "NO_FETCHXML_FILTER: page.title=" | append: page.title | append: " currentBranch=" | append: currentBranchStr | append: " sqLOViewMode=" | append: sqLOViewModeStr  -%}
+{%- endif -%}
+
+
+<!-- DEBUG:CF:Beg Loan Based FetchXml -->
+<!-- DEBUG:CF: currentBranchStr={{currentBranchStr}} -->
+<!-- DEBUG:CF: sqLOViewModeStr={{sqLOViewModeStr}} -->
+<!-- DEBUG:CF: fetchXmlFilterDebug={{fetchXmlFilterDebug}} -->
+{%- fetchxml allLoanBasedCommissions  -%}
+	<fetch{{fetchCount}}>
+		<entity name="lv_lvcompcommission">
+			<attribute name="lv_lvcompcommissionid" />
+			<attribute name="lv_entryno" />
+			<attribute name="lv_amount" />
+			<attribute name="lv_type" />
+			<attribute name="lv_borrowername" />
+			<attribute name="lv_commissiondate" />
+			<attribute name="lv_commissionbaseamount" />
+			<attribute name="lv_bpscalculated" />
+			<attribute name="lv_calculationtype" />
+			<attribute name="lv_xloan" />
+			<attribute name="lv_losplit" />
+			<attribute name="lv_cappedcommissionbaseamount" />
+			<attribute name="lv_calculationschemalineno" />
+			<attribute name="lv_calculationdate" />
+			<attribute name="lv_description" />
+			<attribute name="lv_periodno" />
+			<attribute name="lv_xprofile" />
+			<attribute name="lv_xloanamount" />
+			<attribute name="lv_xbranchcode" />
+			<attribute name="lv_xbranchname" />
+			<attribute name="lv_xloanofficername" />
+			<attribute name="lv_xloanofficercode" />
+			<attribute name="lv_compositekey" />
+			<attribute name="lv_loancardurl" />
+			
+			{%- comment -%} NOTE: HTML comments inside a fetchXml block are NOT rendered and therefore cannot be used for debugging!!! {%- endcomment -%}
+			<filter type="and">
+				<condition attribute="lv_type" operator="eq" value="Loan Based" />
+				<condition attribute="lv_periodno" operator="eq" value="{{sqUISelPeriodNo}}" />
+
+				{%- comment -%} SIMPLIFIED FETCHXML FILTERING per Security Specification {%- endcomment -%}
+				{%- if page.title == 'Branch' and currentBranch.lv_code  -%}
+					{%- comment -%} Branch page: Specific branch selected - filter by that branch {%- endcomment -%}
+					<condition attribute="lv_xbranchcode" operator="eq" value="{{currentBranch.lv_code}}" />
+				{%- elsif page.title == 'Branch' and currentBranch == "ALL_BRANCHES" and is_BranchManager and userBranchList != "" -%}
+					{%- comment -%} Branch page: All Branches mode + Branch Manager - filter by managed branches IN FETCHXML {%- endcomment -%}
+					{%- comment -%} Build list of branch codes from userBranchList (which contains branch IDs) {%- endcomment -%}
+					{%- assign managedBranchCodesForFetch = "" -%}
+					{%- for branch in branchQuery.results.entities -%}
+						{%- assign branchIdCheck = "|" | append: branch.lv_lvcompbranchid | append: "|" -%}
+						{%- if userBranchList contains branchIdCheck -%}
+							{%- if managedBranchCodesForFetch == "" -%}
+								{%- assign managedBranchCodesForFetch = branch.lv_code -%}
+							{%- else -%}
+								{%- assign managedBranchCodesForFetch = managedBranchCodesForFetch | append: "," | append: branch.lv_code -%}
+							{%- endif -%}
+						{%- endif -%}
+					{%- endfor -%}
+					{%- assign branchCodesArray = managedBranchCodesForFetch | split: "," -%}
+					{%- if branchCodesArray.size == 1 -%}
+						<condition attribute="lv_xbranchcode" operator="eq" value="{{branchCodesArray[0]}}" />
+					{%- elsif branchCodesArray.size > 1 -%}
+						<condition attribute="lv_xbranchcode" operator="in">
+							<value>{{ managedBranchCodesForFetch | replace: ",", "</value><value>" }}</value>
+						</condition>
+					{%- endif -%}
+				{%- endif -%}
+
+				{%- if page.title == 'Loan Officer' and sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code  -%}
+					{%- comment -%} Loan Officer page: Filter by selected loan officer (applies to all user types) {%- endcomment -%}
+					<condition attribute="lv_xloanofficercode" operator="eq" value="{{sqRecLOBeingViewed.lv_code}}" />
+				{%- endif -%}
+			</filter>
+			<order attribute="lv_xbranchname" />
+			<order attribute="lv_xloanofficername" />
+			<order attribute="lv_calculationdate" />
+		</entity>
+	</fetch>
+{%- endfetchxml -%}
+<!-- DEBUG:CF:End done with Loan Based FetchXml -->
+<!-- DEBUG:CF:FetchXML Results: allLoanBasedCommissions.results.entities.size = {{allLoanBasedCommissions.results.entities.size}} -->
+
+{%- comment -%} ACCOUNTING PAGE: Always need count query for AJAX mode {%- endcomment -%}
+{%- if page.title == 'Accounting'  -%}
+	{%- fetchxml totalCommissionCount  -%}
+		<fetch aggregate="true">
+			<entity name="lv_lvcompcommission">
+				<attribute name="lv_lvcompcommissionid" aggregate="count" alias="totalcount" />
+				<filter type="and">
+					<condition attribute="lv_type" operator="eq" value="Loan Based" />
+					<condition attribute="lv_periodno" operator="eq" value="{{sqUISelPeriodNo}}" />
+					{%- if (page.title == 'Branch') and currentBranch != "ALL_BRANCHES" and currentBranch.lv_code  -%}
+						<condition attribute="lv_xbranchcode" operator="eq" value="{{currentBranch.lv_code}}" />
+					{%- endif -%}
+					{%- if (page.title == 'Loan Officer') and sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code and sqRecLOBeingViewed.lv_code != ""  -%}
+						<condition attribute="lv_xloanofficercode" operator="eq" value="{{sqRecLOBeingViewed.lv_code}}" />
+					{%- endif -%}
+				</filter>
+			</entity>
+		</fetch>
+	{%- endfetchxml -%}
+{%- endif -%}
+
+
+{%- comment -%} Load adjustments - use same pageSize as commissions for consistency {%- endcomment -%}
+{%- comment -%} Build fetch element with conditional count attribute using safer syntax {%- endcomment -%}
+{%- if cfgAjax and page.title == 'Accounting' -%}
+	{%- assign fetchCount = initialPageSize -%}
+{%- endif -%}
+
+{%- comment -%} <p>qqqd1 === FETCHXML PRE-FILTERING === page.title={{page.title}} sqUISelPeriodNo={{sqUISelPeriodNo}}</p> {%- endcomment -%}
+{%- if page.title == 'Branch' -%}
+	{%- if currentBranch != "ALL_BRANCHES" and currentBranch.lv_code -%}
+		{%- comment -%} <p>qqqd1 FETCHXML FILTER: Specific branch selected → filtering by lv_xbranchcode='{{currentBranch.lv_code}}'</p> {%- endcomment -%}
+	{%- elsif currentBranch == "ALL_BRANCHES" and is_BranchManager and userBranchList != "" -%}
+		{%- comment -%} <p>qqqd1 FETCHXML FILTER: ALL_BRANCHES mode + Branch Manager → filtering by managedBranchCodes='{{managedBranchCodes}}'</p> {%- endcomment -%}
+	{%- else -%}
+		{%- comment -%} <p>qqqd1 FETCHXML FILTER: No branch filtering applied (ALL_BRANCHES mode for admin or no branch restrictions)</p> {%- endcomment -%}
+	{%- endif -%}
+{%- elsif page.title == 'Loan Officer' and sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code -%}
+	{%- comment -%} <p>qqqd1 FETCHXML FILTER: Specific loan officer selected → filtering by lv_xloanofficercode='{{sqRecLOBeingViewed.lv_code}}'</p> {%- endcomment -%}
+{%- else -%}
+	{%- comment -%} <p>qqqd1 FETCHXML FILTER: No pre-filtering applied</p> {%- endcomment -%}
+{%- endif -%}
+
+{%- assign managedBranchCodes = managedBranchCodesForFetch -%}
+
+{%- fetchxml allPeriodBasedCommissions -%}
+	{%- if cfgAjax and page.title == 'Accounting' -%}
+	<fetch count="{{fetchCount}}">
+	{%- else -%}
+	<fetch>
+	{%- endif -%}
+		<entity name="lv_lvcompcommission">
+			<attribute name="lv_calculationdate" />
+			<attribute name="lv_amount" />
+			<attribute name="lv_description" />
+			<attribute name="lv_bpscalculated" />
+			<attribute name="lv_cappedcommissionbaseamount" />
+			<attribute name="lv_xprofile" />
+			<attribute name="lv_xloanofficer" />
+			<attribute name="lv_xloanofficername" />
+			<attribute name="lv_xloanofficercode" />
+			<attribute name="lv_xbranchcode" />
+			<attribute name="lv_xbranchname" />
+			<attribute name="lv_compositekey" />
+
+			<filter type="and">
+				<condition attribute="lv_type" operator="eq" value="Period Based" />
+				<condition attribute="lv_periodno" operator="eq" value="{{sqUISelPeriodNo}}" />
+				{%- if (page.title == 'Branch') and currentBranch != "ALL_BRANCHES" and currentBranch.lv_code  -%}
+					<condition attribute="lv_xbranchcode" operator="eq" value="{{currentBranch.lv_code}}" />
+				{%- elsif (page.title == 'Branch') and currentBranch == "ALL_BRANCHES" and is_BranchManager and userBranchList != ""  -%}
+					{%- comment -%} PERFORMANCE OPTIMIZATION: For branch managers viewing all branches, filter adjustments by their managed branches too {%- endcomment -%}
+					{%- if managedBranchCodes != ""  -%}
+						{%- assign adjCodesArray = managedBranchCodes | split: ","  -%}
+						{%- if adjCodesArray.size == 1  -%}
+							<condition attribute="lv_xbranchcode" operator="eq" value="{{adjCodesArray[0]}}" />
+						{%- else -%}
+							<condition attribute="lv_xbranchcode" operator="in">
+								<value>{{ managedBranchCodes | replace: ",", "</value><value>" }}</value>
+							</condition>
+						{%- endif -%}
+					{%- endif -%}
+				{%- endif -%}
+				{%- if (page.title == 'Loan Officer') and sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code and sqRecLOBeingViewed.lv_code != ""  -%}
+					<condition attribute="lv_xloanofficercode" operator="eq" value="{{sqRecLOBeingViewed.lv_code}}" />
+				{%- endif -%}
+			</filter>
+			<order attribute="lv_xbranchname" />
+			<order attribute="lv_xloanofficername" />
+			<order attribute="lv_calculationdate" />
+		</entity>
+	</fetch>
+{%- endfetchxml -%}
+
+
+{%- comment -%} DEBUG: Show some sample branch codes from the period-based commissions to help diagnose branch filtering {%- endcomment -%}
+{%- if allPeriodBasedCommissions.results.entities.size > 0  -%}
+	{%- assign sampleBranches = ""  -%}
+	{%- assign branchCount = 0  -%}
+	{%- for row in allPeriodBasedCommissions.results.entities  -%}
+		{%- if branchCount < 5 and row.lv_xbranchcode  -%}
+			{%- if sampleBranches == ""  -%}
+				{%- assign sampleBranches = row.lv_xbranchcode  -%}
+			{%- else -%}
+				{%- assign sampleBranches = sampleBranches | append: ", " | append: row.lv_xbranchcode  -%}
+			{%- endif -%}
+			{%- assign branchCount = branchCount | plus: 1  -%}
+		{%- endif -%}
+	{%- endfor -%}
+	<!-- DEBUG:CF:Sample branch codes from period data: {{sampleBranches}} -->
+{%- endif -%}
+
+{%- comment -%} PERIOD FILTERING: Get distinct periods that have commission data for this user/context {%- endcomment -%}
+{%- comment -%} Only run period filtering on Branch and Loan Officer pages, NOT on Accounting {%- endcomment -%}
+{%- if page.title == 'Branch' or page.title == 'Loan Officer' -%}
+	{%- fetchxml periodsWithData -%}
+		<fetch distinct="true">
+			<entity name="lv_lvcompcommission">
+				<attribute name="lv_periodno" />
+				<filter type="and">
+					{%- comment -%} Include both Loan Based and Period Based (adjustments) commissions {%- endcomment -%}
+					<filter type="or">
+						<condition attribute="lv_type" operator="eq" value="Loan Based" />
+						<condition attribute="lv_type" operator="eq" value="Period Based" />
+					</filter>
+					{%- comment -%} Apply same permission filtering as main commission query {%- endcomment -%}
+					{%- if page.title == 'Branch' and currentBranch != "ALL_BRANCHES" and currentBranch.lv_code -%}
+						<condition attribute="lv_xbranchcode" operator="eq" value="{{currentBranch.lv_code}}" />
+					{%- elsif page.title == 'Branch' and currentBranch == "ALL_BRANCHES" and is_BranchManager and userBranchList != "" -%}
+						{%- comment -%} Branch managers viewing all branches: filter by their managed branches later but not here {%- endcomment -%}
+					{%- elsif page.title == 'Loan Officer' and sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code and sqRecLOBeingViewed.lv_code != "" -%}
+						<condition attribute="lv_xloanofficercode" operator="eq" value="{{sqRecLOBeingViewed.lv_code}}" />
+					{%- elsif page.title == 'Loan Officer' and is_BranchManager == false and userLoanOfficerList != "" -%}
+						{%- comment -%} Non-admin loan officers: filter by their permitted loan officers {%- endcomment -%}
+						{%- assign loCodesArray = userLoanOfficerCodes | split: "," -%}
+						{%- if loCodesArray.size == 1 -%}
+							<condition attribute="lv_xloanofficercode" operator="eq" value="{{loCodesArray[0]}}" />
+						{%- else -%}
+							<condition attribute="lv_xloanofficercode" operator="in">
+								<value>{{ userLoanOfficerCodes | replace: ",", "</value><value>" }}</value>
+							</condition>
+						{%- endif -%}
+					{%- endif -%}
+				</filter>
+				<order attribute="lv_periodno" descending="true" />
+			</entity>
+		</fetch>
+	{%- endfetchxml -%}
+{%- endif -%}
+
+{%- comment -%} BRANCH PAGE: Create branch→periods mapping for client-side filtering {%- endcomment -%}
+{%- if page.title == 'Branch' -%}
+	{%- comment -%} Convert userBranchCodeList (|CODE1|CODE2|) to comma-separated format for FetchXML {%- endcomment -%}
+	{%- assign tempBranchCodes = userBranchCodeList | remove_first: "|" -%}
+	{%- assign tempBranchCodes = tempBranchCodes | split: "||" | join: "," -%}
+	{%- assign tempBranchCodes = tempBranchCodes | remove: "|" -%}
+	{%- assign branchCodesForMapping = tempBranchCodes -%}
+	{%- fetchxml branchPeriodsMapping -%}
+		<fetch distinct="true">
+			<entity name="lv_lvcompcommission">
+				<attribute name="lv_xbranchcode" />
+				<attribute name="lv_xbranchname" />
+				<attribute name="lv_periodno" />
+				<link-entity name="lv_lvcompbranch" from="lv_code" to="lv_xbranchcode" alias="branch">
+					<attribute name="lv_lvcompbranchid" alias="branchid" />
+				</link-entity>
+				<filter type="and">
+					{%- comment -%} Include both commission types {%- endcomment -%}
+					<filter type="or">
+						<condition attribute="lv_type" operator="eq" value="Loan Based" />
+						<condition attribute="lv_type" operator="eq" value="Period Based" />
+					</filter>
+					{%- comment -%} Apply same permission filtering using userBranchCodeList {%- endcomment -%}
+					{%- unless is_admin -%}
+						{%- if is_BranchManager and userBranchCodeList != "" and userBranchCodeList != "|" -%}
+							{%- assign branchCodesArray = branchCodesForMapping | split: "," -%}
+							{%- if branchCodesArray.size == 1 and branchCodesArray[0] != "" -%}
+								<condition attribute="lv_xbranchcode" operator="eq" value="{{branchCodesArray[0]}}" />
+							{%- elsif branchCodesArray.size > 1 -%}
+								<condition attribute="lv_xbranchcode" operator="in">
+									<value>{{ branchCodesForMapping | replace: ",", "</value><value>" }}</value>
+								</condition>
+							{%- endif -%}
+						{%- endif -%}
+					{%- endunless -%}
+				</filter>
+				<order attribute="lv_xbranchname" />
+				<order attribute="lv_periodno" descending="true" />
+			</entity>
+		</fetch>
+	{%- endfetchxml -%}
+{%- endif -%}
+
+{%- comment -%} ACCOUNTING PAGE: Count query for total adjustments (matches commission count pattern) {%- endcomment -%}
+{%- if page.title == 'Accounting'  -%}
+	{%- fetchxml totalAdjustmentCount  -%}
+		<fetch aggregate="true">
+			<entity name="lv_lvcompcommission">
+				<attribute name="lv_lvcompcommissionid" aggregate="count" alias="totaladjcount" />
+				<filter type="and">
+					<condition attribute="lv_type" operator="eq" value="Period Based" />
+					<condition attribute="lv_periodno" operator="eq" value="{{sqUISelPeriodNo}}" />
+					{%- if (page.title == 'Branch') and currentBranch != "ALL_BRANCHES" and currentBranch.lv_code  -%}
+						<condition attribute="lv_xbranchcode" operator="eq" value="{{currentBranch.lv_code}}" />
+					{%- endif -%}
+					{%- if (page.title == 'Loan Officer') and sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code and sqRecLOBeingViewed.lv_code != ""  -%}
+						<condition attribute="lv_xloanofficercode" operator="eq" value="{{sqRecLOBeingViewed.lv_code}}" />
+					{%- endif -%}
+				</filter>
+			</entity>
+		</fetch>
+	{%- endfetchxml -%}
+{%- endif -%}
+
+{%- comment -%} Initialize filtered totals {%- endcomment -%}
+{%- assign cfFilteredCommissionCount = 0  -%}
+{%- assign cfFilteredCommissionTotal = 0.0  -%}
+{%- assign cfFilteredAdjustmentCount = 0  -%}
+{%- assign cfFilteredAdjustmentTotal = 0.0  -%}
+{%- assign cfFilteredLoanCount = 0  -%}
+{%- assign cfFilteredLoanTotal = 0.0  -%}
+{%- assign cfSeenLoansString = ""  -%}
+
+{%- if page.title != 'Accounting'  -%}
+	{%- comment -%} PERFORMANCE OPTIMIZATION: Pre-build lookup maps to eliminate nested loops {%- endcomment -%}
+	{%- comment -%} Build branch code to ID mapping - O(branches) instead of O(commissions × branches) {%- endcomment -%}
+	{%- assign branchCodeToIdMap = "|"  -%}
+	{%- for branch in branchQuery.results.entities  -%}
+		{%- assign branchEntry = branch.lv_code | append: ":" | append: branch.lv_lvcompbranchid | append: "|"  -%}
+		{%- assign branchCodeToIdMap = branchCodeToIdMap | append: branchEntry  -%}
+	{%- endfor -%}
+
+	{%- comment -%} Build loan officer code to branch mapping - O(officers) instead of O(commissions × officers) {%- endcomment -%}
+	{%- assign officerCodeToBranchMap = "|"  -%}
+	{%- for officer in allLoanOfficers.results.entities  -%}
+		{%- if officer.lv_code and officer.lv_branch and officer.lv_branch.id  -%}
+			{%- assign officerEntry = officer.lv_code | append: ":" | append: officer.lv_branch.id | append: "|"  -%}
+			{%- assign officerCodeToBranchMap = officerCodeToBranchMap | append: officerEntry  -%}
+		{%- endif -%}
+	{%- endfor -%}
+{%- endif -%}
+
+{%- comment -%} === PERFORMANCE TESTING CONTROLS: CONDITIONAL COMMISSION FILTERING === {%- endcomment -%}
+{%- comment -%} Check URL parameters to determine what processing to enable {%- endcomment -%}
+{%- assign commissionRecordLimit = nil  -%}
+
+{%- assign processedCommissionCnt = 0  -%}
+{%- assign cfCommissionTableRows = ""  -%}
+{%- assign useSimpleHtml = request.params.useSimpleHtml | default: "true"  -%}
+{%- assign useRawData = request.params.useRawData | default: "false"  -%}
+
+{%- comment -%} Determine if this is a management view for table columns {%- endcomment -%}
+{%- assign isMgmt = false  -%}
+{%- if page.title == 'Accounting' or page.title == 'Branch'  -%}
+	{%- assign isMgmt = true  -%}
+{%- elsif page.title == 'Loan Officer' and is_OnlyLoanOfficer == false  -%}
+	{%- assign isMgmt = true  -%}
+{%- endif -%}
+
+{%- if is_admin -%}                  {%- comment -%} Admin users skip all permission processing {%- endcomment -%}
+	<!-- DEBUG:CF:Admin FAST PATH: Process all records without permission checks -->
+	{%- for row in allLoanBasedCommissions.results.entities -%}
+		{%- assign processedCommissionCnt = processedCommissionCnt | plus: 1 -%}
+
+		{%- comment -%} ADMIN: All commissions included by default {%- endcomment -%}
+		{%- assign includeThisCommission = true -%}
+
+		{%- comment -%} Update totals {%- endcomment -%}
+		{%- assign cfFilteredCommissionCount = cfFilteredCommissionCount | plus: 1 -%}
+		{%- assign cfFilteredCommissionTotal = cfFilteredCommissionTotal | plus: row.lv_amount -%}
+
+		{%- comment -%} Count unique loans from filtered commissions {%- endcomment -%}
+		{%- if row.lv_xloan != blank and row.lv_xloan != nil and row.lv_xloan != "" -%}
+			{%- capture checkString -%}|{{row.lv_xloan}}|{%- endcapture -%}
+			{%- assign checkString = checkString | strip -%}
+			{%- unless cfSeenLoansString contains checkString -%}
+				{%- assign cfSeenLoansString = cfSeenLoansString | append: checkString -%}
+				{%- assign cfFilteredLoanCount = cfFilteredLoanCount | plus: 1 -%}
+				{%- assign cfFilteredLoanTotal = cfFilteredLoanTotal | plus: row.lv_xloanamount -%}
+			{%- endunless -%}
+		{%- endif -%}
+
+		{%- comment -%} Build table row HTML simultaneously (if enabled) {%- endcomment -%}
+		{%- if useRawData == "true" -%}
+			{%- comment -%} RAW DATA: Use pure capture with direct interpolation - NO string operations {%- endcomment -%}
+			{%- capture rawRow -%}<tr class="raw-data-row" data-loan="{{row.lv_xloan | default: ''}}" data-borrower="{{row.lv_borrowername | default: ''}}" data-amount="{{row.lv_amount | default: 0}}" data-date="{{row.lv_commissiondate | default: ''}}" data-base="{{row.lv_commissionbaseamount | default: 0}}" data-bps="{{row.lv_bpscalculated | default: 0}}" data-calc="{{row.lv_calculationtype | default: ''}}" data-branch="{{row.lv_xbranchname | default: ''}}" data-lo="{{row.lv_xloanofficername | default: ''}}" data-split="{{row.lv_losplit | default: 100}}">{%- if isMgmt  -%}<td class="profile-col"></td>{%- endif -%}<td class="loan-col"></td><td class="borrower-col"></td><td class="date-col"></td><td class="base-col"></td><td class="amount-col"></td><td class="bps-col"></td><td class="calc-col"></td>{%- if isMgmt  -%}<td class="branch-col"></td><td class="lo-col"></td><td class="split-col"></td>{%- endif -%}<td class="action-col"><button class="btn-email" onclick="prepareEmailModal('{{row.lv_lvcompcommissionid}}', '{{row.lv_xloan}}', '{{row.lv_borrowername}}', '{{row.lv_amount | format: 'C'}}', '{{row.lv_loancardurl | default: ''}}')" title="Email this commission"><i class="fas fa-envelope"></i></button></td></tr>{%- endcapture -%}
+			{%- assign cfCommissionTableRows = cfCommissionTableRows | append: rawRow -%}
+		{%- elsif useSimpleHtml == "true" -%}
+			{%- comment -%} SIMPLE HTML: Generate all required columns with proper formatting {%- endcomment -%}
+			{%- capture simpleRow -%}<tr>{%- if isMgmt  -%}<td>{{row.lv_xprofile | default: "No Profile"}}</td>{%- endif -%}<td>{{row.lv_xloan | default: "No Loan"}}</td><td>{{row.lv_borrowername | default: "No Borrower"}}</td><td>{%- if row.lv_commissiondate  -%}{{row.lv_commissiondate | date: "MM/dd/yy"}}{%- else -%}No Date{%- endif -%}</td><td style="text-align: right;">${{row.lv_commissionbaseamount | default: 0 | round: 0 | format: 'N0'}}</td><td style="text-align: right;">{{row.lv_amount | default: 0 | format: 'C'}}</td><td style="text-align: right;">{{row.lv_bpscalculated | default: 0 | round: 2}}</td><td>{{row.lv_calculationtype | default: "Unknown"}}</td>{%- if isMgmt  -%}<td>{{row.lv_xbranchname | default: "No Branch"}}</td><td>{{row.lv_xloanofficername | default: "No LO"}}</td><td>{{row.lv_losplit | default: 100 | round: 0}}%</td>{%- endif -%}<td><button class="btn-email" onclick="prepareEmailModal('{{row.lv_lvcompcommissionid}}', '{{row.lv_xloan}}', '{{row.lv_borrowername}}', '{{row.lv_amount | format: 'C'}}', '{{row.lv_loancardurl | default: ''}}')" title="Email this commission"><i class="fas fa-envelope"></i></button></td></tr>{%- endcapture -%}
+			{%- assign cfCommissionTableRows = cfCommissionTableRows | append: simpleRow -%}
+		{%- else -%}
+			{%- comment -%} OPTIMIZED: Collapse complex HTML into single line to eliminate massive whitespace generation {%- endcomment -%}
+			{%- capture commissionRow -%}<tr{%- if user | has_role: 'LoanVision'  -%} title="{{ row.lv_compositekey | default: 'No Composite Key' }}"{%- endif -%}>{%- if isMgmt  -%}<td data-label="Profile">{{ row.lv_xprofile | default: "No Profile" }}</td>{%- endif -%}<td data-label="Loan Number">{%- if row.lv_loancardurl and row.lv_loancardurl != blank  -%}<a href="{{ row.lv_loancardurl }}" target="_blank" style="text-decoration: none;">{{ row.lv_xloan | default: "No Loan" }}</a>{%- else -%}{{ row.lv_xloan | default: "No Loan" }}{%- endif -%}</td><td data-label="Borrower Name">{{ row.lv_borrowername | default: "No Borrower" }}</td><td data-label="Date">{%- if row.lv_commissiondate  -%}{{ row.lv_commissiondate | date: "MM/dd/yy" }}{%- else -%}No Date{%- endif -%}</td><td data-label="CommBaseAmount" style="text-align: right;">${{ row.lv_commissionbaseamount | default: 0 | round: 0 | format: 'N0' }}</td><td data-label="Amount" style="text-align: right;">{{ row.lv_amount | default: 0 | format: 'C' }}</td><td data-label="BPSCalc" style="text-align: right;">{{ row.lv_bpscalculated | default: 0 | round: 2 }}</td><td data-label="CalcType">{{ row.lv_calculationtype | default: "Unknown" }}</td>{%- if isMgmt  -%}<td data-label="Branch">{{ row.lv_xbranchname | default: "No Branch" }}</td><td data-label="Loan Officer">{{ row.lv_xloanofficername | default: "No LO" }}</td><td data-label="LOSplit">{{ row.lv_losplit | default: 100 | round: 0 }}%</td>{%- endif -%}<td class="action-column"><div class="button-group"><button class="btn-email" onclick="prepareEmailModal('{{ row.lv_lvcompcommissionid }}', '{{ row.lv_xloan }}', '{{ row.lv_borrowername }}', '{{ row.lv_amount | format: 'C' }}')" title="Email this commission"><i class="fas fa-envelope"></i></button></div></td></tr>{%- endcapture -%}
+			{%- assign cfCommissionTableRows = cfCommissionTableRows | append: commissionRow -%}
+		{%- endif -%}
+	{%- endfor -%}
+	
+	<!-- DEBUG:CF:Admin cfFilteredCommissionCount={{cfFilteredCommissionCount}} ; processedCommissionCnt={{processedCommissionCnt}} -->
+{%- else -%}
+	<!-- NON-ADMIN PATH: Apply permission filtering -->
+	{%- for row in allLoanBasedCommissions.results.entities -%}
+		{%- assign processedCommissionCnt = processedCommissionCnt | plus: 1 -%}
+
+		{%- assign includeThisCommission = false -%}
+		
+		{%- comment -%} <p>qqq row.lv_xbranchcode={{row.lv_xbranchcode}} ; amount={{row.lv_amount}} </p> {%- endcomment -%}
+			
+		{%- if row.lv_xbranchcode and row.lv_xbranchcode != blank -%}
+			{%- capture branchLookupKey -%}|{{row.lv_xbranchcode}}:{%- endcapture -%}
+			{%- assign branchLookupKey = branchLookupKey | strip -%}
+
+			{%- if branchCodeToIdMap contains branchLookupKey -%}
+				{%- comment -%} <p>qqq branchCodeToIdMap DOES contain branchlookupKey={{branchLookupKey}} </p> {%- endcomment -%}
+
+				{%- assign mapStartPos = branchCodeToIdMap | split: branchLookupKey | first | size -%}
+				{%- assign mapStartPos = mapStartPos | plus: branchLookupKey.size -%}
+				{%- assign mapRemainder = branchCodeToIdMap | slice: mapStartPos, 50 -%}
+				{%- assign commissionBranchId = mapRemainder | split: "|" | first -%}
+							
+				{%- assign branchCheckString = "|" -%}
+				{%- assign branchCheckString = branchCheckString | append: commissionBranchId -%}
+				{%- assign branchCheckString = branchCheckString | append: "|" -%}
+				
+				{%- comment -%} <p>qqq QQQQQQQ commissionBranchId={{commissionBranchId}} and branchCheckString={{branchCheckString}} </p> {%- endcomment -%}
+
+				{%- if userBranchList contains branchCheckString -%}
+					{%- assign includeThisCommission = true -%}
+				{%- else -%}
+					{%- comment -%} <p>qqq Because userBranchList={{userBranchList}} does NOT contain branchCheckString={{branchCheckString}}, NOT including</p> {%- endcomment -%}
+				{%- endif -%}
+			{%- else -%}
+				{%- comment -%} <p>qqq branchCodeToIdMap does NOT contain branchlookupKey={{branchLookupKey}} </p> {%- endcomment -%}
+			{%- endif -%}
+		{%- endif -%}
+
+		{%- if row.lv_xloanofficercode and row.lv_xloanofficercode != blank -%}
+			{%- capture officerCheckString -%}|{{row.lv_xloanofficercode}}|{%- endcapture -%}
+			{%- assign officerCheckString = officerCheckString | strip -%}
+			
+			{%- if userLoanOfficerList contains officerCheckString -%}
+				{%- assign includeThisCommission = true -%}
+			{%- endif -%}
+		{%- endif -%}
+		
+		{%- comment -%} Page-specific filter: Branch selection {%- endcomment -%}
+		{%- if page.title == 'Branch' and includeThisCommission -%}
+			{%- comment -%} <p>qqq DO 421 include this commission </p> {%- endcomment -%}
+			{%- if currentBranch != "ALL_BRANCHES" -%}
+				{%- comment -%} Specific branch selected - filter by that branch for everyone including admins {%- endcomment -%}
+				{%- comment -%} Use branch code for comparison - this is the reliable field for filtering {%- endcomment -%}
+				{%- if row.lv_xbranchcode != currentBranch.lv_code -%}
+					{%- comment -%} <p>qqq Exclude 001</p> {%- endcomment -%}
+					{%- assign includeThisCommission = false -%}
+				{%- endif -%}
+			{%- else -%}
+				{%- comment -%} ALL_BRANCHES mode: Apply permission filtering for non-admin users {%- endcomment -%}
+				{%- unless is_admin -%}
+					{%- comment -%} Check if user has permission for this commission's branch {%- endcomment -%}
+					{%- if row.lv_xbranchcode and row.lv_xbranchcode != blank -%}
+						
+						{%- comment -%} Step 1: Create lookup key for branch code mapping {%- endcomment -%}
+						{%- capture branchLookupKey -%}|{{row.lv_xbranchcode}}:{%- endcapture -%}
+						{%- assign branchLookupKey = branchLookupKey | strip -%}
+						
+						{%- comment -%} Step 2: Find branch ID from branch code using lookup map {%- endcomment -%}
+						{%- if branchCodeToIdMap contains branchLookupKey -%}
+							{%- assign mapStartPos = branchCodeToIdMap | split: branchLookupKey | first | size -%}
+							{%- assign mapStartPos = mapStartPos | plus: branchLookupKey.size -%}
+							{%- assign mapRemainder = branchCodeToIdMap | slice: mapStartPos, 50 -%}
+							{%- assign branchId = mapRemainder | split: "|" | first -%}
+
+							{%- comment -%} Step 3: Check if user has access to this branch {%- endcomment -%}
+							{%- assign branchCheckString = "|" | append: branchId | append: "|" -%}
+							{%- unless userBranchList contains branchCheckString -%}
+								{%- comment -%} <p>qqq Exclude 002</p> {%- endcomment -%}
+								{%- assign includeThisCommission = false -%}
+							{%- endunless -%}
+						{%- endif -%}
+					{%- endif -%}
+				{%- endunless -%}
+			{%- endif -%}
+		{%- endif -%}
+	
+		{%- comment -%} <p>qqq Page-specific filter: Loan Officer selection (applies to everyone including admins) page.title={{page.title}} and includeThisCommission={{includeThisCommission}}</p> {%- endcomment -%}
+		{%- if page.title == 'Loan Officer' and includeThisCommission -%}
+			{%- comment -%} <p>qqq sqLOViewMode={{sqLOViewMode}}</p> {%- endcomment -%}
+			{%- if sqLOViewMode == "SELECTION_REQUIRED" -%}
+				{%- comment -%} <p>qqq No loan officer selected - hide all commissions to encourage selection </p> {%- endcomment -%}
+				{%- assign includeThisCommission = false -%}
+			{%- elsif sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code != blank and sqRecLOBeingViewed.lv_code != "" -%}
+				{%- comment -%} <p>qqq 475 </p> {%- endcomment -%}
+				{%- unless row.lv_xloanofficercode == sqRecLOBeingViewed.lv_code -%}
+					{%- comment -%} <p>qqq 477 </p> {%- endcomment -%}
+					{%- assign includeThisCommission = false -%}
+				{%- endunless -%}
+
+				{%- comment -%} ADDITIONAL CHECK: Branch managers must have authority over commission's branch {%- endcomment -%}
+				{%- comment -%} CRITICAL: Use userBranchCodeList for direct code comparison - DO NOT use complex GUID lookups {%- endcomment -%}
+
+				{%- if includeThisCommission and is_BranchManager and is_admin == false and row.lv_xbranchcode and row.lv_xbranchcode != blank -%}
+					{%- comment -%} SIMPLIFIED: Check if commission's branch code is in user's branch code list {%- endcomment -%}
+					{%- assign branchCheckString = "|" | append: row.lv_xbranchcode | append: "|" -%}
+					{%- unless userBranchCodeList contains branchCheckString -%}
+						{%- assign includeThisCommission = false -%}
+					{%- endunless -%}
+				{%- elsif includeThisCommission and is_BranchManager and is_admin == false -%}
+					{%- comment -%} Commission has NO branch code - branch managers can only see commissions with branches they manage {%- endcomment -%}
+					{%- assign includeThisCommission = false -%}
+				{%- endif -%}
+			{%- else -%}
+				{%- comment -%} <p>qqq No specific loan officer selected: Apply permission filtering for non-admin users</p> {%- endcomment -%}
+				{%- unless is_admin -%}
+					{%- comment -%} <p>qqq User is NOT admin</p> {%- endcomment -%}
+					{%- comment -%} Only process if commission has a loan officer code {%- endcomment -%}
+					{%- if row.lv_xloanofficercode and row.lv_xloanofficercode != blank -%}			
+						{%- comment -%} <p>qqq STEP 1: Check if user has direct access to this loan officer </p> {%- endcomment -%}
+						
+						{%- assign hasLoanOfficerAccess = false -%}
+						{%- capture officerCheckString -%}|{{row.lv_xloanofficercode}}|{%- endcapture -%}
+						{%- assign officerCheckString = officerCheckString | strip -%}
+						{%- if userLoanOfficerList contains officerCheckString -%}
+							{%- assign hasLoanOfficerAccess = true -%}
+							{%- comment -%} <p>qqq Just set hasLoanOfficerAccess to true</p> {%- endcomment -%}
+						{%- endif -%}
+						
+						{%- comment -%} STEP 2: If no direct access, check if commission's branch matches user's branch authority {%- endcomment -%}
+						{%- unless hasLoanOfficerAccess -%}
+							{%- comment -%} <p>qqq Enter unless hasLoanOfficerAccess</p> {%- endcomment -%}
+							{%- if is_BranchManager and userBranchList != "" and userBranchList != "|" -%}
+								{%- comment -%} Branch managers can see commissions based on WHERE THE COMMISSION IS CODED, not where the loan officer is assigned {%- endcomment -%}
+								{%- if row.lv_xbranchcode and row.lv_xbranchcode != blank -%}
+									{%- comment -%} Create lookup key for commission's branch code {%- endcomment -%}
+									{%- capture branchLookupKey -%}|{{row.lv_xbranchcode}}:{%- endcapture -%}
+									{%- assign branchLookupKey = branchLookupKey | strip -%}
+
+									{%- comment -%} Find the branch ID for this commission's branch code {%- endcomment -%}
+									{%- if branchCodeToIdMap contains branchLookupKey -%}
+										{%- assign mapStartPos = branchCodeToIdMap | split: branchLookupKey | first | size -%}
+										{%- assign mapStartPos = mapStartPos | plus: branchLookupKey.size -%}
+										{%- assign mapRemainder = branchCodeToIdMap | slice: mapStartPos, 50 -%}
+										{%- assign commissionBranchId = mapRemainder | split: "|" | first -%}
+
+										{%- comment -%} Check if branch manager has authority over this commission's branch {%- endcomment -%}
+										{%- assign branchCheckString = "|" -%}
+										{%- assign branchCheckString = branchCheckString | append: commissionBranchId -%}
+										{%- assign branchCheckString = branchCheckString | append: "|" -%}
+										{%- if userBranchList contains branchCheckString -%}
+											{%- assign hasLoanOfficerAccess = true -%}
+										{%- endif -%}
+									{%- endif -%}
+								{%- endif -%}
+							{%- endif -%}
+						{%- endunless -%}
+						
+						{%- comment -%} STEP 3: If still no access, exclude this commission {%- endcomment -%}
+						{%- unless hasLoanOfficerAccess -%}
+							{%- assign includeThisCommission = false -%}
+							{%- comment -%} <p>qqq Excluding in STEP 3</p> {%- endcomment -%}
+						{%- endunless -%}
+					{%- endif -%}
+				{%- endunless -%}
+			{%- endif -%}
+		{%- endif -%}
+
+		{%- comment -%} ============================================================ {%- endcomment -%}
+		{%- comment -%} EXCLUSION CHECK: Filter out excluded loan officers (per-user) {%- endcomment -%}
+		{%- comment -%} This is the FINAL filter step - exclusion always wins {%- endcomment -%}
+		{%- comment -%} Uses userExclusionLOList built from lv_contactloanofficerrelationship {%- endcomment -%}
+		{%- comment -%} See docs/ContactAssignment_Refactoring_Plan.md for details {%- endcomment -%}
+		{%- comment -%} ============================================================ {%- endcomment -%}
+		{%- if includeThisCommission and is_admin == false -%}
+			{%- if userExclusionLOList != blank and userExclusionLOList != "" -%}
+				{%- if row.lv_xloanofficercode and row.lv_xloanofficercode != blank -%}
+					{%- comment -%} Build check string for this loan officer code {%- endcomment -%}
+					{%- assign exclusionCheckString = "|" -%}
+					{%- assign exclusionCheckString = exclusionCheckString | append: row.lv_xloanofficercode -%}
+					{%- assign exclusionCheckString = exclusionCheckString | append: "|" -%}
+					{%- if userExclusionLOList contains exclusionCheckString -%}
+						{%- assign includeThisCommission = false -%}
+						{%- comment -%} DEBUG: Commission excluded via userExclusionLOList {%- endcomment -%}
+					{%- endif -%}
+				{%- endif -%}
+			{%- endif -%}
+		{%- endif -%}
+
+		{%- comment -%} SINGLE PASS: Calculate totals AND build table row if commission passed all filters {%- endcomment -%}
+		{%- if includeThisCommission -%}
+			{%- comment -%} CONDITIONAL HTML GENERATION: Skip HTML generation if disabled {%- endcomment -%}
+			{%- comment -%} Update totals {%- endcomment -%}
+			{%- assign cfFilteredCommissionCount = cfFilteredCommissionCount | plus: 1 -%}
+			{%- assign cfFilteredCommissionTotal = cfFilteredCommissionTotal | plus: row.lv_amount -%}
+			
+			{%- comment -%} Count unique loans from filtered commissions {%- endcomment -%}
+			{%- if row.lv_xloan != blank and row.lv_xloan != nil and row.lv_xloan != "" -%}
+				{%- comment -%} FIXED: Use capture with direct interpolation - avoid ALL string operations {%- endcomment -%}
+				{%- capture checkString -%}|{{row.lv_xloan}}|{%- endcapture -%}
+				{%- assign checkString = checkString | strip -%}
+				{%- unless cfSeenLoansString contains checkString -%}
+					{%- assign cfSeenLoansString = cfSeenLoansString | append: checkString -%}
+					{%- assign cfFilteredLoanCount = cfFilteredLoanCount | plus: 1 -%}
+					{%- assign cfFilteredLoanTotal = cfFilteredLoanTotal | plus: row.lv_xloanamount -%}
+				{%- endunless -%}
+			{%- endif -%}
+			
+			{%- comment -%} Build table row HTML simultaneously (if enabled) {%- endcomment -%}
+			{%- if useRawData == "true" -%}
+				{%- comment -%} RAW DATA: Use pure capture with direct interpolation - NO string operations {%- endcomment -%}
+				{%- capture rawRow -%}<tr class="raw-data-row" data-loan="{{row.lv_xloan | default: ''}}" data-borrower="{{row.lv_borrowername | default: ''}}" data-amount="{{row.lv_amount | default: 0}}" data-date="{{row.lv_commissiondate | default: ''}}" data-base="{{row.lv_commissionbaseamount | default: 0}}" data-bps="{{row.lv_bpscalculated | default: 0}}" data-calc="{{row.lv_calculationtype | default: ''}}" data-branch="{{row.lv_xbranchname | default: ''}}" data-lo="{{row.lv_xloanofficername | default: ''}}" data-split="{{row.lv_losplit | default: 100}}">{%- if isMgmt  -%}<td class="profile-col"></td>{%- endif -%}<td class="loan-col"></td><td class="borrower-col"></td><td class="date-col"></td><td class="base-col"></td><td class="amount-col"></td><td class="bps-col"></td><td class="calc-col"></td>{%- if isMgmt  -%}<td class="branch-col"></td><td class="lo-col"></td><td class="split-col"></td>{%- endif -%}<td class="action-col"><button class="btn-email" onclick="prepareEmailModal('{{row.lv_lvcompcommissionid}}', '{{row.lv_xloan}}', '{{row.lv_borrowername}}', '{{row.lv_amount | format: 'C'}}', '{{row.lv_loancardurl | default: ''}}')" title="Email this commission"><i class="fas fa-envelope"></i></button></td></tr>{%- endcapture -%}
+				{%- assign cfCommissionTableRows = cfCommissionTableRows | append: rawRow -%}
+			{%- elsif useSimpleHtml == "true" -%}
+				{%- comment -%} SIMPLE HTML: Generate all required columns with proper formatting {%- endcomment -%}
+				{%- capture simpleRow -%}<tr>{%- if isMgmt  -%}<td>{{row.lv_xprofile | default: "No Profile"}}</td>{%- endif -%}<td>{{row.lv_xloan | default: "No Loan"}}</td><td>{{row.lv_borrowername | default: "No Borrower"}}</td><td>{%- if row.lv_commissiondate  -%}{{row.lv_commissiondate | date: "MM/dd/yy"}}{%- else -%}No Date{%- endif -%}</td><td style="text-align: right;">${{row.lv_commissionbaseamount | default: 0 | round: 0 | format: 'N0'}}</td><td style="text-align: right;">{{row.lv_amount | default: 0 | format: 'C'}}</td><td style="text-align: right;">{{row.lv_bpscalculated | default: 0 | round: 2}}</td><td>{{row.lv_calculationtype | default: "Unknown"}}</td>{%- if isMgmt  -%}<td>{{row.lv_xbranchname | default: "No Branch"}}</td><td>{{row.lv_xloanofficername | default: "No LO"}}</td><td>{{row.lv_losplit | default: 100 | round: 0}}%</td>{%- endif -%}<td><button class="btn-email" onclick="prepareEmailModal('{{row.lv_lvcompcommissionid}}', '{{row.lv_xloan}}', '{{row.lv_borrowername}}', '{{row.lv_amount | format: 'C'}}', '{{row.lv_loancardurl | default: ''}}')" title="Email this commission"><i class="fas fa-envelope"></i></button></td></tr>{%- endcapture -%}
+				{%- assign cfCommissionTableRows = cfCommissionTableRows | append: simpleRow -%}
+			{%- else -%}
+				{%- comment -%} OPTIMIZED: Collapse complex HTML into single line to eliminate massive whitespace generation {%- endcomment -%}
+				{%- capture commissionRow -%}<tr{%- if user | has_role: 'LoanVision'  -%} title="{{ row.lv_compositekey | default: 'No Composite Key' }}"{%- endif -%}>{%- if isMgmt  -%}<td data-label="Profile">{{ row.lv_xprofile | default: "No Profile" }}</td>{%- endif -%}<td data-label="Loan Number">{%- if row.lv_loancardurl and row.lv_loancardurl != blank  -%}<a href="{{ row.lv_loancardurl }}" target="_blank" style="text-decoration: none;">{{ row.lv_xloan | default: "No Loan" }}</a>{%- else -%}{{ row.lv_xloan | default: "No Loan" }}{%- endif -%}</td><td data-label="Borrower Name">{{ row.lv_borrowername | default: "No Borrower" }}</td><td data-label="Date">{%- if row.lv_commissiondate  -%}{{ row.lv_commissiondate | date: "MM/dd/yy" }}{%- else -%}No Date{%- endif -%}</td><td data-label="CommBaseAmount" style="text-align: right;">${{ row.lv_commissionbaseamount | default: 0 | round: 0 | format: 'N0' }}</td><td data-label="Amount" style="text-align: right;">{{ row.lv_amount | default: 0 | format: 'C' }}</td><td data-label="BPSCalc" style="text-align: right;">{{ row.lv_bpscalculated | default: 0 | round: 2 }}</td><td data-label="CalcType">{{ row.lv_calculationtype | default: "Unknown" }}</td>{%- if isMgmt  -%}<td data-label="Branch">{{ row.lv_xbranchname | default: "No Branch" }}</td><td data-label="Loan Officer">{{ row.lv_xloanofficername | default: "No LO" }}</td><td data-label="LOSplit">{{ row.lv_losplit | default: 100 | round: 0 }}%</td>{%- endif -%}<td class="action-column"><div class="button-group"><button class="btn-email" onclick="prepareEmailModal('{{ row.lv_lvcompcommissionid }}', '{{ row.lv_xloan }}', '{{ row.lv_borrowername }}', '{{ row.lv_amount | format: 'C' }}')" title="Email this commission"><i class="fas fa-envelope"></i></button></div></td></tr>{%- endcapture -%}
+				{%- assign cfCommissionTableRows = cfCommissionTableRows | append: commissionRow -%}
+			{%- endif -%}
+		{%- endif -%}
+		
+		{%- comment -%} <p>qqq ------------------</p> {%- endcomment -%}
+	{%- endfor -%}
+{%- endif -%}
+{%- comment -%} Close the HUGE if block started at tag=2508311247 {%- endcomment -%} 
+
+
+{%- comment -%} === PERFORMANCE TESTING CONTROLS: CONDITIONAL ADJUSTMENT FILTERING === {%- endcomment -%}
+{%- comment -%} Check URL parameters to determine adjustment processing {%- endcomment -%}
+{%- assign enableAdjFiltering = true  -%}
+{%- assign enableAdjPermissions = true  -%}
+{%- assign adjustmentRecordLimit = nil  -%}
+
+{%- if request.params.enableAdjFiltering == "false"  -%}
+	{%- assign enableAdjFiltering = false  -%}
+{%- endif -%}
+
+{%- if request.params.enableAdjPermissions == "false"  -%}
+	{%- assign enableAdjPermissions = false  -%}
+{%- endif -%}
+
+{%- if request.params.adjLimit and request.params.adjLimit != ""  -%}
+	{%- comment -%} FIXED: Use basic assignment without problematic filters {%- endcomment -%}
+	{%- assign adjustmentRecordLimit = request.params.adjLimit  -%}
+{%- endif -%}
+
+{%- if enableAdjFiltering  -%}
+	{%- comment -%} ADJUSTMENT FILTERING: Apply all permission and page-specific filters {%- endcomment -%}
+	{%- assign debugAdjustmentCount = 0  -%}
+	{%- comment -%} <p>qqqd1 === START ADJUSTMENT FILTERING === enableAdjFiltering={{enableAdjFiltering}} enableAdjPermissions={{enableAdjPermissions}} page.title={{page.title}}</p> {%- endcomment -%}
+	{%- for row in allPeriodBasedCommissions.results.entities  -%}
+		{%- assign debugAdjustmentCount = debugAdjustmentCount | plus: 1  -%}
+		{%- assign formattedAmount = row.lv_amount | round: 2 -%}
+		{%- comment -%} <p>qqqd1 --- ADJUSTMENT #{{debugAdjustmentCount}} --- Description={{row.lv_description}} Amount={{formattedAmount}} BranchCode={{row.lv_xbranchcode}} LOCode={{row.lv_xloanofficercode}}</p> {%- endcomment -%}
+		{%- comment -%} Apply record limit for performance testing - using string comparison to avoid 10x bug {%- endcomment -%}
+		{%- if adjustmentRecordLimit and adjustmentRecordLimit != ""  -%}
+			{%- comment -%} Use manual comparison since plus operation multiplies by 10 {%- endcomment -%}
+			{%- if adjustmentRecordLimit == "1" and debugAdjustmentCount > 1  -%}{%- break -%}{%- endif -%}
+			{%- if adjustmentRecordLimit == "2" and debugAdjustmentCount > 2  -%}{%- break -%}{%- endif -%}
+			{%- if adjustmentRecordLimit == "3" and debugAdjustmentCount > 3  -%}{%- break -%}{%- endif -%}
+			{%- if adjustmentRecordLimit == "5" and debugAdjustmentCount > 5  -%}{%- break -%}{%- endif -%}
+			{%- if adjustmentRecordLimit == "10" and debugAdjustmentCount > 10  -%}{%- break -%}{%- endif -%}
+		{%- endif -%}
+	
+		{%- assign includeThisAdjustment = false  -%}
+		{%- comment -%} <p>qqqd1 STEP 1: Initialize includeThisAdjustment=false</p> {%- endcomment -%}
+
+		{%- comment -%} CONDITIONAL PERMISSION CHECKING: Skip permission logic if disabled {%- endcomment -%}
+		{%- if enableAdjPermissions == false  -%}
+			{%- assign includeThisAdjustment = true  -%}
+			{%- comment -%} <p>qqqd1 STEP 2A: enableAdjPermissions=false → includeThisAdjustment=true (NO PERMISSION CHECKS)</p> {%- endcomment -%}
+		{%- else -%}
+			{%- comment -%} <p>qqqd1 STEP 2B: enableAdjPermissions=true → checking permissions</p> {%- endcomment -%}
+			{%- comment -%} ADMIN USERS: Skip permission checks (can view any branch/officer) {%- endcomment -%}
+			{%- if is_admin  -%}
+				{%- assign includeThisAdjustment = true  -%}
+				{%- comment -%} <p>qqqd1 STEP 3A: is_admin=true → includeThisAdjustment=true (ADMIN OVERRIDE)</p> {%- endcomment -%}
+			{%- else -%}
+				{%- comment -%} <p>qqqd1 STEP 3B: is_admin=false → checking non-admin permissions</p> {%- endcomment -%}
+				{%- comment -%} Permission check: Branch Manager access using branch codes {%- endcomment -%}
+				{%- if row.lv_xbranchcode and row.lv_xbranchcode != blank  -%}
+					{%- comment -%} <p>qqqd1 STEP 4: Checking BRANCH permission for branch code={{row.lv_xbranchcode}}</p> {%- endcomment -%}
+					{%- capture branchLookupKey -%}|{{row.lv_xbranchcode}}:{%- endcapture -%}
+					{%- assign branchLookupKey = branchLookupKey | strip  -%}
+					{%- if branchCodeToIdMap contains branchLookupKey  -%}
+						{%- assign mapStartPos = branchCodeToIdMap | split: branchLookupKey | first | size  -%}
+						{%- assign mapStartPos = mapStartPos | plus: branchLookupKey.size  -%}
+						{%- assign mapRemainder = branchCodeToIdMap | slice: mapStartPos, 50  -%}
+						{%- assign adjustmentBranchId = mapRemainder | split: "|" | first  -%}
+						{%- assign branchCheckString = "|" | append: adjustmentBranchId | append: "|"  -%}
+						{%- comment -%} <p>qqqd1 STEP 4A: Branch lookup succeeded - adjustmentBranchId={{adjustmentBranchId}} branchCheckString={{branchCheckString}}</p> {%- endcomment -%}
+						{%- if userBranchList contains branchCheckString  -%}
+							{%- assign includeThisAdjustment = true  -%}
+							{%- comment -%} <p>qqqd1 STEP 4A1: userBranchList CONTAINS branchCheckString → includeThisAdjustment=true (BRANCH ACCESS GRANTED)</p> {%- endcomment -%}
+						{%- else -%}
+							{%- comment -%} <p>qqqd1 STEP 4A2: userBranchList={{userBranchList}} does NOT contain branchCheckString={{branchCheckString}} (no branch access)</p> {%- endcomment -%}
+						{%- endif -%}
+					{%- else -%}
+						{%- comment -%} <p>qqqd1 STEP 4B: Branch lookup FAILED - branchLookupKey={{branchLookupKey}} not found in branchCodeToIdMap</p> {%- endcomment -%}
+					{%- endif -%}
+				{%- else -%}
+					{%- comment -%} <p>qqqd1 STEP 4C: No branch code on adjustment (lv_xbranchcode is blank/null)</p> {%- endcomment -%}
+				{%- endif -%}
+
+				{%- comment -%} Permission check: Loan Officer Oversight access {%- endcomment -%}
+				{%- if row.lv_xloanofficercode and row.lv_xloanofficercode != blank  -%}
+					{%- comment -%} <p>qqqd1 STEP 5: Checking LOAN OFFICER permission for LO code={{row.lv_xloanofficercode}}</p> {%- endcomment -%}
+					{%- capture officerCheckString  -%}|{{row.lv_xloanofficercode}}|{%- endcapture -%}
+					{%- assign officerCheckString = officerCheckString | strip  -%}
+					{%- if userLoanOfficerList contains officerCheckString  -%}
+						{%- assign includeThisAdjustment = true  -%}
+						{%- comment -%} <p>qqqd1 STEP 5A: userLoanOfficerList CONTAINS officerCheckString={{officerCheckString}} → includeThisAdjustment=true (LO ACCESS GRANTED)</p> {%- endcomment -%}
+					{%- else -%}
+						{%- comment -%} <p>qqqd1 STEP 5B: userLoanOfficerList={{userLoanOfficerList}} does NOT contain officerCheckString={{officerCheckString}} (no LO access)</p> {%- endcomment -%}
+					{%- endif -%}
+				{%- else -%}
+					{%- comment -%} <p>qqqd1 STEP 5C: No loan officer code on adjustment (lv_xloanofficercode is blank/null)</p> {%- endcomment -%}
+				{%- endif -%}
+
+				{%- unless includeThisAdjustment  -%}
+					{%- comment -%} <p>qqqd1 STEP 6: includeThisAdjustment still FALSE - checking BRANCH MANAGER indirect access via LO branch assignment</p> {%- endcomment -%}
+					{%- if is_BranchManager and userBranchList != "" and userBranchList != "|"  -%}
+						{%- comment -%} <p>qqqd1 STEP 6A: is_BranchManager=true - checking if LO's assigned branch is in userBranchList</p> {%- endcomment -%}
+						{%- assign officerLookupKey = "|" | append: row.lv_xloanofficercode | append: ":"  -%}
+						{%- if officerCodeToBranchMap contains officerLookupKey  -%}
+							{%- assign mapStartPos = officerCodeToBranchMap | split: officerLookupKey | first | size  -%}
+							{%- assign mapStartPos = mapStartPos | plus: officerLookupKey.size  -%}
+							{%- assign mapRemainder = officerCodeToBranchMap | slice: mapStartPos, 50  -%}
+							{%- assign loBranchId = mapRemainder | split: "|" | first  -%}
+							{%- assign branchCheckString = "|" | append: loBranchId | append: "|"  -%}
+							{%- comment -%} <p>qqqd1 STEP 6A1: LO's assigned branch found - loBranchId={{loBranchId}} branchCheckString={{branchCheckString}}</p> {%- endcomment -%}
+							{%- if userBranchList contains branchCheckString  -%}
+								{%- assign includeThisAdjustment = true  -%}
+								{%- comment -%} <p>qqqd1 STEP 6A1a: userBranchList CONTAINS LO's branch → includeThisAdjustment=true (BRANCH MGR INDIRECT ACCESS)</p> {%- endcomment -%}
+							{%- else -%}
+								{%- comment -%} <p>qqqd1 STEP 6A1b: userBranchList does NOT contain LO's branch (no indirect access)</p> {%- endcomment -%}
+							{%- endif -%}
+						{%- else -%}
+							{%- comment -%} <p>qqqd1 STEP 6A2: LO's branch lookup FAILED - officerLookupKey={{officerLookupKey}} not found in officerCodeToBranchMap</p> {%- endcomment -%}
+						{%- endif -%}
+					{%- else -%}
+						{%- comment -%} <p>qqqd1 STEP 6B: NOT branch manager (is_BranchManager={{is_BranchManager}}) or userBranchList empty</p> {%- endcomment -%}
+					{%- endif -%}
+				{%- else -%}
+					{%- comment -%} <p>qqqd1 STEP 6C: includeThisAdjustment already TRUE - skipping branch manager indirect check</p> {%- endcomment -%}
+				{%- endunless -%}
+				{%- endif -%}
+		{%- endif -%}
+
+		{%- comment -%} Page-specific filter: Branch selection (applies to everyone including admins) {%- endcomment -%}
+		{%- if page.title == 'Branch' and includeThisAdjustment  -%}
+			{%- if currentBranch != "ALL_BRANCHES"  -%}
+				{%- comment -%} Specific branch selected - filter by that branch for everyone including admins {%- endcomment -%}
+				{%- comment -%} Use branch code for comparison - this is the reliable field for filtering {%- endcomment -%}
+				{%- if row.lv_xbranchcode != currentBranch.lv_code  -%}
+					{%- assign includeThisAdjustment = false  -%}
+				{%- endif -%}
+			{%- else -%}
+				{%- comment -%} ALL_BRANCHES mode: Apply permission filtering for non-admin users {%- endcomment -%}
+				{%- unless is_admin  -%}
+					{%- comment -%} Check if user has permission for this adjustment's branch {%- endcomment -%}
+					{%- if row.lv_xbranchcode and row.lv_xbranchcode != blank  -%}
+						{%- comment -%} Step 1: Create lookup key for branch code mapping {%- endcomment -%}
+						{%- capture branchLookupKey -%}|{{row.lv_xbranchcode}}:{%- endcapture -%}
+						{%- assign branchLookupKey = branchLookupKey | strip  -%}
+						
+						{%- comment -%} Step 2: Find branch ID from branch code using lookup map {%- endcomment -%}
+						{%- if branchCodeToIdMap contains branchLookupKey  -%}
+							{%- assign mapStartPos = branchCodeToIdMap | split: branchLookupKey | first | size  -%}
+							{%- assign mapStartPos = mapStartPos | plus: branchLookupKey.size  -%}
+							{%- assign mapRemainder = branchCodeToIdMap | slice: mapStartPos, 50  -%}
+							{%- assign adjBranchId = mapRemainder | split: "|" | first  -%}
+							
+							{%- comment -%} Step 3: Check if user has access to this branch {%- endcomment -%}
+							{%- assign branchCheckString = "|" | append: adjBranchId | append: "|"  -%}
+							{%- unless userBranchList contains branchCheckString  -%}
+								{%- assign includeThisAdjustment = false  -%}
+							{%- endunless -%}
+						{%- endif -%}
+					{%- endif -%}
+				{%- endunless -%}
+			{%- endif -%}
+		{%- endif -%}
+		
+		{%- comment -%} Page-specific filter: Loan Officer selection (applies to everyone including admins) {%- endcomment -%}
+		{%- if page.title == 'Loan Officer' and includeThisAdjustment  -%}
+			{%- if sqLOViewMode == "SELECTION_REQUIRED"  -%}
+				{%- comment -%} No loan officer selected - hide all adjustments to encourage selection {%- endcomment -%}
+				{%- assign includeThisAdjustment = false  -%}
+			{%- elsif sqLOViewMode == "SPECIFIC_OFFICER" and sqRecLOBeingViewed.lv_code != blank and sqRecLOBeingViewed.lv_code != ""  -%}
+				{%- comment -%} Specific loan officer selected - filter by that officer for everyone including admins {%- endcomment -%}
+				{%- if row.lv_xloanofficercode != sqRecLOBeingViewed.lv_code  -%}
+					{%- assign includeThisAdjustment = false  -%}
+				{%- endif -%}
+
+				{%- comment -%} ADDITIONAL CHECK: Branch managers must have authority over adjustment's branch {%- endcomment -%}
+				{%- comment -%} ONLY apply if adjustment HAS a branch code - adjustments without branch codes pass based on LO permission only {%- endcomment -%}
+
+				{%- if includeThisAdjustment and is_BranchManager and is_admin == false and row.lv_xbranchcode and row.lv_xbranchcode != blank -%}
+					{%- comment -%} <p>qqqd1 STEP 9B3: BRANCH MANAGER CHECK - verifying branch authority for adjustment branch={{row.lv_xbranchcode}}</p> {%- endcomment -%}
+					{%- assign hasBranchAuthority = false -%}
+
+					{%- comment -%} Find the branch ID for this adjustment's branch code {%- endcomment -%}
+					{%- capture branchLookupKey -%}|{{row.lv_xbranchcode}}:{%- endcapture -%}
+					{%- assign branchLookupKey = branchLookupKey | strip -%}
+
+					{%- if branchCodeToIdMap contains branchLookupKey -%}
+						{%- assign mapStartPos = branchCodeToIdMap | split: branchLookupKey | first | size -%}
+						{%- assign mapStartPos = mapStartPos | plus: branchLookupKey.size -%}
+						{%- assign mapRemainder = branchCodeToIdMap | slice: mapStartPos, 50 -%}
+						{%- assign adjustmentBranchId = mapRemainder | split: "|" | first -%}
+
+						{%- comment -%} Check if branch manager has authority over this branch {%- endcomment -%}
+						{%- assign branchCheckString = "|" -%}
+						{%- assign branchCheckString = branchCheckString | append: adjustmentBranchId -%}
+						{%- assign branchCheckString = branchCheckString | append: "|" -%}
+						{%- if userBranchList contains branchCheckString -%}
+							{%- assign hasBranchAuthority = true -%}
+							{%- comment -%} <p>qqqd1 STEP 9B3a: Branch Manager HAS authority over adjustment branch {{row.lv_xbranchcode}} (branchId={{adjustmentBranchId}})</p> {%- endcomment -%}
+						{%- else -%}
+							{%- comment -%} <p>qqqd1 STEP 9B3b: Branch Manager LACKS authority over adjustment branch {{row.lv_xbranchcode}} (branchId={{adjustmentBranchId}})</p> {%- endcomment -%}
+						{%- endif -%}
+					{%- endif -%}
+
+					{%- unless hasBranchAuthority -%}
+						{%- assign includeThisAdjustment = false -%}
+						{%- comment -%} <p>qqqd1 STEP 9B3c: hasBranchAuthority=false → includeThisAdjustment=false (EXCLUDED BY BRANCH MANAGER AUTHORITY CHECK)</p> {%- endcomment -%}
+					{%- endunless -%}
+				{%- elsif includeThisAdjustment and is_BranchManager and is_admin == false -%}
+					{%- comment -%} <p>qqqd1 STEP 9B3-EXCLUDE: Adjustment has NO branch code - branch managers can only see adjustments with branches they manage</p> {%- endcomment -%}
+					{%- assign includeThisAdjustment = false -%}
+					{%- comment -%} <p>qqqd1 STEP 9B3d: includeThisAdjustment=false (EXCLUDED - no branch code for branch manager)</p> {%- endcomment -%}
+				{%- endif -%}
+			{%- else -%}
+				{%- comment -%} No specific loan officer selected: Apply permission filtering for non-admin users {%- endcomment -%}
+				{%- unless is_admin  -%}
+					{%- comment -%} Only process if adjustment has a loan officer code {%- endcomment -%}
+					{%- if row.lv_xloanofficercode and row.lv_xloanofficercode != blank  -%}
+						{%- capture officerCheckString  -%}|{{row.lv_xloanofficercode}}|{%- endcapture -%}
+						{%- assign officerCheckString = officerCheckString | strip  -%}
+						{%- unless userLoanOfficerList contains officerCheckString  -%}
+							{%- assign includeThisAdjustment = false  -%}
+						{%- endunless -%}
+					{%- endif -%}
+				{%- endunless -%}
+			{%- endif -%}
+		{%- endif -%}
+
+		{%- comment -%} ============================================================ {%- endcomment -%}
+		{%- comment -%} EXCLUSION CHECK: Filter out excluded loan officers (per-user) {%- endcomment -%}
+		{%- comment -%} This is the FINAL filter step - exclusion always wins {%- endcomment -%}
+		{%- comment -%} Uses userExclusionLOList built from lv_contactloanofficerrelationship {%- endcomment -%}
+		{%- comment -%} ============================================================ {%- endcomment -%}
+		{%- if includeThisAdjustment and is_admin == false -%}
+			{%- if userExclusionLOList != blank and userExclusionLOList != "" -%}
+				{%- if row.lv_xloanofficercode and row.lv_xloanofficercode != blank -%}
+					{%- comment -%} Build check string for this loan officer code {%- endcomment -%}
+					{%- assign adjExclusionCheckString = "|" -%}
+					{%- assign adjExclusionCheckString = adjExclusionCheckString | append: row.lv_xloanofficercode -%}
+					{%- assign adjExclusionCheckString = adjExclusionCheckString | append: "|" -%}
+					{%- if userExclusionLOList contains adjExclusionCheckString -%}
+						{%- assign includeThisAdjustment = false -%}
+						{%- comment -%} DEBUG: Adjustment excluded via userExclusionLOList {%- endcomment -%}
+					{%- endif -%}
+				{%- endif -%}
+			{%- endif -%}
+		{%- endif -%}
+
+		{%- comment -%} Add to filtered totals if passed all filters {%- endcomment -%}
+		{%- if includeThisAdjustment  -%}
+			{%- assign cfFilteredAdjustmentCount = cfFilteredAdjustmentCount | plus: 1  -%}
+			{%- assign cfFilteredAdjustmentTotal = cfFilteredAdjustmentTotal | plus: row.lv_amount  -%}
+			{%- comment -%} <p>qqqd1 === FINAL RESULT: INCLUDED === Adjustment #{{debugAdjustmentCount}} PASSED all filters</p> {%- endcomment -%}
+		{%- else -%}
+			{%- comment -%} <p>qqqd1 === FINAL RESULT: EXCLUDED === Adjustment #{{debugAdjustmentCount}} FAILED filters - includeThisAdjustment=false</p> {%- endcomment -%}
+		{%- endif -%}
+	{%- endfor -%}
+	{%- comment -%} <p>qqqd1 === END ADJUSTMENT FILTERING === Total adjustments processed={{debugAdjustmentCount}} ; Included adjustments={{cfFilteredAdjustmentCount}}</p> {%- endcomment -%}
+{%- else -%}
+	{%- comment -%} === ADJUSTMENT FILTERING DISABLED === {%- endcomment -%}
+	{%- assign cfFilteredAdjustmentCount = 2  -%}
+	{%- assign cfFilteredAdjustmentTotal = 150.00  -%}
+{%- endif -%}
+
+{%- comment -%} Set variables for consuming components to use {%- endcomment -%}
+{%- assign cpCommCount = cfFilteredCommissionCount  -%}
+{%- assign cpCommTotal = cfFilteredCommissionTotal  -%}
+{%- assign cpAdjuCount = cfFilteredAdjustmentCount  -%}
+{%- assign cpAdjuTotal = cfFilteredAdjustmentTotal  -%}
+{%- assign cpCommValueRowCount = cpCommCount | plus: cpAdjuCount  -%}
+{%- assign cpLoanCount = cfFilteredLoanCount  -%}
+{%- assign cpLoanTotal = cfFilteredLoanTotal  -%}
+
+
+{%- comment -%} Set up accountingPagination object for ALL modes on Accounting page {%- endcomment -%}
+{%- if page.title == 'Accounting'  -%}
+	<script id="accounting_pagination_setup">
+	// Set up pagination configuration for Accounting page
+	if (typeof window.accountingPagination === 'undefined') {
+		{%- comment -%} Read pageSize from URL parameter with proper numeric conversion {%- endcomment -%}
+		{%- assign cfPageSize = 10  -%}
+		{%- if request.params.pageSize and request.params.pageSize != ""  -%}
+			{%- assign cfPageSize = request.params.pageSize | times: 1  -%}
+		{%- endif -%}
+		
+		{%- comment -%} Accounting page always uses AJAX mode - get totals from count queries {%- endcomment -%}
+		{%- assign totalCount = totalCommissionCount.results.entities | first  -%}
+		{%- assign totalAdjCount = totalAdjustmentCount.results.entities | first  -%}
+
+		window.accountingPagination = {
+			totalCommissions: {{ totalCount.totalcount | default: 0 }},
+			totalAdjustments: {{ totalAdjCount.totaladjcount | default: 0 }},
+			pageSize: {{ cfPageSize }},
+			currentPeriod: {{ sqUISelPeriodNo | default: 0 }}
+		};
+
+		console.log('📊 Accounting Pagination Setup (AJAX always enabled):', window.accountingPagination);
+		console.log('🕐 Commission-Filter deployed: 2025-10-24 15:40:00 - FIXED: Changed adjustment count query condition from cfgAjax to page.title check');
+	}
+	</script>
+{%- endif -%}
+
+{%- comment -%} === COMMISSION TABLE GENERATION === {%- endcomment -%}
+{%- comment -%} Generate the complete commission table HTML - SINGLE SOURCE OF TRUTH {%- endcomment -%}
+
+{%- comment -%} Determine if this is a management view {%- endcomment -%}
+{%- assign isMgmt = false  -%}
+{%- if page.title == 'Accounting' or page.title == 'Branch'  -%}
+	{%- assign isMgmt = true  -%}
+{%- elsif page.title == 'Loan Officer' and is_OnlyLoanOfficer == false  -%}
+	{%- assign isMgmt = true  -%}
+{%- endif -%}
+
+{%- comment -%} Build the commission table HTML {%- endcomment -%}
+{%- capture cfCommissionTableHTML  -%}
+<div class="commissions-section">
+	<h3 title="Sort order is branch name, loan officer name, commission date">Commissions{% if page.title == 'Accounting' and totalCommissionCount.results.entities.size > 0 %} ({{ totalCommissionCount.results.entities.first.totalcount }}){% elsif cpCommCount or cpCommCount == 0 %} ({{ cpCommCount }}){% endif %}</h3>
+
+	{%- if cpCommCount > 0  -%}
+		<div class="data-table-wrapper {%- if isMgmt  -%}management-view{%- endif -%}">
+			<table id="tblComm" class="data-table data-table-action stickylastcol">
+				<thead class="data-table-head">
+					<tr>
+						{%- if isMgmt  -%}
+							<th data-label="Profile" title="Name of the Commission Profile used in this calculation">Profile Name</th>
+						{%- endif -%}
+
+						<th data-label="Loan Number">Loan Number</th>
+						<th data-label="Borrower Name">Borrower Name</th>
+						<th data-label="Date">Date</th>
+						<th data-label="CommBaseAmount" title="Commission Base Amount">Base Amount</th>
+						<th data-label="Amount" title="Compensation amount">Amount</th>
+						<th data-label="BPSCalc" title="Basis (0.01%) Points for commission calculation">BPS Calc</th>
+						<th data-label="CalcType" title="Calculation type: loan based or period based">Calc Type</th>
+
+						{%- if isMgmt  -%}
+							<th data-label="Branch">Branch</th>
+							<th data-label="Loan Officer">Loan Officer</th>
+							<th data-label="LOSplit" title="Loan Officer split">LO Split</th>
+						{%- endif -%}
+
+						<th>&nbsp;</th>
+					</tr>
+				</thead>
+
+				<tbody class="data-table-body" id="table-commission">
+					{%- comment -%} OPTIMIZED: Use pre-built table rows from single-pass filtering {%- endcomment -%}
+					{{ cfCommissionTableRows }}
+				</tbody>
+			</table>
+		</div>
+		
+		{%- comment -%} Simple pagination controls - show by default {%- endcomment -%}
+		<div class="pagination-details" id="commission-pagination-details">
+			<span>Page <span id="currentPageCommission">1</span> of <span id="totalPagesCommission">1</span></span>
+		</div>
+		<div class="pagination-container" id="commission-pagination-container">
+			<button id="prevBtn-commission">Previous</button>
+			<button id="nextBtn-commission">Next</button>
+		</div>
+	{%- else -%}
+		<p>No commissions found for the selected criteria.</p>
+	{%- endif -%}
+</div>
+
+<script id="commission_pagination">
+	// Initialize variables - will be set properly in DOMReady
+	const cfgAjax = window.cfgAjax;
+	let rowsPerPageCommission = 10; // Default
+	let currentPageCommission = 1;
+	let $tableCommission, $rowsCommission, totalPagesCommission;
+
+	function showPageCommission(page) {
+		const isAccountingPage = window.location.pathname.includes('/Accounting');
+		if (isAccountingPage && window.accountingPagination) {
+			if (dataLoaded) {
+				// AJAX MODE: Use full dataset for client-side pagination (Accounting page only)
+				updateCommissionTable(allCommissionData, page);
+			} else if (page === 1) {
+				// Page 1: Show server-rendered data (first 10 records) immediately
+				$rowsCommission.hide();
+				$rowsCommission.slice(0, rowsPerPageCommission).show();
+				currentPageCommission = page;
+				updateCommissionPaginationControls();
+			} else {
+				// Page 2+: Data not ready - show loading indicator and poll
+				console.log('⏳ Commission data not ready for page', page, ', starting polling...');
+				showCommissionLoadingState(page);
+				pollForCommissionData(page);
+			}
+		} else {
+			// LIQUID MODE: Use existing client-side pagination
+			$rowsCommission.hide();
+			const startIndex = (page - 1) * rowsPerPageCommission;
+			const endIndex = startIndex + rowsPerPageCommission;
+			$rowsCommission.slice(startIndex, endIndex).show();
+			currentPageCommission = page;
+			updateCommissionPaginationControls();
+		}
+	}
+	
+	function showCommissionLoadingState(page) {
+		// Show loading message in table
+		const loadingHtml = `
+			<tr>
+				<td colspan="12" style="text-align: center; padding: 20px;">
+					<i class="fas fa-spinner fa-spin"></i> Loading commission data, please wait...
+				</td>
+			</tr>
+		`;
+		$tableCommission.html(loadingHtml);
+		
+		// Update pagination to show requested page
+		currentPageCommission = page;
+		updateCommissionPaginationControls();
+	}
+	
+	function pollForCommissionData(page) {
+		const maxPolls = 40; // 10 seconds max (40 * 250ms)
+		let pollCount = 0;
+		
+		const pollInterval = setInterval(() => {
+			pollCount++;
+			
+			if (dataLoaded) {
+				// Data is ready - proceed with page display
+				clearInterval(pollInterval);
+				console.log('✅ Commission data ready after', pollCount * 250, 'ms');
+				updateCommissionTable(allCommissionData, page);
+			} else if (pollCount >= maxPolls) {
+				// Timeout - fall back to server data
+				clearInterval(pollInterval);
+				console.warn('⚠️ Commission AJAX loading timeout, falling back to server data');
+				$rowsCommission.hide();
+				const startIndex = (page - 1) * rowsPerPageCommission;
+				const endIndex = startIndex + rowsPerPageCommission;
+				$rowsCommission.slice(startIndex, endIndex).show();
+				currentPageCommission = page;
+				updateCommissionPaginationControls();
+			}
+		}, 250);
+	}
+	
+	function updateCommissionPaginationControls() {
+		$('#currentPageCommission').text(currentPageCommission);
+		$('#prevBtn-commission').prop('disabled', currentPageCommission === 1);
+		$('#nextBtn-commission').prop('disabled', currentPageCommission === totalPagesCommission);
+	}
+
+	function prevPageCommission() {
+		if (currentPageCommission > 1) {
+			showPageCommission(currentPageCommission - 1);
+		}
+	}
+
+	function nextPageCommission() {
+		if (currentPageCommission < totalPagesCommission) {
+			showPageCommission(currentPageCommission + 1);
+		}
+	}
+
+	// Global variables to store all data
+	let allCommissionData = [];
+	let dataLoaded = false;
+	// Note: allAdjustmentData and adjustmentDataLoaded are declared in Primary Adjustments Table
+	
+	// Helper function to calculate unique loan totals from commission data
+	function calculateUniqueLoanTotals(commissionData) {
+		const uniqueLoans = new Set();
+		let loanTotal = 0;
+		let loanCount = 0;
+
+
+		commissionData.forEach((record, index) => {
+			const loanNumber = record.lv_xloan;
+			const loanAmount = record.lv_xloanamount || 0;
+
+
+			if (loanNumber && !uniqueLoans.has(loanNumber)) {
+				uniqueLoans.add(loanNumber);
+				loanTotal += loanAmount;
+				loanCount++;
+
+			}
+		});
+
+
+		return { loanTotal, loanCount };
+	}
+	
+	// Helper function to update Dashboard Details with AJAX-calculated totals
+	function updateDashboardTotals(commissionTotal, loanTotal, loanCount, commissionCount, adjustmentTotal = null) {
+		
+		// Use provided adjustmentTotal or try to get from global scope
+		let adjTotal = 0;
+		if (adjustmentTotal !== null) {
+			adjTotal = adjustmentTotal;
+		} else if (typeof window.globalAdjustmentTotal !== 'undefined') {
+			adjTotal = window.globalAdjustmentTotal;
+		}
+		const finalTotal = commissionTotal + adjTotal;
+		
+		// Update specific dashboard cards with exact IDs
+		const updates = [
+			{ id: '#cardCommissionTotal', value: commissionTotal, format: 'currency', label: 'Commissions' },
+			{ id: '#cardLoanTotal', value: loanTotal, format: 'currency0', label: 'Loan Total' },
+			{ id: '#cardLoanCount', value: loanCount, format: 'integer', label: 'Loan Count' },
+			{ id: '#cardAdjustmentTotal', value: adjTotal, format: 'currency', label: 'Adjustments' },
+			{ id: '#cardCommTotal', value: finalTotal, format: 'currency', label: 'Total' }
+		];
+		
+		let updatesSuccessful = 0;
+		
+		updates.forEach(update => {
+			const element = document.querySelector(update.id);
+			if (element) {
+				const oldValue = element.textContent;
+				let newValue;
+				
+				switch(update.format) {
+					case 'currency':
+						newValue = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(update.value);
+						break;
+					case 'currency0':
+						newValue = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0}).format(update.value);
+						break;
+					case 'integer':
+						newValue = new Intl.NumberFormat('en-US').format(update.value);
+						break;
+					default:
+						newValue = update.value.toString();
+				}
+				
+				element.textContent = newValue;
+				updatesSuccessful++;
+			} else {
+				console.error(`❌ Could not find element with ID: ${update.id}`);
+			}
+		});
+		
+		console.log(`📊 Dashboard updates completed: ${updatesSuccessful}/${updates.length} successful`);
+		console.log('📊 AJAX totals calculated - Commissions:', commissionTotal.toFixed(2), 'Loans:', loanTotal.toFixed(2), 'LoanCount:', loanCount, 'CommissionCount:', commissionCount);
+		
+		// Signal to Playwright that calculations are complete and page is ready
+		window.playwrightReady = true;
+		console.log('📊 Dashboard calculations complete - playwrightReady = true');
+	}
+	
+	// AJAX function to load ALL commission records for the period using branch partitioning
+	function loadAllCommissionData() {
+		if (!window.accountingPagination || dataLoaded) return;
+
+		const periodNo = window.accountingPagination.currentPeriod;
+		const expectedTotal = window.accountingPagination.totalCommissions;
+
+		console.log('🌐 AJAX Loading ALL commission and adjustment records for period', periodNo, 'Expected commissions:', expectedTotal);
+
+		// Define branch name partitions to stay under 5000 record limit per query
+		// Using "lt" (less than) with next letter to avoid missing names like "Franklin"
+		// FIXED: OData doesn't support tolower() - use case-sensitive partitioning with broader ranges
+		// ADDED: Special partition for NULL/empty branch names (adjustments)
+		const branchPartitions = [
+			{ name: 'A-F', filter: "(lv_xbranchname ge 'A' and lv_xbranchname lt 'G') or (lv_xbranchname ge 'a' and lv_xbranchname lt 'g')" },
+			{ name: 'G-M', filter: "(lv_xbranchname ge 'G' and lv_xbranchname lt 'N') or (lv_xbranchname ge 'g' and lv_xbranchname lt 'n')" },
+			{ name: 'N-S', filter: "(lv_xbranchname ge 'N' and lv_xbranchname lt 'T') or (lv_xbranchname ge 'n' and lv_xbranchname lt 't')" },
+			{ name: 'T-Z', filter: "(lv_xbranchname ge 'T') or (lv_xbranchname ge 't')" },
+			{ name: 'NULL/Empty', filter: "(lv_xbranchname eq null or lv_xbranchname eq '')" }
+		];
+
+		// Base query parts - MUST filter by type to match server-side FetchXML
+		const baseFilter = `lv_periodno eq ${periodNo} and lv_type eq 'Loan Based'`;
+		const selectClause = `lv_entryno,lv_amount,lv_type,lv_borrowername,lv_commissiondate,lv_commissionbaseamount,lv_bpscalculated,lv_calculationtype,lv_xloan,lv_losplit,lv_cappedcommissionbaseamount,lv_calculationschemalineno,lv_calculationdate,lv_description,lv_periodno,lv_xprofile,lv_xloanamount,lv_xbranchname,lv_xloanofficername,lv_xloanofficercode`;
+		const orderClause = `lv_xbranchname,lv_xloanofficername,lv_calculationdate`;
+
+		// Function to fetch one partition
+		function fetchPartition(partition) {
+			const query = `/_api/lv_lvcompcommissions?` +
+				`$filter=${baseFilter} and (${partition.filter})` +
+				`&$select=${selectClause}` +
+				`&$orderby=${orderClause}`;
+
+
+			return fetch(query)
+				.then(response => {
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}: ${response.statusText} for partition ${partition.name}`);
+					}
+					return response.json();
+				})
+				.then(data => {
+					const records = data.value || [];
+					return records;
+				})
+				.catch(error => {
+					console.error(`❌ Error loading partition ${partition.name}:`, error);
+					return []; // Return empty array on error, don't fail entire operation
+				});
+		}
+
+		// Fetch all partitions in parallel
+		Promise.all(branchPartitions.map(fetchPartition))
+			.then(partitionResults => {
+				// Combine all partition results
+				allCommissionData = [];
+				window.allCommissionData = []; // Make globally accessible for Excel export
+				let totalLoaded = 0;
+
+				partitionResults.forEach((records, index) => {
+					allCommissionData = allCommissionData.concat(records);
+					window.allCommissionData = window.allCommissionData.concat(records);
+					totalLoaded += records.length;
+				});
+
+				dataLoaded = true;
+				console.log('✅ ALL commission data loaded via partitioning:', allCommissionData.length, 'records');
+
+				if (allCommissionData.length < expectedTotal) {
+					console.warn(`⚠️ Missing ${expectedTotal - allCommissionData.length} records - may need additional partitions or different strategy`);
+				} else {
+					console.log('🎉 SUCCESS: Loaded complete dataset using branch partitioning!');
+				}
+
+
+				// Calculate correct totals from full AJAX dataset (already filtered to Loan Based)
+				const commissionTotal = allCommissionData.reduce((sum, record) => sum + (record.lv_amount || 0), 0);
+
+				const loanData = calculateUniqueLoanTotals(allCommissionData);
+
+				// Update Dashboard Details with correct totals
+				updateDashboardTotals(commissionTotal, loanData.loanTotal, loanData.loanCount, allCommissionData.length);
+
+				// Log timing for AJAX data loading completion
+				logWrite('CommissionDataReady', `AJAX mode: ${allCommissionData.length} records loaded, total: $${commissionTotal.toFixed(2)}`);
+
+				// Update pagination based on commission records
+				const newTotalPages = Math.ceil(allCommissionData.length / rowsPerPageCommission);
+				$('#totalPagesCommission').text(newTotalPages);
+
+				console.log('📊 Updated pagination: totalPages =', newTotalPages, 'Commission Total:', commissionTotal.toFixed(2));
+			})
+			.catch(error => {
+				console.error('❌ AJAX commission loading failed:', error);
+				// Fall back to server-loaded data
+				console.log('📄 Falling back to server-loaded data');
+			});
+	}
+
+	function updateCommissionTable(allCommissions, page) {
+		if (!window.accountingPagination) return;
+
+		// Since API doesn't support $top/$skip, we do client-side pagination
+		const startIndex = (page - 1) * rowsPerPageCommission;
+		const endIndex = startIndex + rowsPerPageCommission;
+		const pageCommissions = allCommissions.slice(startIndex, endIndex);
+
+		let html = '';
+
+		pageCommissions.forEach(row => {
+			// Format currency values
+			const amount = row.lv_amount ? 
+				new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(row.lv_amount) :
+				'$0.00';
+			const baseAmount = row.lv_commissionbaseamount ? 
+				new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(row.lv_commissionbaseamount) :
+				'$0.00';
+			
+			// Format date
+			const commissionDate = row.lv_commissiondate ? 
+				new Date(row.lv_commissiondate).toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: '2-digit'}) :
+				'No Date';
+			
+			// Create loan number display (URL not available via API)
+			const loanNumber = row.lv_xloan || 'No Loan';
+			const loanDisplay = loanNumber; // API doesn't support lv_loancardurl field
+			
+			html += `
+				<tr>
+					<td data-label="Profile">${row.lv_xprofile || 'No Profile'}</td>
+					<td data-label="Loan Number">${loanDisplay}</td>
+					<td data-label="Borrower Name">${row.lv_borrowername || 'No Borrower'}</td>
+					<td data-label="Date">${commissionDate}</td>
+					<td data-label="CommBaseAmount">${baseAmount}</td>
+					<td data-label="Amount">${amount}</td>
+					<td data-label="BPSCalc">${row.lv_bpscalculated || 0}</td>
+					<td data-label="CalcType">${row.lv_calculationtype || 'Unknown'}</td>
+					<td data-label="Branch">${row.lv_xbranchname || 'No Branch'}</td>
+					<td data-label="Loan Officer">${row.lv_xloanofficername || 'No LO'}</td>
+					<td data-label="LOSplit">${row.lv_losplit || 100}%</td>
+					<td class="action-column">
+						<div class="button-group">
+							<button class="btn-email" onclick="prepareEmailModal('${row.lv_entryno}', '${loanNumber}', '${row.lv_borrowername}', '${amount}', '${row.lv_loancardurl || ''}')" title="Email this commission">
+								<i class="fas fa-envelope"></i>
+							</button>
+						</div>
+					</td>
+				</tr>
+			`;
+		});
+		
+		$tableCommission.html(html);
+		currentPageCommission = page;
+		updateCommissionPaginationControls();
+		console.log('📄 Commission table updated for page', page, 'showing', pageCommissions.length, 'of', allCommissions.length, 'records');
+	}
+
+	document.addEventListener("LVGlobalDOCReady", function() {
+		// Try to read pageSize from URL if accountingPagination is not available
+		if (!window.accountingPagination) {
+			console.warn('⚠️ COMMISSION: window.accountingPagination not found, checking URL params');
+			const urlParams = new URLSearchParams(window.location.search);
+			const urlPageSize = urlParams.get('pageSize');
+			if (urlPageSize && !isNaN(urlPageSize)) {
+				rowsPerPageCommission = parseInt(urlPageSize);
+				console.log('📊 COMMISSION: Using pageSize from URL =', rowsPerPageCommission);
+			} else {
+				rowsPerPageCommission = 10;
+				console.log('📊 COMMISSION: Using default pageSize = 10');
+			}
+		} else {
+			rowsPerPageCommission = (window.accountingPagination && window.accountingPagination.pageSize) ? window.accountingPagination.pageSize : 10;
+		}
+		
+		$tableCommission = $('#tblComm tbody');
+		$rowsCommission = $tableCommission.find('tr');
+		
+		
+		// Calculate total pages
+		const isAccountingPage = window.location.pathname.includes('/Accounting');
+		if (isAccountingPage && window.accountingPagination) {
+			// Accounting page always uses AJAX - use server-side total count
+			const totalCommissionsCount = window.accountingPagination.totalCommissions;
+			totalPagesCommission = Math.ceil(totalCommissionsCount / rowsPerPageCommission);
+		} else {
+			// Other pages use client-side row count
+			totalPagesCommission = Math.ceil($rowsCommission.length / rowsPerPageCommission);
+		}
+		
+		// Update pagination display
+		$('#totalPagesCommission').text(totalPagesCommission);
+		
+		// Hide pagination controls if only one page or no data
+		if (totalPagesCommission <= 1) {
+			$('#commission-pagination-details').hide();
+			$('#commission-pagination-container').hide();
+		}
+		
+		// Add event handlers for pagination buttons
+		$('#prevBtn-commission').on('click', prevPageCommission);
+		$('#nextBtn-commission').on('click', nextPageCommission);
+		
+		// Initialize table with the first page
+		showPageCommission(1);
+		if (isAccountingPage && window.accountingPagination) {
+			const totalCommissionsCount = window.accountingPagination.totalCommissions;
+			console.log(`📊 Commission pagination: AJAX mode (always enabled), pageSize=${rowsPerPageCommission}, total=${totalCommissionsCount}, pages=${totalPagesCommission}`);
+			
+			// Start background loading of all records
+			console.log('🌐 AJAX Mode: Starting background load of all records');
+			setTimeout(loadAllCommissionData, 100); // Small delay to let page finish loading
+		} else {
+			console.log(`📊 Commission pagination: LIQUID mode, pageSize=${rowsPerPageCommission}, pages=${totalPagesCommission}`);
+			
+			// Log timing for non-AJAX (LIQUID) mode - data is already available
+			logWrite('CommissionDataReady', `LIQUID mode: ${$rowsCommission.length} records available`);
+		}
+		
+		// Performance timing: Check localStorage for page load timing (all pages)
+		const startTime = localStorage.getItem('TimeOfLastChangeOfPeriodDropdown');
+		if (startTime) {
+			const endTime = Date.now();
+			const deltaMs = endTime - parseInt(startTime);
+			const deltaSeconds = (deltaMs / 1000).toFixed(1);
+			
+			// Log timing to console for all pages (not just lvxtemp)
+			console.log(`⏱️ Page refresh time: ${deltaSeconds} seconds (${$rowsCommission.length} commission records)`);
+			
+			// Clear the timing data for next measurement
+			localStorage.removeItem('TimeOfLastChangeOfPeriodDropdown');
+		}
+	});
+</script>
+
+{%- endcapture -%}
+
+<script>
+// Global function to prepare and show email modal for commission emails
+// This works with the Email Modal template by setting the subject and triggering the modal
+function prepareEmailModal(commissionId, loanNumber, borrowerName, amount, loanCardUrl = '') {
+	console.log('prepareEmailModal called:', { commissionId, loanNumber, borrowerName, amount, loanCardUrl });
+
+	// Find the email modal elements
+	const modal = document.querySelector('.email-modal');
+	const subjectInput = document.querySelector('.email-subject-input');
+
+	if (!modal || !subjectInput) {
+		console.error('Email modal elements not found. Make sure Email Modal template is included.');
+		alert('Email functionality is not available on this page.');
+		return;
+	}
+
+	// Prepare the email subject with new format
+	const subject = `Regarding: Commissions on Loan No. ${loanNumber}`;
+	subjectInput.value = subject;
+
+	// Store loan details for email body generation
+	window.emailModalData = {
+		loanNumber: loanNumber,
+		loanCardUrl: loanCardUrl || '',
+		commissionId: commissionId,
+		borrowerName: borrowerName,
+		amount: amount
+	};
+
+	// Populate test content div for automated testing
+	const testContentDiv = document.getElementById('email-modal-test-content');
+	if (testContentDiv) {
+		const testContent = `Email Commission Details
+Subject: ${subject}
+Commission ID: ${commissionId}
+Loan Number: ${loanNumber}
+Borrower Name: ${borrowerName}
+Amount: ${amount}
+Loan Card URL: ${loanCardUrl}
+Modal Type: Commission Table Email`;
+		testContentDiv.textContent = testContent;
+	}
+
+	// Show the modal (the Email Modal template handles the rest)
+	modal.showModal();
+	subjectInput.focus();
+
+	console.log('Email modal prepared with subject:', subject);
+}
+</script>
+
+{%- comment -%} Store the generated HTML for Primary-Commissions-Table to use {%- endcomment -%}
+{%- assign cfCommissionTableOutput = cfCommissionTableHTML  -%}
+
+
+{%- comment -%} BRANCH PAGE: Generate JavaScript branch→periods mapping for client-side filtering {%- endcomment -%}
+
+{%- if page.title == 'Branch' -%}
+<script>
+// Branch → Periods mapping for dynamic period dropdown population
+console.log('DEBUG: Creating branch periods mapping...');
+console.log('DEBUG: branchPeriodsMapping query size:', {{branchPeriodsMapping.results.entities.size | default: 0}});
+
+
+{%- if branchPeriodsMapping.results.entities.size > 0 -%}
+window.branchPeriodsMapping = {
+{%- assign processedBranches = "" -%}
+{%- assign allPeriodsForUser = "" -%}
+{%- for row in branchPeriodsMapping.results.entities -%}
+    {%- if row.branchid -%}
+        {%- assign branchGuid = row.branchid -%}
+        {%- unless processedBranches contains branchGuid -%}
+            {%- if processedBranches != "" -%},{%- endif -%}
+    "{{branchGuid}}": {
+        "code": "{{row.lv_xbranchcode | escape}}",
+        "name": "{{row.lv_xbranchname | escape}}",
+        "periods": [
+        {%- assign periodsList = "" -%}
+        {%- for periodRow in branchPeriodsMapping.results.entities -%}
+            {%- if periodRow.branchid == branchGuid -%}
+                {%- if periodsList != "" -%},{%- endif -%}
+                {{periodRow.lv_periodno}}
+                {%- assign periodsList = periodsList | append: "," -%}
+                {%- comment -%} Also collect all periods for the "all" entry {%- endcomment -%}
+                {%- capture periodMarker -%}|{{periodRow.lv_periodno}}|{%- endcapture -%}
+                {%- unless allPeriodsForUser contains periodMarker -%}
+                    {%- assign allPeriodsForUser = allPeriodsForUser | append: periodMarker -%}
+                {%- endunless -%}
+            {%- endif -%}
+        {%- endfor -%}
+        ]
+    }
+            {%- assign processedBranches = processedBranches | append: "|" | append: branchGuid | append: "|" -%}
+        {%- endunless -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- comment -%} Add special "all" entry for multi-branch managers {%- endcomment -%}
+{%- if allPeriodsForUser != "" -%}
+    ,
+    "all": {
+        "code": "ALL_BRANCHES",
+        "name": "All Branches",
+        "periods": [
+        {%- assign allPeriodsList = "" -%}
+        {%- assign allPeriodsArray = allPeriodsForUser | split: "|" -%}
+        {%- for periodStr in allPeriodsArray -%}
+            {%- if periodStr != "" -%}
+                {%- if allPeriodsList != "" -%},{%- endif -%}
+                {{periodStr}}
+                {%- assign allPeriodsList = allPeriodsList | append: "," -%}
+            {%- endif -%}
+        {%- endfor -%}
+        ]
+    }
+{%- endif -%}
+};
+{%- else -%}
+window.branchPeriodsMapping = {};
+console.warn('DEBUG: No branch periods mapping data found');
+{%- endif -%}
+
+console.log('Branch Periods Mapping loaded:', window.branchPeriodsMapping);
+</script>
+{%- endif -%}
+
+<!-- LEAVE: Commission Filter Code Snippet -->
+
+<!-- Last modified Fri Oct 24 3:47PM -->
+
+<!-- Last modified Tue Oct 28 10:07AM -->
+<!-- Last modified Mon Nov 10 1:28PM -->

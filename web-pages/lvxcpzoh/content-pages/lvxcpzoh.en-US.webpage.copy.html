@@ -1,0 +1,89 @@
+{% comment %}
+API Proxy Page - Poor Man's API Endpoint
+Usage: /lvxcpzoh?url=<encoded-api-url>
+Returns: Raw JSON response suitable for parsing
+{% endcomment %}
+
+<div id="json-output"></div>
+
+<script>
+// Wait for DOM and global functions to be ready
+document.addEventListener('LVGlobalDOCReady', async function() {
+    console.log('API Proxy: LVGlobalDOCReady fired');
+
+    // Get URL parameter from query string
+    const urlParams = new URLSearchParams(window.location.search);
+    let apiUrl = urlParams.get('url');
+
+    if (!apiUrl) {
+        const errorResponse = {
+            error: 'Missing required parameter: url',
+            usage: '/lvxcpzoh?url=<encoded-api-url>',
+            example: '/lvxcpzoh?url=' + encodeURIComponent('/_api/contacts?$top=5'),
+            hack: 'Manual entry: use ~ for ? and ^ for & (e.g., ?url=/_api/lv_logs~$select=id^$filter=...)'
+        };
+        document.getElementById('json-output').textContent = JSON.stringify(errorResponse, null, 2);
+        return;
+    }
+
+    // HACK: Replace special characters to allow manual URL entry without encoding issues
+    // ~ becomes ? (for starting query string)
+    // ^ becomes & (for separating query parameters)
+    // Example: /lvxcpzoh?url=/_api/lv_logs~$select=createdon,lv_kind^$filter=lv_kind eq 'CommissionDataReady'
+    // Becomes: /_api/lv_logs?$select=createdon,lv_kind&$filter=lv_kind eq 'CommissionDataReady'
+    apiUrl = apiUrl.replace(/~/g, '?').replace(/\^/g, '&');
+
+    console.log('API Proxy: Calling API with URL:', apiUrl);
+
+    try {
+        // Call the API using the global apiCall function
+        const result = await apiCall(apiUrl, 'GET', '', false);
+
+        console.log('API Proxy: API call completed', result);
+
+        if (result.success && result.data) {
+            // Output ONLY the raw JSON data
+            document.getElementById('json-output').textContent = JSON.stringify(result.data, null, 2);
+        } else {
+            // If call failed, return error info as JSON
+            const errorResponse = {
+                error: 'API call failed',
+                status: result.status,
+                statusText: result.statusText,
+                message: result.message
+            };
+            document.getElementById('json-output').textContent = JSON.stringify(errorResponse, null, 2);
+        }
+    } catch (error) {
+        console.error('API Proxy: Exception occurred', error);
+        const errorResponse = {
+            error: 'Exception occurred',
+            message: error.message,
+            stack: error.stack
+        };
+        document.getElementById('json-output').textContent = JSON.stringify(errorResponse, null, 2);
+    }
+});
+</script>
+
+<style>
+/* Remove all visual styling - make this look like raw JSON */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+#json-output {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+    padding: 0;
+}
+
+/* Hide header, footer, navigation - show ONLY JSON */
+header, footer, nav, .navbar {
+    display: none !important;
+}
+</style>

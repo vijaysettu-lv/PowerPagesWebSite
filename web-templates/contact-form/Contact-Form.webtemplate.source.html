@@ -1,0 +1,1973 @@
+<!-- Last modified Wed Oct 29 7:59AM -->
+<!-- Last modified Mon Sep 29 3:06PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified mon aug 18 5:20pm -->
+{% comment %}  ~ContactForm ~Profile  {% endcomment %} 
+
+{% include 'snippet' snippet_name:'FetchXML - SetupQuery' %}
+
+{% if request.params.id %}
+	{% assign contactRecord = entities.contact[request.params.id] %}
+{% endif %}
+
+{% comment %} 
+Duh, this cannot be in the separate .js file, as liquid vars are not available there.
+Stil, I'm surprised it did not work to reference setupRecord.lv_urlflowcontactwebrole, I would have thought
+anything in SetupQuery would be available here? I do not have the patience to investigate right now,
+instead just adding a direct query of setup record here.
+{% endcomment %} 
+
+<!-- ContactForm 2506121542 -->
+
+{% fetchxml setupQuery %}
+	<fetch top="1">
+		<entity name="lv_lvcompcommissionsetup">
+			<attribute name="lv_lvcompcommissionsetupid" />
+			<attribute name="lv_accountingemail" />
+			<attribute name="lv_approvaltype" />
+			<attribute name="lv_configtags" />
+			<attribute name="lv_urlflowcontactwebrole" />
+		</entity>
+	</fetch>
+{% endfetchxml %}
+{% assign recSetup = setupQuery.results.entities | first %}
+{% if recSetup.lv_configtags contains "RegionDisabled" %}
+	{% assign cfgRegionEnabled = false %}
+{% else %}
+	{% assign cfgRegionEnabled = true %}
+{% endif %}
+
+{% fetchxml fxmAllWebRoles %}
+	<fetch>
+		<entity name="powerpagecomponent">
+			<attribute name="powerpagecomponentid" />
+			<attribute name="name" />
+
+			<filter>
+				<condition attribute="powerpagecomponenttypename" operator="eq" value="Web Role" />
+			</filter>
+
+		</entity>
+	</fetch>
+{% endfetchxml %}
+
+{% fetchxml contactsUserRolesQuery %}
+	<fetch>
+		<entity name="powerpagecomponent">
+			<attribute name="powerpagecomponentid" />
+			<attribute name="name" />
+			<link-entity name="powerpagecomponent_mspp_webrole_contact" from="powerpagecomponentid"
+				to="powerpagecomponentid" alias="webrole" intersect="true">
+				<attribute name="contactid" />
+				<filter>
+					<condition attribute="contactid" operator="eq" value="{{request.params.id}}" />
+				</filter>
+				<link-entity name="contact" from="contactid" to="contactid" alias="contact" intersect="true">
+					<attribute name="fullname" />
+				</link-entity>
+			</link-entity>
+		</entity>
+	</fetch>
+{% endfetchxml %}
+
+{%- comment -%} ============================================================ {%- endcomment -%}
+{%- comment -%} CONTACT ASSIGNMENT QUERIES - NEW TABLE STRUCTURE {%- endcomment -%}
+{%- comment -%} These queries use the NEW refactored tables: {%- endcomment -%}
+{%- comment -%}   - lv_contactbranchassignment (Branch Manager assignments) {%- endcomment -%}
+{%- comment -%}   - lv_contactloanofficerrelationship (LOO + Exclusions) {%- endcomment -%}
+{%- comment -%} See docs/ContactAssignment_Refactoring_Plan.md for details {%- endcomment -%}
+{%- comment -%} ============================================================ {%- endcomment -%}
+
+{%- comment -%} Query NEW table: Branch Manager assignments {%- endcomment -%}
+{%- fetchxml contactBranchAssignmentQuery -%}
+	<fetch>
+		<entity name="lv_contactbranchassignment">
+			<attribute name="lv_contactbranchassignmentid" />
+			<attribute name="lv_contact" />
+			<attribute name="lv_branch" />
+			<attribute name="lv_branchcode" />
+			<attribute name="lv_branchname" />
+			<filter>
+				<condition attribute="lv_contact" operator="eq" value="{{request.params.id}}" />
+			</filter>
+			<order attribute="lv_branchname" />
+		</entity>
+	</fetch>
+{%- endfetchxml -%}
+
+{%- comment -%} Query NEW table: LO Oversight assignments (relationshiptype = 'O') {%- endcomment -%}
+{%- fetchxml contactOversightQuery -%}
+	<fetch>
+		<entity name="lv_contactloanofficerrelationship">
+			<attribute name="lv_contactloanofficerrelationshipid" />
+			<attribute name="lv_contact" />
+			<attribute name="lv_loanofficer" />
+			<attribute name="lv_loanofficercode" />
+			<attribute name="lv_loanofficername" />
+			<attribute name="lv_relationshiptype" />
+			<attribute name="lv_reason" />
+			<filter type="and">
+				<condition attribute="lv_contact" operator="eq" value="{{request.params.id}}" />
+				<condition attribute="lv_relationshiptype" operator="eq" value="O" />
+			</filter>
+			<order attribute="lv_loanofficername" />
+		</entity>
+	</fetch>
+{%- endfetchxml -%}
+
+{%- comment -%} Query NEW table: LO Exclusion assignments (relationshiptype = 'X') {%- endcomment -%}
+{%- fetchxml contactExclusionQuery -%}
+	<fetch>
+		<entity name="lv_contactloanofficerrelationship">
+			<attribute name="lv_contactloanofficerrelationshipid" />
+			<attribute name="lv_contact" />
+			<attribute name="lv_loanofficer" />
+			<attribute name="lv_loanofficercode" />
+			<attribute name="lv_loanofficername" />
+			<attribute name="lv_relationshiptype" />
+			<attribute name="lv_reason" />
+			<filter type="and">
+				<condition attribute="lv_contact" operator="eq" value="{{request.params.id}}" />
+				<condition attribute="lv_relationshiptype" operator="eq" value="X" />
+			</filter>
+			<order attribute="lv_loanofficername" />
+		</entity>
+	</fetch>
+{%- endfetchxml -%}
+
+{%- comment -%} LEGACY QUERIES REMOVED - Now using new tables: {%- endcomment -%}
+{%- comment -%}   - contactBranchAssignmentQuery (lv_contactbranchassignment) {%- endcomment -%}
+{%- comment -%}   - contactOversightQuery (lv_contactloanofficerrelationship with type='O') {%- endcomment -%}
+{%- comment -%}   - contactExclusionQuery (lv_contactloanofficerrelationship with type='X') {%- endcomment -%}
+
+{% comment %} Region functionality removed - use branchQuery directly {% endcomment %}
+
+{% comment %} Query for loan officers for the new assignment system Select2 dropdown {% endcomment %}
+{% fetchxml contactFormLoanOfficerQuery %}
+	<fetch>
+		<entity name="lv_lvcomploanofficer">
+			<attribute name="lv_name" />
+			<attribute name="lv_lvcomploanofficerid" />
+			<attribute name="lv_code" />
+			<order attribute="lv_name" />
+		</entity>
+	</fetch>
+{% endfetchxml %}
+
+{% comment %} Initialize all contact role flags to false {% endcomment %}
+{% assign contactHasAdminRole = false %}
+{% assign contactHasRegionRole = false %}
+{% assign contactHasBranchRole = false %}
+{% assign contactHasLoanOfficerRole = false %}
+{% assign contactHasAssignRole = false %}
+
+{% comment %} Loop through the contact's roles and set flags {% endcomment %}
+{% for role in contactsUserRolesQuery.results.entities %}
+  {% if role.name == 'Administrators' %}
+    {% assign contactHasAdminRole = true %}
+  {% elsif role.name == 'Branch Manager' %}
+    {% assign contactHasBranchRole = true %}
+  {% elsif role.name == 'Loan Officer' %}
+    {% assign contactHasLoanOfficerRole = true %}
+  {% elsif role.name == 'Role Assign' %}
+    {% assign contactHasAssignRole = true %}
+  {% endif %}
+{% endfor %}
+
+{% comment %}   We need to know the mapping between role names and role ids   {% endcomment %} 
+{% assign adminRoleId = '' %}
+{% assign regionRoleId = '' %}
+{% assign branchRoleId = '' %}
+{% assign loanOfficerRoleId = '' %}
+{% assign assignRoleId = '' %}
+
+{% for role in fxmAllWebRoles.results.entities %}
+    {% if role.name == 'Administrators' %}
+        {% assign adminRoleId = role.powerpagecomponentid %}
+    {% elsif role.name == 'Branch Manager' %}
+        {% assign branchRoleId = role.powerpagecomponentid %}
+    {% elsif role.name == 'Loan Officer' %}
+        {% assign loanOfficerRoleId = role.powerpagecomponentid %}
+    {% elsif role.name == 'Role Assign' %}
+        {% assign assignRoleId = role.powerpagecomponentid %}
+    {% endif %}
+{% endfor %}
+
+{% fetchxml regionQuery %}
+	<fetch>
+		<entity name="account">
+			<attribute name="accountid" />
+			<attribute name="name" />
+			<attribute name="accountnumber" />
+
+			<filter type="and">
+				<condition attribute="statecode" operator="eq" value="0" />
+			</filter>
+		</entity>
+	</fetch>
+{% endfetchxml %}
+
+{% fetchxml branchQuery %}
+	<fetch>
+		<entity name="lv_lvcompbranch">
+			<attribute name="lv_lvcompbranchid" />
+			<attribute name="lv_code" />
+			<attribute name="lv_name" />
+
+			<filter>
+				<condition attribute="statuscode" operator="eq" value="1" />
+			</filter>
+
+			<order attribute="lv_name" />
+		</entity>
+	</fetch>
+{% endfetchxml%}
+
+{% fetchxml loanOfficerQuery %}
+	<fetch>
+		<entity name="lv_lvcomploanofficer">
+			<attribute name="lv_lvcomploanofficerid" />
+			<attribute name="lv_code" />
+			<attribute name="lv_name" />
+
+			<filter type="and">
+				<condition attribute="statecode" operator="eq" value="0" />
+				<condition attribute="lv_code" operator="not-null" />
+			</filter>
+		</entity>
+	</fetch>
+{% endfetchxml %}
+
+{%- comment -%} ============================================================ {%- endcomment -%}
+{%- comment -%} DEPRECATED: Old branch-based exclusion queries - REMOVED {%- endcomment -%}
+{%- comment -%} The old lv_branchloanofficerexclusion table is no longer used. {%- endcomment -%}
+{%- comment -%} Exclusions are now per-user via lv_contactloanofficerrelationship. {%- endcomment -%}
+{%- comment -%} See contactExclusionQuery above for the new approach. {%- endcomment -%}
+{%- comment -%} ============================================================ {%- endcomment -%}
+
+{% assign loanOfficerList = loanOfficerQuery.results.entities | sort: 'lv_name' %}
+{% assign regionList = regionQuery.results.entities %}
+{% assign branchList = branchQuery.results.entities %}
+{% assign roleList = webRoleQuery.results.entities %}
+
+{%- comment -%} NEW: Exclusion list from contactExclusionQuery (per-user, not per-branch) {%- endcomment -%}
+{% assign exclusionList = contactExclusionQuery.results.entities %}
+{% assign oversightList = contactOversightQuery.results.entities %}
+
+<!-- Orange debug box removed per user request -->
+
+{% comment %} Check for null branch manager assignments - data integrity check {% endcomment %}
+{% assign hasNullBranchManager = false %}
+{% if request.params.id %}
+	{% for assignment in contactBranchAssignmentQuery.results.entities %}
+		{% unless assignment.lv_branch %}
+			{% assign hasNullBranchManager = true %}
+		{% endunless %}
+	{% endfor %}
+{% endif %}
+
+<div id="contact-form" class="contact-form">
+	{% if hasNullBranchManager %}
+		<div class="data-integrity-warning" style="background-color: #fff3cd; border: 2px solid #f39c12; padding: 20px; margin-bottom: 20px; border-radius: 8px;">
+			<h3 style="color: #856404; margin-top: 0;">⚠️ DATA INTEGRITY WARNING</h3>
+			<p><strong>This contact has one or more branch manager assignments with NULL branch values.</strong></p>
+			<p>This indicates corrupted data in the database. Branch manager assignments cannot function properly without a branch specified.</p>
+			<p style="margin-bottom: 0;"><em>Affected assignment records will be highlighted in red below. Please remove these invalid assignments or contact system administration.</em></p>
+		</div>
+	{% endif %}
+
+    <form id="userForm">
+        <div class="form-group">
+            <label for="firstname">First Name::</label>
+            <input type="text" id="firstname" name="firstname" required value="{{contactRecord.firstname}}">
+        </div>
+	
+        <div class="form-group">
+            <label for="middlename">MiddleName</label>
+            <input type="text" id="middlename" name="middlename" value="{{contactRecord.middlename}}">
+        </div>
+	
+        <div class="form-group">
+            <label for="lastname">Last Name::</label>
+            <input type="text" id="lastname" name="lastname" required value="{{contactRecord.lastname}}">
+        </div>
+	
+        <div class="form-group">
+            <label for="emailaddress1">Email</label>
+            <input type="email" id="emailaddress1" name="emailaddress1" required value="{{contactRecord.emailaddress1}}">
+        </div>
+
+
+		<div id="loan-officer-contact-container">
+			{% include 'Loan Officer Dropdown' parmAllowClear: true, parmFieldName: 'lv_LoanOfficer@odata.bind', parmFieldId: 'lv_LoanOfficerBind', parmContainerId: 'loan-officer-contact-container', parmCurrentValue: contactRecord.lv_loanofficer.id, parmRefreshOnChange: false, parmShowAllOption: false %}
+		</div>
+
+		{% comment %} Only show management section in Edit-Profile mode (when contact ID exists) {% endcomment %}
+		{% if request.params.id %}
+			{% comment %} EDIT MODE: Show full management section {% endcomment %}
+			
+			{% comment %} Auto-expand management section if contact has existing assignments - CALCULATE FIRST {% endcomment %}
+			{% assign hasSystemAdmin = contactHasAdminRole %}
+				
+			{% assign hasBranchAssignments = false %}
+			{% if contactBranchAssignmentQuery.results.entities.size > 0 %}
+				{% assign hasBranchAssignments = true %}
+			{% endif %}
+			
+			{% assign hasLOOAssignments = false %}
+			{% if contactOversightQuery.results.entities.size > 0 %}
+				{% assign hasLOOAssignments = true %}
+			{% endif %}
+			
+			{% assign shouldAutoExpand = false %}
+			{% if hasSystemAdmin or hasBranchAssignments or hasLOOAssignments %}
+				{% assign shouldAutoExpand = true %}
+			{% endif %}
+			
+			<script>
+				// Wait for debug functions to be available
+				function logAssignmentDebugInfo() {
+					if (typeof dbglog === 'function') {
+						dbglog('🔍 ASSIGNMENT DEBUG INFO:', 'assignment');
+						dbglog('hasSystemAdmin: {{ hasSystemAdmin | default: false }}', 'assignment');
+						{% capture bmQuerySize %}{% if contactBranchAssignmentQuery.results.entities.size %}{{ contactBranchAssignmentQuery.results.entities.size }}{% else %}0{% endif %}{% endcapture %}
+						dbglog('contactBranchAssignmentQuery size: {{ bmQuerySize }}', 'assignment');
+						dbglog('hasBranchAssignments: {{ hasBranchAssignments | default: false }}', 'assignment');
+						{% capture looQuerySize %}{% if contactOversightQuery.results.entities.size %}{{ contactOversightQuery.results.entities.size }}{% else %}0{% endif %}{% endcapture %}
+						dbglog('contactOversightQuery size: {{ looQuerySize }}', 'assignment');
+						dbglog('hasLOOAssignments: {{ hasLOOAssignments | default: false }}', 'assignment');
+						dbglog('shouldAutoExpand: {{ shouldAutoExpand | default: false }}', 'assignment');
+						dbglog('is_admin value: {{ is_admin | default: "undefined" }}', 'assignment');
+						dbglog('Contact ID from request: {{request.params.id | default: "none"}}', 'assignment');
+						
+						// Show actual query results (using new tables)
+						dbglog('🔍 BRANCH ASSIGNMENT QUERY RESULTS (lv_contactbranchassignment):', 'assignment');
+						{% if contactBranchAssignmentQuery.results.entities %}
+							{% for assignment in contactBranchAssignmentQuery.results.entities %}
+								dbglog('Branch assignment {{ forloop.index }}: id={{ assignment.lv_contactbranchassignmentid | default: "none" }}, branch={{ assignment.lv_branchname | default: "none" }} ({{ assignment.lv_branchcode | default: "none" }})', 'assignment');
+							{% endfor %}
+						{% endif %}
+
+						dbglog('🔍 LOAN OFFICER OVERSIGHT QUERY RESULTS (lv_contactloanofficerrelationship):', 'assignment');
+						{% if contactOversightQuery.results.entities %}
+							{% for assignment in contactOversightQuery.results.entities %}
+								dbglog('LO assignment {{ forloop.index }}: id={{ assignment.lv_contactloanofficerrelationshipid | default: "none" }}, loanofficer={{ assignment.lv_loanofficername | default: "none" }} ({{ assignment.lv_loanofficercode | default: "none" }})', 'assignment');
+							{% endfor %}
+						{% endif %}
+
+						dbglog('🔴 EXCLUSION DEBUG INFO:', 'exclusion');
+						dbglog('🔴 Exclusion query executed', 'exclusion');
+						dbglog('🔴 Total exclusions fetched: {{ exclusionList.size | default: 0 }}', 'exclusion');
+						{% if exclusionList %}
+							{% for exclusion in exclusionList %}
+								dbglog('🔴 Exclusion {{ forloop.index }}: name={{ exclusion.lv_name | default: "none" }}, branch={{ exclusion.lv_branchcode | default: "none" }}, officer={{ exclusion.lv_loanofficercode | default: "none" }}', 'exclusion');
+							{% endfor %}
+						{% endif %}
+					} else {
+						// Fallback to console.log if dbglog not available
+						console.log('🔍 ASSIGNMENT DEBUG INFO (dbglog not available):');
+						console.log('hasSystemAdmin: {{ hasSystemAdmin | default: false }}');
+						console.log('shouldAutoExpand: {{ shouldAutoExpand | default: false }}');
+						console.log('🔴 EXCLUSION DEBUG INFO:');
+						console.log('🔴 Total exclusions: {{ exclusionList.size | default: 0 }}');
+					}
+				}
+				
+				// Try immediately, then retry after page load
+				logAssignmentDebugInfo();
+				
+				if (document.readyState === 'loading') {
+					document.addEventListener('DOMContentLoaded', logAssignmentDebugInfo);
+				}
+				window.addEventListener('load', logAssignmentDebugInfo);
+			</script>
+
+			<div class="management-section">
+				<div class="management-header-row">
+					<div class="management-header" onclick="toggleManagementSection()" title="Click to expand/collapse management assignments">
+						<h3>Admin & Managerial Assignment</h3>
+						<div class="toggle-icon">{% if shouldAutoExpand %}▼{% else %}▶{% endif %}</div>
+					</div>
+					<span id="assignmentSummaryLabel" class="assignment-summary-label"></span>
+				</div>
+					
+				<div id="managementContent" class="management-content" {% unless shouldAutoExpand %}style="display: none;"{% endunless %}>
+					
+					<!-- Branch Manager Subsection -->
+					<div class="subsection branch-manager-subsection">
+						<div class="subsection-header" onclick="toggleSubsection('branchManagerSubsection')" title="Click to expand/collapse branch manager assignments">
+							<h4>Branch Manager</h4>
+							<div class="subtoggle-icon">▼</div>
+						</div>
+						
+						<div id="branchManagerSubsection" class="subsection-content">
+							<div id="branchManagerList"></div>
+							
+							<div class="add-assignment-container">
+								<div class="add-assignment-header">
+									<a href="#" id="addBranchManagerLink" class="add-link">+ Add Branch</a>
+								</div>
+								<div id="addBranchManagerControls" style="display: none;" class="add-assignment-controls">
+									<div class="form-group">
+										<label for="bmBranchSelect">Branch</label>
+										<select id="bmBranchSelect">
+											<option value="">Assign a branch...</option>
+											{% for branch in branchQuery.results.entities %}
+												<option value="{{branch.lv_name}}">{{branch.lv_name}} ({{branch.lv_code}})</option>
+											{% endfor %}
+										</select>
+									</div>
+								</div>
+							</div>
+							
+							<div id="branchManagerSaveContainer" style="margin-top: 15px;">
+								<a id="saveBranchManagerChanges" href="#" class="save-changes-link" style="display: none;"></a>
+							</div>
+						</div>
+					</div>
+
+					<!-- Loan Officer Exclusions Subsection - NEW SIMPLIFIED PER-USER MODEL -->
+					<div class="subsection loan-officer-exclusion-subsection">
+						<div class="subsection-header" onclick="toggleSubsection('loanOfficerExclusionSubsection')" title="Click to expand/collapse loan officer exclusions">
+							<h4>Loan Officer Exclusions</h4>
+							<div class="subtoggle-icon">▼</div>
+						</div>
+
+						<div id="loanOfficerExclusionSubsection" class="subsection-content">
+							<p class="subsection-description" style="color: #666; font-size: 13px; margin-bottom: 15px;">
+								Loan officers added here will be <strong>hidden</strong> from this user's commission views, regardless of their branch assignments or oversight permissions.
+							</p>
+							<div id="loExclusionsList"></div>
+
+							<div class="add-assignment-container">
+								<div class="add-assignment-header">
+									<a href="#" id="addLOExclusionLink" class="add-link">+ Add Exclusion</a>
+								</div>
+
+								<div id="addLOExclusionControls" style="display: none;" class="add-assignment-controls">
+									{%- comment -%} NOTE: Branch dropdown REMOVED - exclusions are now per-user, not per-branch {%- endcomment -%}
+									<div class="form-group">
+										<div id="exclusion-officer-select-container">
+											{% include 'Loan Officer Dropdown' parmAllowClear: false, parmFieldName: 'exclusionOfficerSelect', parmFieldId: 'exclusionOfficerSelect', parmContainerId: 'exclusion-officer-select-container', parmCurrentValue: '', parmRefreshOnChange: false, parmShowAllOption: false, parmPlaceholderText: 'Select loan officer to exclude...', parmRequired: false %}
+										</div>
+									</div>
+									<div class="form-group">
+										<label for="exclusionReasonInput">Reason (optional)</label>
+										<input type="text" id="exclusionReasonInput" placeholder="Enter reason for exclusion..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+									</div>
+								</div>
+							</div>
+
+							<div id="loExclusionSaveContainer" style="margin-top: 15px;">
+								<a id="saveLOExclusionChanges" href="#" class="save-changes-link" style="display: none;"></a>
+							</div>
+						</div>
+					</div>
+
+					<!-- Loan Officer Oversight Subsection -->
+					<div class="subsection loan-officer-oversight-subsection">
+						<div class="subsection-header" onclick="toggleSubsection('loanOfficerOversightSubsection')" title="Click to expand/collapse loan officer oversight assignments">
+							<h4>Loan Officer Oversight</h4>
+							<div class="subtoggle-icon">▼</div>
+						</div>
+						
+						<div id="loanOfficerOversightSubsection" class="subsection-content">
+							<div id="looAssignmentsList"></div>
+							
+							<div class="add-assignment-container">
+								<div class="add-assignment-header">
+									<a href="#" id="addLOOAssignmentLink" class="add-link">+ Add Loan Officer</a>
+								</div>
+
+								<div id="addLOOAssignmentControls" style="display: none;" class="add-assignment-controls">									
+									<div class="form-group">
+										<div id="contact-officer-select-container">
+											{% include 'Loan Officer Dropdown' parmAllowClear: false, parmFieldName: 'looOfficerSelect', parmFieldId: 'looOfficerSelect', parmContainerId: 'contact-officer-select-container', parmCurrentValue: '', parmRefreshOnChange: false, parmShowAllOption: false, parmPlaceholderText: 'Assign a loan officer...', parmRequired: false %}
+										</div>
+									</div>
+								</div>
+							</div>
+							
+							<div id="looAssignmentSaveContainer" style="margin-top: 15px;">
+								<a id="saveContactAssignmentChanges" href="#" class="save-changes-link" style="display: none;"></a>
+							</div>
+						</div>
+					</div>
+					
+					<!-- Admin & Roles Section -->
+					<div class="admin-roles-section" style="padding: 20px; border-top: 1px solid var(--portalThemeColor2);">
+						<div class="admin-role">
+							<label>
+								<input type="checkbox" id="chkIsSysAdmin" name="webroles[]" value="{{adminRoleId}}" {% if contactHasAdminRole == true %} checked {% endif %}> 
+								This user is a System Administrator
+							</label>
+						</div>
+
+						{% comment %} Emergency Admin Recovery: Show checkbox for backdoor users to restore admin access {% endcomment %}
+						{% if has_admin_backdoor == true and is_admin == false %}
+						<div class="admin-recovery-role">
+							<label>
+								<input type="checkbox" name="webroles[]" value="{{adminRoleId}}" {% if contactHasAdminRole == true %} checked {% endif %}> 
+								<strong>🔑 Restore Administrator Access</strong>
+								<br><small style="color: #666; font-style: italic;">Check this box to restore your System Administrator role</small>
+							</label>
+						</div>
+						{% endif %}
+
+						{%- if contactRecord and contactRecord.adx_identity_username != empty and contactRecord.adx_identity_username != '' -%}
+						<div style="margin-top: 10px; margin-bottom: 5px; color: #666; font-style: italic;">
+							UserName: {{contactRecord.adx_identity_username}}
+						</div>
+						{%- endif -%}
+
+						<!-- Roles field - visible in Edit mode only when non-empty, styled as label-like -->
+						{% if contactRecord and contactRecord.lv_roles != empty and contactRecord.lv_roles != '' %}
+						<div class="form-group" id="roles-field-container" style="margin-top: 10px; margin-bottom: 10px;">
+							<label for="lv_roles">Roles (not editable - auto-generated based on selections above)</label>
+							<input type="text" id="lv_roles" name="lv_roles" value="{{contactRecord.lv_roles}}" readonly 
+							       style="background-color: transparent; border: none; color: #666; font-style: italic; padding: 8px 0; cursor: default; box-shadow: none;">
+						</div>
+						{% endif %}
+					</div>
+					
+				</div>
+			</div>
+		{% endif %}
+		{% comment %} Management section only shown in Edit-Profile mode {% endcomment %} 
+
+		{% comment %} Auto-managed role checkboxes - hidden from user but present for form submission {% endcomment %}
+		<input type="hidden" name="webroles[]" value="{{branchRoleId}}" {% if contactHasBranchRole == true %} checked {% endif %}> 
+		<input type="hidden" name="webroles[]" value="{{loanOfficerRoleId}}" {% if contactHasLoanOfficerRole == true %} checked {% endif %}>
+
+		<!-- Loading overlay for form submission -->
+		<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+			<div class="spinner"></div>
+			<p>Saving changes...</p>
+		</div>
+
+        {% if request.params.id %}
+        	{% comment %} EDIT MODE: Single submit button {% endcomment %}
+        	<button type="submit">Submit</button>
+        {% else %}
+        	{% comment %} ADD MODE: Two submit options {% endcomment %}
+        	<div class="submit-buttons-container">
+        		<button type="submit" id="simpleSubmit">Submit</button>
+        		<button type="button" id="managerialSubmit">Add Managerial Assignments</button>
+        	</div>
+        {% endif %}
+
+    </form>
+
+	{% comment %}            Javascript is in /web-pages/Edit-Profile/Edit-Profile.en-US.webpage.custom_javascript.js search ~ editprofilejss                   {% endcomment %} 
+</div>
+
+<script>
+	// Safe debug functions - fallback if main ones not loaded yet
+	if (typeof dbglog === 'undefined') {
+		window.dbglog = function(msg, tag) { 
+			// Simple fallback - just do nothing for now, main functions will override later
+		};
+		window.dbgerr = function(msg, tag) { 
+			// Always show errors regardless of debug state
+			console.error(msg);
+		};
+		window.dbgwarn = function(msg, tag) { 
+			// Simple fallback - just do nothing for now
+		};
+	}
+	
+	window.urlContactWebRole = "{{recSetup.lv_urlflowcontactwebrole}}";
+	
+	if (typeof dbglog === 'function') {
+		dbglog('=== CONTACT FORM CONFIG DEBUG ===', 'config');
+		dbglog('window.urlContactWebRole set to: ' + window.urlContactWebRole, 'config');
+		dbglog('URL length: ' + (window.urlContactWebRole ? window.urlContactWebRole.length : 'undefined'), 'config');
+		dbglog('URL appears valid: ' + (window.urlContactWebRole && window.urlContactWebRole.startsWith('http')), 'config');
+		if (!window.urlContactWebRole || window.urlContactWebRole.trim() === '') {
+			console.error('❌ ERROR: urlContactWebRole is empty or undefined!');
+			console.error('❌ Web role changes will fail without this URL');
+		} else {
+			dbglog('✅ urlContactWebRole appears to be set correctly', 'config');
+		}
+	}
+	
+	// Configuration for shared content snippet
+	window.contactFormConfig = {
+		adminRoleId: "{{adminRoleId}}",
+		branchRoleId: "{{branchRoleId}}",
+		loanOfficerRoleId: "{{loanOfficerRoleId}}",
+		regionEnabled: false
+	};
+	
+	dbglog('=== CONTACT ASSIGNMENT DEBUGGING ===', 'assignment');
+	dbglog('Contact ID: {{request.params.id}}', 'assignment');
+	dbglog('Role IDs - Branch: ' + window.contactFormConfig.branchRoleId + ', LO: ' + window.contactFormConfig.loanOfficerRoleId, 'assignment');
+	dbglog('Config - regionEnabled: ' + window.contactFormConfig.regionEnabled, 'assignment');
+	
+	// Debug contact's direct assignments
+	{% if contactRecord.lv_branch %}
+		dbglog('🏢 DIRECT BRANCH ASSIGNMENT: id={{contactRecord.lv_branch.id}}, name={{contactRecord.lv_branch.lv_name}}', 'assignment');
+	{% else %}
+		dbglog('🏢 NO DIRECT BRANCH ASSIGNMENT', 'assignment');
+	{% endif %}
+	
+	{% if contactRecord.lv_loanofficer %}
+		dbglog('👤 DIRECT LOAN OFFICER ASSIGNMENT: id={{contactRecord.lv_loanofficer.id}}, name={{contactRecord.lv_loanofficer.lv_name}}', 'assignment');
+	{% else %}
+		dbglog('👤 NO DIRECT LOAN OFFICER ASSIGNMENT', 'assignment');
+	{% endif %}
+	
+	// Debug new-style assignments
+	{% assign bmAssignmentCount = 0 %}
+	{% if contactBranchAssignmentQuery.results.entities.size %}
+		{% assign bmAssignmentCount = contactBranchAssignmentQuery.results.entities.size %}
+	{% endif %}
+	
+	{% assign looAssignmentCount = 0 %}
+	{% if contactOversightQuery.results.entities.size %}
+		{% assign looAssignmentCount = contactOversightQuery.results.entities.size %}
+	{% endif %}
+	
+	dbglog('📋 NEW ASSIGNMENT COUNTS - BM: {{bmAssignmentCount}}, LOO: {{looAssignmentCount}}', 'assignment');
+	
+	{% if bmAssignmentCount > 0 and contactBranchAssignmentQuery.results.entities %}
+		dbglog('📋 BRANCH MANAGER ASSIGNMENTS:', 'assignment');
+		{% for assignment in contactBranchAssignmentQuery.results.entities %}
+			dbglog('  - Branch: {{assignment.lv_branchname | default: "unknown"}} ({{assignment.lv_branchcode | default: "unknown"}})', 'assignment');
+		{% endfor %}
+	{% endif %}
+
+	{% if looAssignmentCount > 0 and contactOversightQuery.results.entities %}
+		dbglog('📋 LOAN OFFICER OVERSIGHT ASSIGNMENTS:', 'assignment');
+		{% for assignment in contactOversightQuery.results.entities %}
+			dbglog('  - LO: {{assignment.lv_loanofficername | default: "unknown"}} ({{assignment.lv_loanofficercode | default: "unknown"}})', 'assignment');
+		{% endfor %}
+	{% endif %}
+	
+	// Branch data for simplified assignment management (region functionality removed)
+	window.branchData = [
+		{% for branch in branchQuery.results.entities %}
+			{
+				branchId: "{{branch.lv_lvcompbranchid}}",
+				branchName: "{{branch.lv_name}}",
+				branchCode: "{{branch.lv_code}}"
+			},
+		{% endfor %}
+	];
+	
+	dbglog('🔍 BRANCH CODE DEBUG - Sample branch data:', 'assignment');
+	if (window.branchData.length > 0) {
+		dbglog('First 3 branches: ' + JSON.stringify(window.branchData.slice(0, 3)), 'assignment');
+		window.branchData.slice(0, 3).forEach((branch, index) => {
+			dbglog('Branch ' + (index + 1) + ': name="' + branch.branchName + '" code="' + branch.branchCode + '" (type: ' + typeof branch.branchCode + ')', 'assignment');
+		});
+	}
+	
+	dbglog('window.branchData length: ' + window.branchData.length, 'assignment');
+	if (window.branchData.length > 0) {
+		dbglog('Branch data loaded successfully', 'assignment');
+	} else {
+		console.warn('⚠️ NO BRANCH DATA FOUND - Branch dropdown will not populate!');
+		console.warn('⚠️ Check if lv_lvcompbranch table has data in this environment');
+	}
+
+	{%- comment -%} ============================================================ {%- endcomment -%}
+	{%- comment -%} NEW DATA STRUCTURE: Per-user LO Exclusions {%- endcomment -%}
+	{%- comment -%} Exclusions are now stored per-contact, not per-branch. {%- endcomment -%}
+	{%- comment -%} This uses the new lv_contactloanofficerrelationship table {%- endcomment -%}
+	{%- comment -%} with lv_relationshiptype = 2 (Exclusion) {%- endcomment -%}
+	{%- comment -%} ============================================================ {%- endcomment -%}
+
+	// Loan officer exclusions - NEW per-user structure (no longer branch-specific)
+	// relationshipType: 'X' = eXclusion, 'O' = Oversight
+	window.loanOfficerExclusions = [
+		{%- for exclusion in exclusionList -%}
+			{
+				id: "{{exclusion.lv_contactloanofficerrelationshipid}}",
+				loanOfficerId: "{{exclusion.lv_loanofficer}}",
+				loanOfficerCode: "{{exclusion.lv_loanofficercode}}",
+				loanOfficerName: "{{exclusion.lv_loanofficername}}",
+				reason: "{{exclusion.lv_reason}}",
+				relationshipType: "X"
+			},
+		{%- endfor -%}
+	];
+
+	// Loan officer oversight (inclusions) - NEW per-user structure
+	// relationshipType: 'X' = eXclusion, 'O' = Oversight
+	window.loanOfficerOversight = [
+		{%- for oversight in oversightList -%}
+			{
+				id: "{{oversight.lv_contactloanofficerrelationshipid}}",
+				loanOfficerId: "{{oversight.lv_loanofficer}}",
+				loanOfficerCode: "{{oversight.lv_loanofficercode}}",
+				loanOfficerName: "{{oversight.lv_loanofficername}}",
+				reason: "{{oversight.lv_reason}}",
+				relationshipType: "O"
+			},
+		{%- endfor -%}
+	];
+
+	// Debug: Log exclusions and oversight counts
+	if (typeof dbglog === 'function') {
+		dbglog('📋 NEW STRUCTURE: Exclusions loaded: ' + window.loanOfficerExclusions.length, 'exclusion');
+		dbglog('📋 NEW STRUCTURE: Oversight loaded: ' + window.loanOfficerOversight.length, 'exclusion');
+	}
+
+	window.contactFormLoanOfficers = [
+		{% for officer in contactFormLoanOfficerQuery.results.entities %}
+			{
+				id: "{{officer.lv_lvcomploanofficerid}}",
+				name: "{{officer.lv_name}}",
+				code: "{{officer.lv_code}}"
+			},
+		{% endfor %}
+	];
+	
+	{%- comment -%} LOO (Oversight) assignments - NEW TABLE: contactOversightQuery {%- endcomment -%}
+	window.currentAssignments = [
+		{% for assignment in contactOversightQuery.results.entities %}
+			{
+				id: "{{assignment.lv_contactloanofficerrelationshipid}}",
+				regionName: "", {%- comment -%} No region in new table {%- endcomment -%}
+				branchName: "", {%- comment -%} No branch in new table {%- endcomment -%}
+				officerName: "{{assignment.lv_loanofficername}}",
+				officerId: "{{assignment.lv_loanofficer}}"
+			},
+		{% endfor %}
+	];
+
+	{%- comment -%} Branch Manager assignments - NEW TABLE: contactBranchAssignmentQuery {%- endcomment -%}
+	window.currentBranchManagerAssignments = [
+		{% for assignment in contactBranchAssignmentQuery.results.entities %}
+			{
+				id: "{{assignment.lv_contactbranchassignmentid}}",
+				regionName: "", {%- comment -%} No region in new table {%- endcomment -%}
+				branchName: "{{assignment.lv_branchname}}",
+				branchId: "{{assignment.lv_branch}}",
+				branchCode: "{{assignment.lv_branchcode}}",
+				hasNullBranch: false
+			},
+		{% endfor %}
+	];
+
+	// Count assignments using manual loops to avoid .size filter crashes
+	{% assign bmAssignmentCount = 0 %}
+	{% for assignment in contactBranchAssignmentQuery.results.entities %}
+		{% assign bmAssignmentCount = bmAssignmentCount | plus: 1 %}
+	{% endfor %}
+	window.bmAssignmentCountFromQuery = {{bmAssignmentCount}};
+
+	{% assign looAssignmentCount = 0 %}
+	{% for assignment in contactOversightQuery.results.entities %}
+		{% assign looAssignmentCount = looAssignmentCount | plus: 1 %}
+	{% endfor %}
+	window.looAssignmentCountFromQuery = {{looAssignmentCount}};
+
+	// NEWAssignTodo8: Toggle functions for nested management structure
+	function toggleManagementSection() {
+		const content = document.getElementById('managementContent');
+		const icon = document.querySelector('.toggle-icon');
+		
+		if (content.style.display === 'none') {
+			content.style.display = 'block';
+			icon.textContent = '▼';
+			icon.classList.remove('collapsed');
+		} else {
+			content.style.display = 'none';
+			icon.textContent = '▶';
+			icon.classList.add('collapsed');
+		}
+	}
+	
+	function toggleSubsection(subsectionId) {
+		const content = document.getElementById(subsectionId);
+		const header = content.previousElementSibling;
+		const icon = header.querySelector('.subtoggle-icon');
+		
+		if (content.style.display === 'none') {
+			content.style.display = 'block';
+			icon.textContent = '▼';
+			icon.classList.remove('collapsed');
+		} else {
+			content.style.display = 'none';
+			icon.textContent = '▶';
+			icon.classList.add('collapsed');
+		}
+	}
+
+	// Update the assignment summary label (e.g., "Branch Manager (2), Loan Officer Exclusion (3)")
+	function updateAssignmentSummaryLabel() {
+		const parts = [];
+
+		// Count Branch Manager assignments
+		const bmCount = (window.currentBranchManagerAssignments || []).length;
+		if (bmCount > 0) {
+			parts.push(`Branch Manager (${bmCount})`);
+		}
+
+		// Count Loan Officer Exclusions
+		const exclusionCount = (window.loanOfficerExclusions || []).length;
+		if (exclusionCount > 0) {
+			parts.push(`Loan Officer Exclusion (${exclusionCount})`);
+		}
+
+		// Count Loan Officer Oversight - check both new and legacy arrays
+		// window.loanOfficerOversight is the new structure
+		// window.currentAssignments is the legacy LOO array (filters out missing officer info)
+		let oversightCount = (window.loanOfficerOversight || []).length;
+		if (oversightCount === 0) {
+			// Fallback to legacy array, filtering to valid assignments
+			const legacyAssignments = (window.currentAssignments || []).filter(a => a.officerId && a.officerName);
+			oversightCount = legacyAssignments.length;
+		}
+		if (oversightCount > 0) {
+			parts.push(`Loan Officer Oversight (${oversightCount})`);
+		}
+
+		const label = $('#assignmentSummaryLabel');
+		if (parts.length > 0) {
+			label.text(parts.join('; '));
+		} else {
+			label.text('');
+		}
+	}
+
+	// AUTO-ROLE ASSIGNMENT: Functions to automatically determine roles based on assignments
+	function shouldHaveBranchManagerRole() {
+		dbglog('🔍 shouldHaveBranchManagerRole() called', 'roles');
+		
+		// Check if user has any branch manager assignments
+		dbglog('🔍 Checking currentBranchManagerAssignments', 'roles');
+		dbglog('🔍 window.currentBranchManagerAssignments: ' + JSON.stringify(window.currentBranchManagerAssignments), 'roles');
+		
+		// Primary check: Use JavaScript array if available
+		if (window.currentBranchManagerAssignments) {
+			const hasAssignments = window.currentBranchManagerAssignments.length > 0;
+			dbglog('🔍 Has BM assignments (from JS array): ' + hasAssignments, 'roles');
+			return hasAssignments;
+		}
+		
+		// Fallback: Check FetchXML data directly (for early page load before JS array is ready)
+		dbglog('🔍 JavaScript array not ready - checking FetchXML data directly', 'roles');
+		const hasAssignmentsFromQuery = window.bmAssignmentCountFromQuery > 0;
+		dbglog('🔍 Has BM assignments (from FetchXML): ' + hasAssignmentsFromQuery + ', count: ' + window.bmAssignmentCountFromQuery, 'roles');
+		return hasAssignmentsFromQuery;
+	}
+	
+	function shouldHaveLoanOfficerRole() {
+		dbglog('🔍 shouldHaveLoanOfficerRole() called', 'roles');
+		
+		// ALL CONTACTS should ALWAYS have Loan Officer role regardless of assignments
+		dbglog('🔍 RULE: All contacts must have Loan Officer role - returning true', 'roles');
+		return true;
+	}
+	
+	function checkDirectLoanOfficerAssignment() {
+		dbglog('🔍 checkDirectLoanOfficerAssignment() called', 'roles');
+		const loanOfficerField = document.querySelector('#lv_LoanOfficerBind');
+		dbglog('🔍 LO field found: ' + !!loanOfficerField, 'roles');
+		if (loanOfficerField) {
+			dbglog('🔍 LO field value: ' + loanOfficerField.value, 'roles');
+			const hasValue = loanOfficerField.value && loanOfficerField.value.trim() !== '' && loanOfficerField.value !== '__NONE__';
+			dbglog('🔍 LO field has valid value: ' + hasValue, 'roles');
+			return hasValue;
+		}
+		return false;
+	}
+	
+	// Function to sync roles based on assignments - only call when assignments change
+	function syncAutoManagedRoles(updateRolesFieldToo = true) {
+		dbglog('SYNC AUTO MANAGED ROLES CALLED (updateRolesFieldToo=' + updateRolesFieldToo + ')', 'roles');
+		const branchRoleId = "{{branchRoleId}}";
+		const loanOfficerRoleId = "{{loanOfficerRoleId}}";
+		
+		// Get actual web roles from database to preserve existing roles
+		const actualWebRoles = [];
+		{% for role in contactsUserRolesQuery.results.entities %}
+			actualWebRoles.push('{{role.powerpagecomponentid}}');
+		{% endfor %}
+		
+		// Auto-manage Branch Manager role (assignment-based OR existing web role)
+		const shouldHaveBM = shouldHaveBranchManagerRole();
+		const hasBMWebRole = actualWebRoles.includes(branchRoleId);
+		dbglog('Should have BM role: ' + shouldHaveBM + ', Has BM web role: ' + hasBMWebRole, 'roles');
+		setRoleCheckbox(branchRoleId, shouldHaveBM || hasBMWebRole);
+		
+		// Auto-manage Loan Officer role (assignment-based OR existing web role)
+		const shouldHaveLO = shouldHaveLoanOfficerRole();
+		const hasLOWebRole = actualWebRoles.includes(loanOfficerRoleId);
+		dbglog('Should have LO role: ' + shouldHaveLO + ', Has LO web role: ' + hasLOWebRole, 'roles');
+		setRoleCheckbox(loanOfficerRoleId, shouldHaveLO || hasLOWebRole);
+		
+		// Update lv_roles field after role changes if requested
+		if (updateRolesFieldToo) {
+			calculateAndUpdateRoles();
+		}
+	}
+	
+	function setRoleCheckbox(roleId, shouldHave) {
+		// Find ALL checkboxes with this role ID (there may be multiple: visible and hidden)
+		const checkboxes = document.querySelectorAll(`input[name="webroles[]"][value="${roleId}"]`);
+		dbglog('setRoleCheckbox called - roleId: ' + roleId + ', shouldHave: ' + shouldHave, 'roles');
+		dbglog('Found checkboxes count: ' + checkboxes.length, 'roles');
+		
+		if (checkboxes.length > 0) {
+			// Update ALL checkboxes with this role ID to ensure synchronization
+			checkboxes.forEach((checkbox, index) => {
+				dbglog('Checkbox ' + (index + 1) + ' before update - checked: ' + checkbox.checked + ', type: ' + checkbox.type, 'roles');
+				checkbox.checked = shouldHave;
+				// CRITICAL FIX: Update the initially-checked data attribute so form submission logic works correctly
+				$(checkbox).data('initially-checked', shouldHave);
+				dbglog('Checkbox ' + (index + 1) + ' after update - checked: ' + checkbox.checked, 'roles');
+			});
+		} else {
+			dbgerr('ERROR: No checkboxes found for roleId: ' + roleId, 'roles');
+		}
+	}
+	
+	// Master function to calculate and update roles - single source of truth
+	function calculateAndUpdateRoles(suppressEvents = false) {
+		try {
+			dbglog('=== calculateAndUpdateRoles() START ===', 'roles');
+			
+			// Skip UI updates during initialization unless explicitly allowed
+			if (window.isContactFormInitializing && !suppressEvents) {
+				dbglog('⏸️ Skipping role display update - form is initializing', 'roles');
+				return '';
+			}
+			
+			// Get current lv_roles value for comparison
+			const currentRolesString = $('#lv_roles').val() || '';
+			dbglog('Current lv_roles field value: "' + currentRolesString + '"', 'roles');
+			
+			// Get actual web roles from database (from page load data)
+			const actualWebRoles = [];
+			const roleNames = {};
+			{% for role in contactsUserRolesQuery.results.entities %}
+				actualWebRoles.push('{{role.powerpagecomponentid}}');
+				roleNames['{{role.powerpagecomponentid}}'] = '{{role.name}}';
+			{% endfor %}
+			
+			dbglog('Actual web roles from database: ' + JSON.stringify(actualWebRoles), 'roles');
+			dbglog('Role ID to name mapping: ' + JSON.stringify(roleNames), 'roles');
+			
+			const branchRoleId = "{{branchRoleId}}";
+			const loanOfficerRoleId = "{{loanOfficerRoleId}}";
+			const adminRoleId = "{{adminRoleId}}";
+			
+			const roles = [];
+			
+			// 1. Branch Manager: include if has assignment OR has web role
+			const shouldHaveBM = shouldHaveBranchManagerRole();
+			const hasBMWebRole = actualWebRoles.includes(branchRoleId);
+			if (shouldHaveBM || hasBMWebRole) {
+				roles.push('Branch Manager');
+			}
+			
+			// 2. Loan Officer: include if has assignment OR has web role  
+			const shouldHaveLO = shouldHaveLoanOfficerRole();
+			const hasLOWebRole = actualWebRoles.includes(loanOfficerRoleId);
+			if (shouldHaveLO || hasLOWebRole) {
+				roles.push('Loan Officer');
+			}
+			
+			// 3. Administrators: include only if checkbox is checked (live state)
+			const adminCheckbox = $(`input[name="webroles[]"][value="${adminRoleId}"]`);
+			const hasAdminWebRole = actualWebRoles.includes(adminRoleId);
+			const adminCheckboxChecked = adminCheckbox.is(':checked');
+			if (adminCheckboxChecked) {
+				roles.push('Administrators');
+			}
+			
+			// 4. Other roles: include any web roles that aren't managed by this system
+			const managedRoleIds = [adminRoleId, branchRoleId, loanOfficerRoleId];
+			actualWebRoles.forEach(roleId => {
+				if (!managedRoleIds.includes(roleId) && roleNames[roleId]) {
+					roles.push(roleNames[roleId]);
+				}
+			});
+			
+			dbglog('Calculated roles: ' + JSON.stringify(roles), 'roles');
+			
+			// Remove duplicates and sort
+			const uniqueRoles = [...new Set(roles)];
+			const newRolesString = uniqueRoles.sort().join(', ');
+			dbglog('Final roles string: "' + newRolesString + '"', 'roles');
+			
+			// Update the field and show/hide container
+			updateRolesDisplay(newRolesString, suppressEvents);
+			
+			dbglog('Updated lv_roles from "' + currentRolesString + '" to "' + newRolesString + '"', 'roles');
+			dbglog('=== calculateAndUpdateRoles() END ===', 'roles');
+			
+			return newRolesString;
+			
+		} catch (error) {
+			console.error('Error in calculateAndUpdateRoles:', error);
+			return '';
+		}
+	}
+	
+	// Helper function to update the roles display
+	function updateRolesDisplay(newRolesString, suppressEvents = false) {
+		const rolesContainer = $('#roles-field-container');
+		
+		if (newRolesString && newRolesString.trim() !== '') {
+			// If the container doesn't exist in DOM, create it
+			if (rolesContainer.length === 0) {
+				const containerHtml = `
+					<div class="form-group" id="roles-field-container" style="margin-top: 10px; margin-bottom: 10px;">
+						<label for="lv_roles">Roles (not editable - auto-generated from your selections above)</label>
+						<input type="text" id="lv_roles" name="lv_roles" value="${newRolesString}" readonly 
+						       style="background-color: transparent; border: none; color: #666; font-style: italic; padding: 8px 0; cursor: default; box-shadow: none;">
+					</div>
+				`;
+				$('#loadingOverlay').before(containerHtml);
+			} else {
+				// Container exists, just update the value and show it
+				$('#lv_roles').val(newRolesString);
+				if (!suppressEvents) {
+					rolesContainer.show();
+				}
+			}
+		} else {
+			// Hide container if roles string is empty
+			if (rolesContainer.length > 0 && !suppressEvents) {
+				rolesContainer.hide();
+			}
+		}
+	}
+	
+	// Legacy function - redirect to new consolidated function
+	function updateRolesField() {
+		calculateAndUpdateRoles();
+	}
+	
+	
+	// Function to perform silent synchronization on page load
+	async function performOnLoadSyncCheck() {
+		dbglog('=== ON-LOAD SYNC CHECK STARTING ===', 'sync');
+		
+		// Only run in Edit mode
+		{% if contactRecord == null %}
+			dbglog('⚪ Add mode detected - skipping on-load sync', 'sync');
+			return;
+		{% endif %}
+		
+		const contactId = '{{request.params.id}}';
+		if (!contactId) {
+			dbglog('⚪ No contact ID - skipping on-load sync', 'sync');
+			return;
+		}
+		
+		dbglog('📋 Checking synchronization for contact: ' + contactId, 'sync');
+		
+		try {
+			// Step 1: Check if roles need updating
+			const currentRolesFieldValue = $('#lv_roles').val() || '';
+			dbglog('Current lv_roles in database: "' + currentRolesFieldValue + '"', 'sync');
+			
+			// Calculate what roles should be based on assignments
+			const expectedRoles = calculateExpectedRoles();
+			dbglog('Expected lv_roles based on assignments: "' + expectedRoles + '"', 'sync');
+			
+			// Step 2: Check if web roles need updating
+			const webRoleDiscrepancies = await checkWebRoleDiscrepancies();
+			
+			// Step 3: Perform updates if needed
+			let updatesMade = false;
+			
+			// Update lv_roles field if out of sync
+			if (currentRolesFieldValue !== expectedRoles) {
+				dbglog('🔄 lv_roles field is out of sync - updating silently...', 'sync');
+				
+				try {
+					const patchData = { lv_roles: expectedRoles };
+					const url = `contacts(${contactId})`;
+					
+					await apiCall(url, "PATCH", patchData);
+					dbglog('✅ lv_roles field updated successfully', 'sync');
+					
+					// Update the field in the UI
+					$('#lv_roles').val(expectedRoles);
+					
+					// Show/hide the roles container based on new value
+					const rolesContainer = $('#roles-field-container');
+					if (expectedRoles && expectedRoles.trim() !== '') {
+						rolesContainer.show();
+					} else {
+						rolesContainer.hide();
+					}
+					
+					updatesMade = true;
+				} catch (error) {
+					console.error('❌ Failed to update lv_roles field:', error);
+				}
+			}
+			
+			// Update web roles if needed
+			if (webRoleDiscrepancies.length > 0) {
+				dbglog('🔄 Web roles are out of sync - updating silently...', 'sync');
+				dbglog('Discrepancies found: ' + JSON.stringify(webRoleDiscrepancies), 'sync');
+				
+				const roleUrl = window.urlContactWebRole;
+				if (!roleUrl) {
+					console.error('❌ Cannot sync web roles - URL not configured');
+					return;
+				}
+				
+				const rolePromises = [];
+				
+				for (const discrepancy of webRoleDiscrepancies) {
+					const postData = {
+						action: discrepancy.action,
+						contactId: contactId,
+						roleId: discrepancy.roleId
+					};
+					
+					dbglog((discrepancy.action === 'add' ? '➕' : '➖') + ' ' + discrepancy.action + 'ing role ' + discrepancy.roleId, 'sync');
+					rolePromises.push(apiCall(roleUrl, "POST", postData, false)); // Silent mode
+				}
+				
+				try {
+					await Promise.all(rolePromises);
+					dbglog('✅ All web role updates completed successfully', 'sync');
+					
+					// Update checkbox states to reflect changes
+					webRoleDiscrepancies.forEach(d => {
+						const checkbox = $(`input[name="webroles[]"][value="${d.roleId}"]`);
+						if (checkbox.length > 0) {
+							checkbox.prop('checked', d.action === 'add');
+							checkbox.data('initially-checked', d.action === 'add');
+							dbglog('Updated checkbox for ' + d.roleName + ': checked = ' + (d.action === 'add'), 'sync');
+						}
+					});
+					
+					// Also ensure all existing web roles have their checkboxes checked
+					const actualWebRoles = [];
+					{% for role in contactsUserRolesQuery.results.entities %}
+						actualWebRoles.push('{{role.powerpagecomponentid}}');
+					{% endfor %}
+					
+					actualWebRoles.forEach(roleId => {
+						const checkbox = $(`input[name="webroles[]"][value="${roleId}"]`);
+						if (checkbox.length > 0 && !checkbox.is(':checked')) {
+							dbglog('Syncing existing web role checkbox: ' + roleId, 'sync');
+							checkbox.prop('checked', true);
+							checkbox.data('initially-checked', true);
+						}
+					});
+					
+					updatesMade = true;
+				} catch (error) {
+					console.error('❌ Failed to update web roles:', error);
+				}
+			}
+			
+			// Final roles display update after all sync operations
+			if (updatesMade) {
+				dbglog('🔄 Updating final roles display after sync...', 'sync');
+				// Temporarily allow UI updates during sync completion
+				const wasInitializing = window.isContactFormInitializing;
+				window.isContactFormInitializing = false;
+				calculateAndUpdateRoles();
+				window.isContactFormInitializing = wasInitializing;
+				
+				dbglog('✅ ON-LOAD SYNC COMPLETED - Updates were made', 'sync');
+				// Note: Log entry removed per user request - silent sync doesn't need audit trail
+			} else {
+				dbglog('✅ ON-LOAD SYNC COMPLETED - Everything was already in sync', 'sync');
+			}
+			
+		} catch (error) {
+			console.error('❌ Error during on-load sync check:', error);
+		}
+	}
+	
+	// Helper function to calculate expected roles - uses consolidated logic
+	function calculateExpectedRoles() {
+		return calculateAndUpdateRoles(true); // suppressEvents = true for calculation only
+	}
+	
+	// Helper function to check web role discrepancies
+	async function checkWebRoleDiscrepancies() {
+		const discrepancies = [];
+		const branchRoleId = "{{branchRoleId}}";
+		const loanOfficerRoleId = "{{loanOfficerRoleId}}";
+		const adminRoleId = "{{adminRoleId}}";
+		
+		// Get actual web roles from initial page load data
+		const actualWebRoles = [];
+		{% for role in contactsUserRolesQuery.results.entities %}
+			actualWebRoles.push('{{role.powerpagecomponentid}}');
+		{% endfor %}
+		
+		dbglog('Actual web roles from database: ' + JSON.stringify(actualWebRoles), 'roles');
+		
+		// Build a list of all managed role IDs and their expected states
+		const managedRoles = [
+			{
+				roleId: branchRoleId,
+				roleName: 'Branch Manager',
+				shouldHave: shouldHaveBranchManagerRole(),
+				hasRole: actualWebRoles.includes(branchRoleId)
+			},
+			{
+				roleId: loanOfficerRoleId,
+				roleName: 'Loan Officer',
+				shouldHave: shouldHaveLoanOfficerRole(),
+				hasRole: actualWebRoles.includes(loanOfficerRoleId)
+			}
+		];
+		
+		dbglog('Managed roles analysis: ' + JSON.stringify(managedRoles), 'sync');
+		
+		// Check each managed role
+		managedRoles.forEach(role => {
+			if (role.shouldHave && !role.hasRole) {
+				discrepancies.push({ action: 'add', roleId: role.roleId, roleName: role.roleName });
+			} else if (!role.shouldHave && role.hasRole) {
+				discrepancies.push({ action: 'remove', roleId: role.roleId, roleName: role.roleName });
+			}
+		});
+		
+		// Also sync the Administrators role if present but checkbox is unchecked
+		const hasAdminRole = actualWebRoles.includes(adminRoleId);
+		const adminCheckbox = $(`input[name="webroles[]"][value="${adminRoleId}"]`);
+		if (hasAdminRole && !adminCheckbox.is(':checked')) {
+			dbglog('Admin role exists in database but checkbox is unchecked - fixing checkbox', 'sync');
+			adminCheckbox.prop('checked', true);
+			adminCheckbox.data('initially-checked', true);
+		}
+		
+		return discrepancies;
+	}
+	
+	// Global flag to prevent multiple role updates during initialization
+	window.isContactFormInitializing = false;
+	
+	document.addEventListener("LVGlobalDOCReady", function() {
+		// Auto-role listeners will be initialized later by Edit Profile JS
+
+		// Update assignment summary label on page load
+		updateAssignmentSummaryLabel();
+
+		// Perform on-load sync check BEFORE Edit Profile initialization
+		{% if contactRecord %}
+		window.isContactFormInitializing = true;
+		
+		// Run sync immediately after DOM is ready, but before Edit Profile JS initializes
+		setTimeout(async function() {
+			dbglog('🚀 Starting on-load sync before Edit Profile initialization...', 'sync');
+			await performOnLoadSyncCheck();
+			
+			// Signal that initialization sync is complete
+			window.isContactFormInitializing = false;
+			dbglog('✅ On-load sync completed - Edit Profile JS can now initialize', 'sync');
+		}, 100); // Minimal delay just to ensure DOM is fully ready
+		{% endif %}
+		
+		// 🚨 CHECKBOX SYNCHRONIZATION FIX 🚨
+		// This fix ensures initially-checked data attribute is set correctly
+		setTimeout(function() {
+			dbglog('This fix runs AFTER setRoleCheckbox() to ensure data attributes are synchronized', 'sync');
+			
+			// Find all webrole checkboxes
+			const webRoleCheckboxes = document.querySelectorAll('input[name="webroles[]"]');
+			dbglog('Found webrole checkboxes: ' + webRoleCheckboxes.length, 'sync');
+			
+			let fixesApplied = 0;
+			
+			webRoleCheckboxes.forEach((checkbox, index) => {
+				const roleId = checkbox.value;
+				const isChecked = checkbox.checked;
+				const currentDataValue = $(checkbox).data('initially-checked');
+				
+				dbglog('Checkbox ' + (index + 1) + ': roleId=' + roleId + ', checked=' + isChecked + ', data-initially-checked=' + currentDataValue, 'sync');
+				
+				// Only set the data attribute if it hasn't been explicitly set by setRoleCheckbox()
+				// setRoleCheckbox() calls $(checkbox).data('initially-checked', shouldHave) 
+				// so if data value is undefined, we know setRoleCheckbox() hasn't run yet
+				if (currentDataValue === undefined) {
+					dbglog('  ➤ Setting initially-checked data attribute to ' + isChecked + ' (was undefined)', 'sync');
+					$(checkbox).data('initially-checked', isChecked);
+					fixesApplied++;
+				} else {
+					dbglog('  ➤ Data attribute already set by setRoleCheckbox(), skipping', 'sync');
+				}
+			});
+			
+			dbglog('🔧 Checkbox sync fix completed: ' + fixesApplied + ' attributes synchronized', 'sync');
+			dbglog('🚨🚨🚨 END CHECKBOX SYNC FIX 🚨🚨🚨', 'sync');
+			
+		}, 500); // Run after other initialization code
+	});
+	
+	
+</script>
+
+<style>
+
+.contact-form {
+	font-family: inherit;
+	padding: 30px;
+	background-color: var(--portalThemeColor5);
+	box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+	border-radius: 4px;
+}
+
+.contact-form h2 {
+	font-family: inherit;
+	font-weight: 700;
+	font-size: 24px;
+	color: var(--portalThemeColor1);
+	margin-bottom: 20px;
+}
+
+/* Form Fields */
+.form-group {
+	margin-bottom: 20px;
+}
+
+.form-group label {
+	display: block;
+	font-family: inherit;
+	font-weight: 400;
+	font-size: 14px;
+	color: var(--portalThemeColor1);
+	margin-bottom: 5px;
+}
+
+.form-group input,
+.form-group select {
+	width: 100%;
+	padding: .5em;
+	border: 1px solid var(--portalThemeColor2);
+	border-radius: 4px;
+	font-family: inherit;
+	font-size: 1rem;
+	line-height: 1;
+	color: var(--portalThemeColor8);
+	background-color: var(--portalThemeColor7);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+	outline: none;
+	border-color: var(--portalThemeColor9);
+	box-shadow: 0 0 5px rgba(33, 66, 116, 0.5);
+}
+
+.form-group input.invalid,
+.form-group select.invalid {
+	border-color: var(--portalThemeColor11);
+	background-color: rgba(235, 170, 159, 0.1);
+}
+
+.form-group input.invalid:focus,
+.form-group select.invalid:focus {
+	box-shadow: 0 0 5px rgba(235, 170, 159, 0.5);
+}
+
+/* NEWAssignTodo8: Management Section with Nested Subsections */
+.management-section {
+	margin-top: 30px;
+	margin-bottom: 30px;
+}
+
+.management-section .management-content {
+	border: 1px solid var(--portalThemeColor2);
+	border-radius: 4px;
+	background-color: var(--portalThemeColor7);
+}
+
+.management-header {
+	padding: 12px 20px;
+	background-color: var(--portalThemeColor4);
+	cursor: pointer;
+	display: inline-flex;
+	justify-content: space-between;
+	align-items: center;
+	border-radius: 6px;
+	width: auto;
+	min-width: 250px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	transition: all 0.2s ease;
+}
+
+.management-header:hover {
+	background-color: var(--portalThemeColor2);
+	transform: translateY(-1px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.management-content {
+	padding: 0;
+}
+
+.management-section h3 {
+	font-family: inherit;
+	font-weight: 700;
+	font-size: 18px;
+	color: var(--portalThemeColor1);
+	margin: 0;
+}
+
+.toggle-icon {
+	font-size: 16px;
+	font-weight: bold;
+	color: var(--portalThemeColor1);
+	transition: transform 0.3s ease;
+	margin-left: 10px;
+}
+
+.management-header-row {
+	display: flex;
+	align-items: center;
+	gap: 15px;
+	margin-bottom: 10px;
+}
+
+.assignment-summary-label {
+	font-size: 13px;
+	font-weight: normal;
+	color: #666;
+	font-style: italic;
+}
+
+.toggle-icon.collapsed {
+	transform: rotate(-90deg);
+}
+
+/* Subsections */
+.subsection {
+	border-bottom: 1px solid var(--portalThemeColor2);
+}
+
+.subsection:last-child {
+	border-bottom: none;
+}
+
+.subsection-header {
+    padding: 12px 20px;
+    background-color: #f8f9fa; /* Very light gray, almost white */
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--portalThemeColor3);
+}
+
+.subsection-header:hover {
+    background-color: #e9ecef; /* Slightly darker on hover but still very light */
+}
+
+.subsection-header h4 {
+	font-family: inherit;
+	font-weight: 600;
+	font-size: 16px;
+	color: var(--portalThemeColor1);
+	margin: 0;
+}
+
+.subtoggle-icon {
+	font-size: 14px;
+	font-weight: bold;
+	color: var(--portalThemeColor1);
+	transition: transform 0.3s ease;
+}
+
+.subtoggle-icon.collapsed {
+	transform: rotate(-90deg);
+}
+
+.subsection-content {
+	padding: 20px;
+	padding-left: 40px;
+}
+
+.contact-assignments-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-bottom: 20px;
+}
+
+.contact-assignments-table th,
+.contact-assignments-table td {
+	padding: 8px 12px;
+	text-align: left;
+	border-bottom: 1px solid var(--portalThemeColor2);
+}
+
+.contact-assignments-table th {
+	background-color: var(--portalThemeColor5);
+	font-weight: bold;
+	color: var(--portalThemeColor1);
+}
+
+.contact-assignments-table tr:hover {
+	background-color: var(--portalThemeColor5);
+}
+
+.add-assignment-container {
+	margin-top: 15px;
+	padding-top: 15px;
+	border-top: 1px solid var(--portalThemeColor2);
+}
+
+.add-assignment-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 15px;
+	align-items: flex-start;
+	margin-top: 10px;
+}
+
+.add-assignment-controls .form-group {
+	flex: 1;
+	min-width: 150px;
+	margin-bottom: 0;
+}
+
+.add-link {
+	color: var(--portalThemeColor9);
+	text-decoration: none;
+	font-weight: bold;
+}
+
+.add-link:hover {
+	text-decoration: underline;
+}
+
+.btn-add, .btn-cancel {
+	padding: 8px 15px;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 14px;
+}
+
+.btn-add {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    background-color: #28a745; /* Green background */
+    color: #ffffff; /* White text for contrast */
+    margin-right: 10px;
+}
+
+.btn-add:disabled {
+    background-color: #6c757d; /* Gray when disabled */
+    color: #ffffff;
+    cursor: not-allowed;
+}
+
+.btn-add:hover:not(:disabled) {
+    background-color: #218838; /* Darker green on hover */
+}
+
+.btn-cancel {
+	background-color: var(--portalThemeColor2);
+	color: var(--portalThemeColor8);
+}
+
+.remove-assignment-icon {
+	cursor: pointer;
+	color: var(--portalThemeColor11);
+	text-decoration: none;
+	font-weight: bold;
+}
+
+.remove-assignment-icon:hover {
+	color: #d32f2f;
+}
+
+/* Admin Role Section */
+.admin-role {
+	margin-top: 30px;
+	padding: 15px;
+	border: 1px solid var(--portalThemeColor2);
+	border-radius: 4px;
+	background-color: var(--portalThemeColor7);
+}
+
+/* Admin Recovery Role Section - Special styling for emergency access */
+.admin-recovery-role {
+	margin-top: 20px;
+	padding: 20px;
+	border: 2px solid #f39c12;
+	border-radius: 8px;
+	background-color: #fff3cd;
+	box-shadow: 0 2px 8px rgba(243, 156, 18, 0.2);
+}
+
+.admin-recovery-role label {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	font-family: inherit;
+	font-weight: 400;
+	font-size: 14px;
+	color: #856404;
+	cursor: pointer;
+	line-height: 1.4;
+}
+
+.admin-recovery-role input[type="checkbox"] {
+	margin-bottom: 8px;
+	transform: scale(1.3);
+	accent-color: #f39c12;
+}
+
+.admin-role label {
+	display: flex;
+	align-items: center;
+	font-family: inherit;
+	font-weight: 400;
+	font-size: 14px;
+	color: var(--portalThemeColor1);
+	cursor: pointer;
+}
+
+.admin-role input[type="checkbox"] {
+	margin-right: 10px;
+	transform: scale(1.2);
+}
+
+/* Buttons */
+.contact-form button {
+	padding: 10px 20px;
+	border: none;
+	border-radius: 4px;
+	font-family: inherit;
+	font-weight: 400;
+	font-size: 14px;
+	cursor: pointer;
+	transition: background-color 0.3s ease;
+}
+
+.contact-form button[type="submit"],
+.contact-form button[type="button"] {
+	background-color: var(--portalThemeColor9);
+	color: var(--portalThemeColor7);
+	margin-block-start: 1rem;
+}
+
+.contact-form button[type="submit"]:hover,
+.contact-form button[type="button"]:hover {
+	background-color: var(--portalThemeColor1);
+}
+
+.submit-buttons-container {
+	display: flex;
+	gap: 15px;
+	margin-top: 1rem;
+}
+
+.submit-buttons-container button {
+	flex: 1;
+	min-width: 150px;
+}
+
+#formFeedback {
+	display: none;
+	padding: 5px 10px;
+	border-radius: 4px;
+	transition: all 0.3s ease;
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Special styling for roles field to make it look like a label */
+#lv_roles {
+	background-color: transparent !important;
+	border: none !important;
+	outline: none !important;
+	color: #666 !important;
+	font-style: italic !important;
+	padding: 8px 0 !important;
+	cursor: default !important;
+	box-shadow: none !important;
+	-webkit-appearance: none !important;
+	-moz-appearance: none !important;
+	appearance: none !important;
+	font-size: 14px !important;
+	line-height: 1.4 !important;
+}
+
+#lv_roles:focus {
+	outline: none !important;
+	box-shadow: none !important;
+	border: none !important;
+}
+
+#roles-field-container {
+	border-left: 3px solid #e0e0e0;
+	padding-left: 12px;
+	background-color: #fafafa;
+	border-radius: 4px;
+	padding: 12px;
+}
+
+#roles-field-container label {
+	font-size: 12px;
+	color: #888;
+	margin-bottom: 4px;
+}
+
+.loading-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.5);
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	z-index: 9999;
+}
+
+.spinner {
+	border: 4px solid #f3f3f3;
+	border-top: 4px solid #3498db;
+	border-radius: 50%;
+	width: 40px;
+	height: 40px;
+	animation: spin 1s linear infinite;
+}
+
+/* Small inline spinner for submit button */
+.submit-spinner {
+	display: inline-block;
+	border: 2px solid #f3f3f3;
+	border-top: 2px solid #3498db;
+	border-radius: 50%;
+	width: 14px;
+	height: 14px;
+	animation: spin 1s linear infinite;
+	margin-right: 6px;
+	vertical-align: middle;
+}
+
+@keyframes spin {
+	0% {
+		transform: rotate(0deg);
+	}
+
+	100% {
+		transform: rotate(360deg);
+	}
+}
+
+.loading-overlay p {
+	color: white;
+	margin-top: 10px;
+}
+
+.save-changes-link {
+	color: var(--portalThemeColor9);
+	text-decoration: underline;
+	font-size: 0.9em;
+	font-weight: normal;
+}
+
+.save-changes-link:hover {
+	color: var(--portalThemeColor1);
+}
+
+/* Exclusion UI Styling - STEP 2 */
+.exclusion-row {
+	background-color: #f8f9fa;
+}
+
+.exclusion-row td {
+	padding: 0 !important;
+	border-bottom: 1px solid var(--portalThemeColor3);
+}
+
+.exclusion-container {
+	padding: 10px 20px;
+}
+
+.exclusion-header {
+	cursor: pointer;
+	padding: 8px 12px;
+	background-color: #e9ecef;
+	border-radius: 4px;
+	font-weight: 600;
+	font-size: 14px;
+	color: var(--portalThemeColor1);
+	transition: background-color 0.2s ease;
+	display: flex;
+	align-items: center;
+}
+
+.exclusion-header:hover {
+	background-color: #dee2e6;
+}
+
+.exclusion-toggle-icon {
+	display: inline-block;
+	width: 20px;
+	font-size: 12px;
+	font-weight: bold;
+	transition: transform 0.2s ease;
+}
+
+.exclusion-title {
+	margin-left: 8px;
+}
+
+.exclusion-content {
+	padding: 12px 0;
+	margin-left: 28px;
+}
+
+.lo-exclusion-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.lo-exclusion-list li {
+	padding: 8px 12px;
+	margin-bottom: 6px;
+	border-radius: 4px;
+	background-color: #f8f9fa;
+	transition: background-color 0.2s ease;
+}
+
+.lo-exclusion-list li:hover {
+	background-color: #e9ecef;
+}
+
+.lo-exclusion-list label {
+	display: flex;
+	align-items: center;
+	cursor: pointer;
+	margin: 0;
+	font-size: 14px;
+}
+
+.lo-exclusion-list .exclusion-checkbox {
+	margin-right: 10px;
+	cursor: pointer;
+	width: 18px;
+	height: 18px;
+}
+
+.lo-exclusion-list .officer-name {
+	flex: 1;
+}
+
+.exclusion-reason-container {
+	margin-left: 30px;
+	margin-top: 6px;
+}
+
+.exclusion-reason-container label {
+	font-size: 12px;
+	color: #666;
+	display: block;
+	margin-bottom: 2px;
+}
+
+.exclusion-reason-input {
+	width: 100%;
+	padding: 6px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 13px;
+	font-family: inherit;
+	transition: border-color 0.2s ease;
+}
+
+.exclusion-reason-input:focus {
+	outline: none;
+	border-color: var(--portalThemeColor9);
+	box-shadow: 0 0 3px rgba(33, 66, 116, 0.3);
+}
+
+.exclusion-helper-text {
+	color: #666;
+	font-style: italic;
+	font-size: 13px;
+	margin: 0 0 12px 0;
+	padding: 8px 12px;
+	background-color: #fff3cd;
+	border-left: 3px solid #ffc107;
+	border-radius: 4px;
+}
+
+/* New List-Based Exclusion UI Styles */
+.lo-exclusions-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-bottom: 15px;
+}
+
+.lo-exclusions-table th,
+.lo-exclusions-table td {
+	padding: 10px 12px;
+	text-align: left;
+	border-bottom: 1px solid var(--portalThemeColor3);
+}
+
+.lo-exclusions-table th {
+	background-color: var(--portalThemeColor5);
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.lo-exclusions-table tr:hover {
+	background-color: #f8f9fa;
+}
+
+.exclusion-reason-inline {
+	width: 100%;
+	padding: 4px 8px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 13px;
+	font-family: inherit;
+}
+
+.exclusion-reason-inline:focus {
+	outline: none;
+	border-color: var(--portalThemeColor9);
+}
+
+.exclusion-status-cell {
+	min-width: 150px;
+}
+
+.loan-officer-exclusion-subsection .subsection-description {
+	margin-bottom: 15px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+	.contact-form {
+		padding: 20px;
+	}
+
+	.add-assignment-controls {
+		flex-direction: column;
+	}
+
+	.add-assignment-controls .form-group {
+		width: 100%;
+	}
+}
+</style>
+
+<!-- Last modified mon aug 18 5:20pm -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Mon Sep 29 3:06PM -->
+<!-- Last modified Wed Oct 29 7:59AM -->

@@ -1,0 +1,104 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified fri aug 8 1:16pm -->
+<!-- Last modified tue jul 8 1:08pm -->
+<!-- Last modified tue jul 8 11:25am -->
+<!-- log message: 'ENTER FetchXML: BranchQuery BQ' -->
+
+{% fetchxml branchQuery %}
+	<fetch>
+		<entity name="lv_lvcompbranch">
+			<attribute name="lv_code" />
+			<attribute name="lv_lvcompbranchid" />
+			<attribute name="lv_name" />
+
+			<filter>
+				<condition attribute="statuscode" operator="eq" value="1" />
+			</filter>
+			<order attribute="lv_name" />
+		</entity>
+	</fetch>
+{% endfetchxml%}
+
+
+{%- comment -%} BRANCH DETERMINATION LOGIC - Priority order:
+	1. URL parameter (explicit selection)
+	2. Admin → "ALL_BRANCHES"
+	3. Branch Manager → use userBranchList (junction table authority)
+	4. Contact's direct lv_branch field (employee assignment)
+	5. Fallback to first branch
+
+	CRITICAL: Branch Managers must use junction table assignments (userBranchList),
+	NOT the Contact's direct lv_branch field (which is their employee assignment).
+{%- endcomment -%}
+
+{%- if request.params.branch and request.params.branch != empty -%}
+	{%- if request.params.branch == "all" -%}
+		{%- comment -%} Special handling for "All Branches" option {%- endcomment -%}
+		{%- assign currentBranch = "ALL_BRANCHES" -%}
+	{%- else -%}
+		{%- comment -%} Find branch by ID in query results {%- endcomment -%}
+		{%- for branch in branchQuery.results.entities -%}
+			{%- if branch.lv_lvcompbranchid == request.params.branch -%}
+				{%- assign currentBranch = branch -%}
+				{%- break -%}
+			{%- endif -%}
+		{%- endfor -%}
+	{%- endif -%}
+{%- elsif is_admin -%}
+	{%- comment -%} Administrators default to "All Branches" view {%- endcomment -%}
+	{%- assign currentBranch = "ALL_BRANCHES" -%}
+{%- elsif is_BranchManager and userBranchList != "" -%}
+	{%- comment -%} PRIORITY: Branch Managers use junction table assignments (userBranchList) {%- endcomment -%}
+	{%- comment -%} NOT the Contact's direct lv_branch field (employee assignment) {%- endcomment -%}
+	{%- assign userPermittedBranchCount = 0 -%}
+	{%- assign firstPermittedBranch = null -%}
+	{%- for branch in branchQuery.results.entities -%}
+		{%- comment -%} Use same checkString approach as Commission Filter and SetupQuery {%- endcomment -%}
+		{%- assign branchCheckString = "|" -%}
+		{%- assign branchCheckString = branchCheckString | append: branch.lv_lvcompbranchid -%}
+		{%- assign branchCheckString = branchCheckString | append: "|" -%}
+		{%- if userBranchList contains branchCheckString -%}
+			{%- assign userPermittedBranchCount = userPermittedBranchCount | plus: 1 -%}
+			{%- if firstPermittedBranch == null -%}
+				{%- assign firstPermittedBranch = branch -%}
+			{%- endif -%}
+		{%- endif -%}
+	{%- endfor -%}
+
+	{%- comment -%} Default to "All Branches" if multiple assignments, otherwise use first permitted branch {%- endcomment -%}
+	{%- if userPermittedBranchCount > 1 -%}
+		{%- assign currentBranch = "ALL_BRANCHES" -%}
+	{%- elsif firstPermittedBranch != null -%}
+		{%- assign currentBranch = firstPermittedBranch -%}
+	{%- else -%}
+		{%- comment -%} Fallback if no permitted branch found in userBranchList {%- endcomment -%}
+		{%- assign currentBranch = branchQuery.results.entities | first -%}
+	{%- endif -%}
+{%- elsif user.lv_branch.id -%}
+	{%- comment -%} Non-Branch-Manager with direct branch assignment: Use Contact's lv_branch field {%- endcomment -%}
+	{%- for branch in branchQuery.results.entities -%}
+		{%- if branch.lv_lvcompbranchid == user.lv_branch.id -%}
+			{%- assign currentBranch = branch -%}
+			{%- break -%}
+		{%- endif -%}
+	{%- endfor -%}
+{%- else -%}
+	{%- comment -%} Fallback: First branch in database {%- endcomment -%}
+	{%- assign currentBranch = branchQuery.results.entities | first -%}
+{%- endif -%}
+
+<script>
+	{% if currentBranch == "ALL_BRANCHES" %}
+		window.PAGE_BRANCH = "All Branches";
+		window.PAGE_BRANCH_CODE = "ALL_BRANCHES";
+	{% else %}
+		window.PAGE_BRANCH = "{{currentBranch.lv_name}}";
+		window.PAGE_BRANCH_CODE = "{{currentBranch.lv_code}}";
+	{% endif %}
+</script>
+
+<!-- log message: 'LEAVE FetchXML: BranchQuery' -->
+<!-- Last modified fri aug 8 1:16pm -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

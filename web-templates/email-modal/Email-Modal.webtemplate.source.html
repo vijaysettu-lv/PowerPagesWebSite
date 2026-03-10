@@ -1,0 +1,277 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Sep 27 12:32PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified fri aug 8 0722am -->
+<script>
+    function initEmailModal(containerElement) {
+        const modal = containerElement.querySelector('.email-modal');
+
+        if (!modal) {
+            console.warn('Email modal component is missing modal element:', containerElement);
+            return;
+        }
+
+        const closeBtn = modal.querySelector('.email-modal-close');
+        const form = modal.querySelector('.email-modal-form');
+        const subjectInput = modal.querySelector('.email-subject-input');
+
+        if (!closeBtn || !form || !subjectInput) {
+            console.warn('Email modal is missing required inner elements:', modal);
+            return;
+        }
+
+        const toAddress = '{{ setupRecord.lv_accountingemail }}';
+
+        closeBtn.addEventListener('click', () => {
+            modal.close();
+        });
+
+        modal.addEventListener('click', (e) => {
+            // Only close if clicking directly on the modal backdrop, not on the modal content or scrollbars
+            if (e.target === modal) {
+                modal.close();
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const rawSubject = subjectInput.value;
+            const subject = encodeURIComponent(rawSubject);
+
+            // Generate email body with loan details
+            let emailBody = '';
+            if (window.emailModalData) {
+                const data = window.emailModalData;
+                emailBody = `Loan No: ${data.loanNumber}`;
+                emailBody += `\nBorrower Name: ${data.borrowerName}`;
+                if (data.loanCardUrl && data.loanCardUrl !== '') {
+                    // Add the URL on its own line to ensure it's clickable
+                    emailBody += `\nLoan URL: \n${data.loanCardUrl}`;
+                }
+                const userName = `{{ user.firstname | default: '' }} {{ user.lastname | default: '' }}`.trim();
+                emailBody += `\n\n\nBest Regards,\n${userName}`;
+            }
+
+            const body = encodeURIComponent(emailBody);
+            const mailToParam = `mailto:${toAddress}?subject=${subject}&body=${body}`;
+
+            modal.close();
+
+            // Log email activity to database
+            try {
+                if (typeof sendEmail === 'function') {
+                    await sendEmail("Commissions View", rawSubject, emailBody, toAddress, "", window.PAGE_UISelPeriodCode || "", "", true, window.PAGE_UISelPeriodNo || -1);
+                }
+            } catch (error) {
+                console.error("Email logging failed:", error);
+            }
+
+            // Open email client
+            window.open(mailToParam, '_blank');
+        });
+
+        modal.addEventListener('close', () => {
+            subjectInput.value = '';
+            // Clear stored email data
+            if (window.emailModalData) {
+                delete window.emailModalData;
+            }
+        });
+    }
+
+    // Initialize all email modal instances after the DOM is fully loaded
+    function initializeEmailModals() {
+        const containers = document.querySelectorAll('.email-modal-container');
+        
+        containers.forEach((container, index) => {
+            initEmailModal(container);
+        });
+        
+        // Add click handlers for email-modal-open buttons (prevent duplicates)
+        const emailButtons = document.querySelectorAll('.email-modal-open');
+        emailButtons.forEach(button => {
+            // Check if handler already attached to prevent duplicate listeners
+            if (!button.hasAttribute('data-email-handler-attached')) {
+                button.setAttribute('data-email-handler-attached', 'true');
+                button.addEventListener('click', () => {
+                    const modal = document.querySelector('.email-modal');
+                    if (modal) {
+                        const subjectInput = modal.querySelector('.email-subject-input');
+                        if (subjectInput) {
+                            subjectInput.value = 'Commission Summary';
+                            subjectInput.focus();
+                        }
+
+                        // Populate test content div for automated testing
+                        const testContentDiv = document.getElementById('email-modal-test-content');
+                        if (testContentDiv) {
+                            const emailAddress = '{{ setupRecord.lv_accountingemail }}' || 'email-not-configured';
+                            const testContent = `Email Commission Summary
+Subject: Commission Summary
+To: ${emailAddress}
+Action: Create Email
+Modal Type: General Commission Email`;
+                            testContentDiv.textContent = testContent;
+                        }
+
+                        modal.showModal();
+                    }
+                });
+            }
+        });
+    }
+
+    // Try multiple initialization methods
+    document.addEventListener('LVGlobalDOCReady', () => {
+        initializeEmailModals();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeEmailModals();
+    });
+
+    // Fallback initialization after page load
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            initializeEmailModals();
+        }, 500);
+    });
+</script>
+
+<style>
+    .email-modal {
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        width: 500px;
+        box-sizing: border-box;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        background-color: var(--portalThemeColor7);
+        color: var(--portalThemeColor8);
+        font-family: Poppins, sans-serif;
+        overflow: hidden;
+    }
+
+    .email-modal[open] {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .email-modal::backdrop {
+        background-color: rgba(0, 0, 0, 0);
+        transition: background-color 0.3s ease;
+    }
+
+    .email-modal[open]::backdrop {
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .email-modal h2 {
+        margin-top: 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--portalThemeColor1);
+    }
+
+    .email-modal-form {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .email-modal-form label {
+        margin-bottom: 0.5rem;
+        font-weight: 400;
+        color: var(--portalThemeColor8);
+    }
+
+    .email-modal-form input {
+        padding: 0.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--portalThemeColor2);
+        border-radius: 4px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+        background-color: var(--portalThemeColor7);
+        color: var(--portalThemeColor8);
+    }
+
+    .email-modal-form input:focus {
+        outline: none;
+        border-color: var(--portalThemeColor4);
+    }
+
+    .email-modal-form button {
+        padding: 6px 20px;
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--portalThemeColor7);
+        border: none;
+        border-radius: 2px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.1s ease;
+        background-color: var(--portalThemeColor4);
+    }
+
+    .email-modal-form button:hover {
+        background-color: var(--portalThemeColor11);
+    }
+
+    .email-modal-open {
+        cursor: pointer;
+    }
+
+    .email-modal-close {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        font-size: 1.5rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+        color: var(--portalThemeColor8);
+    }
+
+    .email-modal-close:hover {
+        opacity: 1;
+    }
+
+    .email-modal-form button:active,
+    .email-modal-open:active {
+        transform: scale(0.98);
+    }
+
+    @media (max-width: 480px) {
+        .email-modal {
+            padding: 1rem;
+            min-width: 300px;
+            width: 95%;
+        }
+
+        .email-modal h2 {
+            font-size: 1.2rem;
+        }
+
+        .email-modal-form input,
+        .email-modal-form button,
+        .email-modal-open {
+            font-size: 0.9rem;
+        }
+    }
+</style>
+<!-- Last modified fri aug 8 0722am -->
+
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Sat Sep 27 12:32PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

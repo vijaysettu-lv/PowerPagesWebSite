@@ -1,0 +1,399 @@
+<!-- Last modified Mon Nov 17 7:17PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Tue Sep 02 5:29PM -->
+<!-- Last modified Tue Sep 02 1727 -->
+<!-- Last modified Tue Sep 02 10:36AM -->
+<!-- Web Template: Branch-Loan-Officers Mon 250721 1754 -->
+
+{% comment %} USE FILTERED DATA FROM BRANCH PAGE - NO SEPARATE QUERY NEEDED {% endcomment %}
+{% comment %} The Branch page already provides: allLoanBasedCommissions and allPeriodBasedCommissions {% endcomment %}
+{% comment %} Branch page also provides: cpCommCount, cpCommTotal, cpAdjuCount, cpAdjuTotal with admin override applied {% endcomment %}
+
+{% comment %} PROPER SOLUTION: Filter to branch first, then group by loan officer {% endcomment %}
+{% comment %} Loan Officers header will be displayed conditionally after card count calculation {% endcomment %}
+
+{% comment %} USE CENTRALIZED LOGIC: The Branch-Manager-Loan-Officer-List template has already been included {% endcomment %}
+{% comment %} and provides branchManagerOfficerCodes with the correct filtered list {% endcomment %}
+{% comment %} This ensures 100% consistency between Branch page cards and Loan Officer dropdown {% endcomment %}
+
+
+{% assign branchCommissionCount = 0 %}
+{% assign uniqueLOCodeList = "" %}
+
+{% comment %} PASS 1: Use centralized loan officer codes instead of duplicating logic {% endcomment %}
+{% if branchManagerOfficerCodes and branchManagerOfficerCodes != blank %}
+	{% comment %} Convert the centralized pipe-delimited codes to our format {% endcomment %}
+	{% assign codeParts = branchManagerOfficerCodes | split: "|" %}
+	{% for codePart in codeParts %}
+		{% if codePart != blank and codePart != "" %}
+			{% assign loCheckCode = "|" %}
+			{% assign loCheckCode = loCheckCode | append: codePart %}
+			{% assign loCheckCode = loCheckCode | append: "|" %}
+			{% unless uniqueLOCodeList contains loCheckCode %}
+				{% assign uniqueLOCodeList = uniqueLOCodeList | append: loCheckCode %}
+			{% endunless %}
+		{% endif %}
+	{% endfor %}
+{% endif %}
+
+{% comment %}
+ADD Loan Officers from Period Based (Adjustments)
+So officers with only adjustments also get cards 19/02/2026
+{% endcomment %}
+
+{% for row in allPeriodBasedCommissions.results.entities %}
+    {% if row.lv_xloanofficercode != blank and row.lv_xloanofficercode != "" %}
+        {% assign loCheckCode = "|" | append: row.lv_xloanofficercode | append: "|" %}
+        {% unless uniqueLOCodeList contains loCheckCode %}
+            {% assign uniqueLOCodeList = uniqueLOCodeList | append: loCheckCode %}
+        {% endunless %}
+    {% endif %}
+{% endfor %}
+
+
+
+{% comment %} Count commissions for display statistics (still needed for metrics) {% endcomment %}
+{% for row in allLoanBasedCommissions.results.entities %}
+	{% assign includeThisCommission = false %}
+	
+	{% comment %} BRANCH MANAGER FILTERING: Include commissions from managed branches or assigned loan officers {% endcomment %}
+	{% if is_admin %}
+		{% assign includeThisCommission = true %}
+	{% else %}
+		{% comment %} Branch Manager access: Check if commission's branch code is in user's branch code list {% endcomment %}
+		{% if row.lv_xbranchcode and row.lv_xbranchcode != blank %}
+			{% assign branchCheckString = "|" | append: row.lv_xbranchcode | append: "|" %}
+			{% if userBranchCodeList contains branchCheckString %}
+				{% assign includeThisCommission = true %}
+			{% endif %}
+		{% endif %}
+		
+		{% comment %} Loan Officer Oversight access: Check if loan officer is assigned to user {% endcomment %}
+		{% if row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+			{% assign officerCheckString = "|" %}
+			{% assign officerCheckString = officerCheckString | append: row.lv_xloanofficercode %}
+			{% assign officerCheckString = officerCheckString | append: "|" %}
+			{% if userLoanOfficerList contains officerCheckString %}
+				{% assign includeThisCommission = true %}
+			{% endif %}
+		{% endif %}
+	{% endif %}
+	
+	{% comment %} Branch selection filter {% endcomment %}
+	{% if includeThisCommission and currentBranch != "ALL_BRANCHES" %}
+		{% comment %} Specific branch selected - filter by that branch for everyone including admins {% endcomment %}
+		{% if row.lv_xbranchcode != currentBranch.lv_code %}
+			{% assign includeThisCommission = false %}
+		{% endif %}
+	{% endif %}
+	
+	{% if includeThisCommission %}
+		{% assign branchCommissionCount = branchCommissionCount | plus: 1 %}
+	{% endif %}
+{% endfor %}
+
+{% comment %} Count cards - one per unique loan officer found in commission data {% endcomment %}
+{% comment %} CRITICAL: Do NOT filter by lv_lvcomploanofficer table - commission data is the only source {% endcomment %}
+{% assign actualCardCount = 0 %}
+{% assign uniqueLOCodeArray = uniqueLOCodeList | split: "|" %}
+{% for uniqueLOCode in uniqueLOCodeArray %}
+	{% if uniqueLOCode != "" and uniqueLOCode != blank %}
+		{% assign actualCardCount = actualCardCount | plus: 1 %}
+	{% endif %}
+{% endfor %}
+
+
+{% if actualCardCount > 0 %}
+	<h3 style="margin-bottom: 1rem;">Loan Officers (<span id="loan-officer-card-count">{{ actualCardCount }}</span>)</h3>
+{% endif %}
+
+<div class="employee-container">
+	{% comment %} Reset cardCount for actual card generation {% endcomment %}
+	{% assign cardCount = 0 %}
+	
+	{% comment %} PASS 2: Generate cards with calculations using CODES as primary key {% endcomment %}
+	{% assign uniqueLOCodeArray = uniqueLOCodeList | split: "|" %}
+	
+	
+	{% for uniqueLOCode in uniqueLOCodeArray %}
+		{% if uniqueLOCode != "" and uniqueLOCode != blank %}
+			{% assign cardCount = cardCount | plus: 1 %}
+			{% assign currentLOCommTotal = 0.0 %}
+			{% assign currentLOAdjuTotal = 0.0 %}
+			{% assign currentLOName = "" %}
+			{% assign currentLOId = "" %}
+			
+			
+			{% comment %} Look up loan officer details from code (for display name and ID only) {% endcomment %}
+			{% assign matchFound = false %}
+			{% for lo in allLoanOfficers.results.entities %}
+				{% if lo.lv_code == uniqueLOCode %}
+					{% assign currentLOId = lo.lv_lvcomploanofficerid %}
+					{% assign currentLOName = lo.lv_name %}
+					{% assign matchFound = true %}
+					{% break %}
+				{% endif %}
+			{% endfor %}
+
+			{% comment %} CRITICAL: Show card for ALL loan officers found in commission data {% endcomment %}
+			{% comment %} Do NOT filter by lv_lvcomploanofficer table - commission data is the only source {% endcomment %}
+			{% assign showThisCard = true %}
+
+			{% if showThisCard %}
+
+			{% comment %} Calculate commission total for this specific loan officer using CODE matching {% endcomment %}
+			{% for row in allLoanBasedCommissions.results.entities %}
+				{% if row.lv_xloanofficercode == uniqueLOCode %}
+					{% assign includeThisCommission = false %}
+					
+					{% comment %} Apply same filtering logic as Pass 1 {% endcomment %}
+					{% if is_admin %}
+						{% assign includeThisCommission = true %}
+					{% else %}
+						{% comment %} Branch Manager access: Check if commission's branch code is in user's branch code list {% endcomment %}
+						{% if row.lv_xbranchcode and row.lv_xbranchcode != blank %}
+							{% assign branchCheckString = "|" | append: row.lv_xbranchcode | append: "|" %}
+							{% if userBranchCodeList contains branchCheckString %}
+								{% assign includeThisCommission = true %}
+							{% endif %}
+						{% endif %}
+
+						{% comment %} Loan Officer Oversight access: Check if loan officer is assigned to user {% endcomment %}
+						{% if row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+							{% assign officerCheckString = "|" | append: row.lv_xloanofficercode | append: "|" %}
+							{% if userLoanOfficerList contains officerCheckString %}
+								{% assign includeThisCommission = true %}
+							{% endif %}
+						{% endif %}
+					{% endif %}
+
+					{% comment %} Branch selection filter {% endcomment %}
+					{% if includeThisCommission and currentBranch != "ALL_BRANCHES" %}
+						{% if row.lv_xbranchcode != currentBranch.lv_code %}
+							{% assign includeThisCommission = false %}
+						{% endif %}
+					{% endif %}
+
+					{% if includeThisCommission %}
+						{% assign currentLOCommTotal = currentLOCommTotal | plus: row.lv_amount %}
+					{% endif %}
+				{% endif %}
+			{% endfor %}
+
+			{% comment %} Calculate adjustment total for this specific loan officer using CODE matching {% endcomment %}
+			{% for row in allPeriodBasedCommissions.results.entities %}
+				{% if row.lv_xloanofficercode == uniqueLOCode %}
+					{% assign includeThisAdjustment = false %}
+
+					{% comment %} Apply same filtering logic as commissions {% endcomment %}
+					{% if is_admin %}
+						{% assign includeThisAdjustment = true %}
+					{% else %}
+						{% comment %} Branch Manager access: Check if adjustment's branch code is in user's branch code list {% endcomment %}
+						{% if row.lv_xbranchcode and row.lv_xbranchcode != blank %}
+							{% assign branchCheckString = "|" | append: row.lv_xbranchcode | append: "|" %}
+							{% if userBranchCodeList contains branchCheckString %}
+								{% assign includeThisAdjustment = true %}
+							{% endif %}
+						{% endif %}
+
+						{% comment %} Loan Officer Oversight access: Check if loan officer is assigned to user {% endcomment %}
+						{% if row.lv_xloanofficercode and row.lv_xloanofficercode != blank %}
+							{% assign officerCheckString = "|" | append: row.lv_xloanofficercode | append: "|" %}
+							{% if userLoanOfficerList contains officerCheckString %}
+								{% assign includeThisAdjustment = true %}
+							{% endif %}
+						{% endif %}
+					{% endif %}
+
+					{% comment %} Branch selection filter {% endcomment %}
+					{% if includeThisAdjustment and currentBranch != "ALL_BRANCHES" %}
+						{% if row.lv_xbranchcode != currentBranch.lv_code %}
+							{% assign includeThisAdjustment = false %}
+						{% endif %}
+					{% endif %}
+
+					{% if includeThisAdjustment %}
+						{% assign currentLOAdjuTotal = currentLOAdjuTotal | plus: row.lv_amount %}
+					{% endif %}
+				{% endif %}
+			{% endfor %}
+			
+			{% comment %} Handle missing loan officer names defensively {% endcomment %}
+			{% if currentLOName == blank or currentLOName == "" %}
+				{% assign displayName = "Not found (" %}
+				{% assign displayName = displayName | append: uniqueLOCode %}
+				{% assign displayName = displayName | append: ")" %}
+			{% else %}
+				{% assign displayName = currentLOName %}
+			{% endif %}
+			
+			<div class="employee" data-attr="{{ currentLOId }}">
+				<div class="employee-header" onclick="handleLoanOfficerClick(this)" style="cursor: pointer;">
+					<p class="employee-name" title="Loan Officer Code: {{ uniqueLOCode }}">{{ displayName }}</p>
+					<a class="employee-link">
+						<i class="fas fa-arrow-right" style="padding-bottom: 12px;"></i>
+					</a>
+				</div>
+				{% if currentLOCommTotal != 0 %}
+				<div class="compensation">
+					<p class="compensation-type">Commissions</p>
+					<p class="compensation-amount" data-amount="{{ currentLOCommTotal }}">${{ currentLOCommTotal | round: 2 }}</p>
+				</div>
+				{% endif %}
+				{% if currentLOAdjuTotal != 0 %}
+				<div class="compensation">
+					<p class="compensation-type">Adjustments</p>
+					<p class="compensation-amount" data-amount="{{ currentLOAdjuTotal }}">${{ currentLOAdjuTotal | round: 2 }}</p>
+				</div>
+				{% endif %}
+			</div>
+
+			{% endif %}  {% comment %} End showThisCard check - OPTION 2 implementation {% endcomment %}
+		{% endif %}
+	{% endfor %}
+</div>
+
+
+<div class="loan-officers-pagination">
+	<button id="prevPage" class="loan-officers-pagination__button loan-officers-pagination__button--prev">Previous</button>
+	<span id="pageInfo" class="loan-officers-pagination__info">Page 1 of 1</span>
+	<button id="nextPage" class="loan-officers-pagination__button loan-officers-pagination__button--next">Next</button>
+</div>
+
+
+<script>
+const handleLoanOfficerClick = (el) => {
+    const baseUrl = window.location.origin;
+    let newUrl = new URL('/loan-officer/', baseUrl);
+    // Get the data-attr from the parent .employee element
+    const employeeDiv = el.closest('.employee');
+    const loanOfficerId = employeeDiv ? employeeDiv.dataset.attr : null;
+    
+    // Check if this is a "Not found" card by examining the employee name
+    const employeeNameElement = employeeDiv ? employeeDiv.querySelector('.employee-name') : null;
+    const employeeName = employeeNameElement ? employeeNameElement.textContent.trim() : '';
+    
+    // Handle "Not found" cards specially
+    if (employeeName.startsWith('Not found (')) {
+        // Extract the loan officer code from "Not found (12345)" format
+        const codeMatch = employeeName.match(/Not found \(([^)]+)\)/);
+        const officerCode = codeMatch ? codeMatch[1] : 'unknown';
+        alert(`Cannot navigate to loan officer page because there is no loan officer record with code ${officerCode}`);
+        return;
+    }
+    
+    let currentQueryParams = new URLSearchParams(window.location.search);
+
+    console.log(`handleLOClick: loId=${loanOfficerId}; window.location.search=${window.location.search}; newUrl=${newUrl}`);
+
+    // Safety check - if no loan officer ID found, don't navigate
+    if (!loanOfficerId || loanOfficerId.trim() === '') {
+        console.error('No loan officer ID found in data-attr');
+        return;
+    }
+
+    // Preserve existing query parameters and add/update the officer parameter
+    if (currentQueryParams.size === 0) {
+        newUrl.searchParams.append('officer', loanOfficerId);
+    } else {
+        // First, copy all existing parameters to the new URL
+        for (let [key, value] of currentQueryParams) {
+            newUrl.searchParams.append(key, value);
+        }
+        
+        // Then add or update the officer parameter
+        if (currentQueryParams.has('officer')) {
+            newUrl.searchParams.set('officer', loanOfficerId);
+        } else {
+            newUrl.searchParams.append('officer', loanOfficerId);
+        }
+    }
+
+	console.log("final newUrl=" + newUrl);
+
+    window.open(newUrl.toString(), '_blank');
+};
+
+document.addEventListener('LVGlobalDOCReady', function () {
+	const employeeContainer = document.querySelector('.employee-container');
+	if (!employeeContainer) return; // Exit if no container (handles no results case)
+
+	// Format currency values with proper trailing zeros and negative numbers in parentheses
+	document.querySelectorAll('.compensation-amount[data-amount]').forEach(element => {
+		const amount = parseFloat(element.getAttribute('data-amount'));
+		if (!isNaN(amount)) {
+			const absAmount = Math.abs(amount);
+			const formatted = absAmount.toLocaleString('en-US', { 
+				style: 'currency', 
+				currency: 'USD',
+				minimumFractionDigits: 2,
+				maximumFractionDigits: 2 
+			});
+			
+			// For negative amounts, format as (amount) without the minus sign
+			if (amount < 0) {
+				element.textContent = '(' + formatted.substring(1) + ')'; // Remove $ and add parentheses
+			} else {
+				element.textContent = formatted;
+			}
+		}
+	});
+
+	const employees = employeeContainer.querySelectorAll('.employee');
+	const employeesPerPage = 8; // Adjust this number as needed
+	let currentPage = 1;
+	const totalPages = Math.ceil(employees.length / employeesPerPage);
+
+	const prevButton = document.getElementById('prevPage');
+	const nextButton = document.getElementById('nextPage');
+	const pageInfo = document.getElementById('pageInfo');
+
+	// Exit if pagination elements don't exist
+	if (!prevButton || !nextButton || !pageInfo) return;
+
+	function showPage(page) {
+		const start = (page - 1) * employeesPerPage;
+		const end = start + employeesPerPage;
+
+		employees.forEach((employee, index) => {
+			if (index >= start && index < end) {
+				employee.style.display = '';
+			} else {
+				employee.style.display = 'none';
+			}
+		});
+
+		pageInfo.textContent = `Page ${page} of ${totalPages}`;
+		prevButton.disabled = page === 1;
+		nextButton.disabled = page === totalPages;
+	}
+
+	prevButton.addEventListener('click', () => {
+		if (currentPage > 1) {
+			currentPage--;
+			showPage(currentPage);
+		}
+	});
+
+	nextButton.addEventListener('click', () => {
+		if (currentPage < totalPages) {
+			currentPage++;
+			showPage(currentPage);
+		}
+	});
+
+	// Initial page setup
+	showPage(1);
+
+	// Hide pagination if there's only one page
+	if (totalPages <= 1) {
+		document.querySelector('.loan-officers-pagination').style.display = 'none';
+	}
+});
+</script>
+
+<!-- Last modified Tue Sep 02 1727 -->
+<!-- Last modified Tue Sep 02 5:29PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Mon Nov 17 7:17PM -->

@@ -1,0 +1,576 @@
+<p>Last modified Fri Oct 31 8:41AM</p>
+<p>Last modified Fri Oct 31 8:39AM</p>
+<!-- Last modified Fri Oct 31 8:04AM -->
+
+{% comment %} lvcpdev.en-US.webpage.copy.html {% endcomment %} 
+
+{% include 'snippet' snippet_name:'FetchXML - SetupQuery' %}
+
+<h2>2025-10-30 Thu 17:21:44 ~lvcpdev <span id="spanJsVersion" style="margin-left: 10px;"></span></h2>
+
+<div id="divTestButton" style="margin-bottom: 20px;">
+		<input type="button" value="Test to Console2" onclick="testToConsole()" />
+</div>
+
+<style>
+	.table-container {
+		margin-top: 20px;
+	}
+	.table-responsive {
+		overflow-x: auto;
+	}
+	.money-column {
+		text-align: right;
+	}
+	.date-column {
+		min-width: 120px;
+	}
+</style>
+
+
+
+{% comment %} I try to keep this in sync with same in /diag, but never a guarantee {% endcomment %} 
+<div class="card mt-3"> <!-- USER INFORMATION 0601 -->
+	<div class="card-header">
+		<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#currentUserCollapse" aria-expanded="false" aria-controls="currentUserCollapse">
+			Current User Information
+		</button>
+	</div>
+
+	<div class="collapse" id="currentUserCollapse">
+		<div class="card-body">
+			<table class="user-table">
+				<thead>
+					<tr>
+						<th>Variable</th>
+						<th>Value</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr><td>user.id</td><td>{{ user.id }}</td></tr>
+					<tr><td>user.username</td><td>{{ user.username }}</td></tr>
+					<tr><td>user.firstname</td><td>{{ user.firstname }}</td></tr>
+					<tr><td>user.middlename</td><td>{{ user.middlename }}</td></tr>
+					<tr><td>user.lastname</td><td>{{ user.lastname }}</td></tr>
+					<tr><td>user.fullname             </td><td>{{ user.fullname }}</td></tr>
+					<tr><td>user.emailaddress1        </td><td>{{ user.emailaddress1 }}</td></tr>
+					<tr><td>user.emailaddress2        </td><td>{{ user.emailaddress2 }}</td></tr>
+					<tr><td>user.lv_region.id   </td><td>{{ user.lv_region.id }}</td></tr>
+					<tr><td>user.lv_region.name </td><td>{{ user.lv_region.name }}</td></tr>
+					<tr><td>user.lv_branch.id</td><td>{{ user.lv_branch.id }}</td></tr>
+					<tr><td>user.lv_branch.name</td><td>{{ user.lv_branch.name }}</td></tr>
+					<tr><td>user.lv_loanofficer.id</td><td>{{ user.lv_loanofficer.id }}</td></tr>
+					<tr><td>user.lv_loanofficer.name</td><td>{{ user.lv_loanofficer.name }}</td></tr>
+					<tr><td>user.roles</td><td>
+						{% for role in user.roles %}
+							{{ role }}{% unless forloop.last %}; {% endunless %}
+						{% endfor %}
+					</td></tr>
+					<tr><td>user.isAuthenticated</td>
+					<td class="authenticated">{{ user.isAuthenticated }}</td></tr>
+					<tr><td>user.type</td><td>{{ user.type }}</td></tr>					
+					
+					</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+
+<div class="card mt-3"> <!-- SETUP QUERY -->
+	<div class="card-header">
+		<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#setupQueryCollapse" aria-expanded="true" aria-controls="setupQueryCollapse">
+			Setup Query
+		</button>
+	</div>
+
+	<div class="collapse hide" id="setupQueryCollapse">
+		<div class="card-body">
+			<table class="user-table">
+				<thead>
+					<tr>
+						<th>Variable</th>
+						<th>Value</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr><td class="variable-name">cfgAccountingEnabled   </td><td>{{ cfgAccountingEnabled }}</td></tr>
+					<tr><td class="variable-name">cfgBranchEnabled       </td><td>{{ cfgBranchEnabled }}</td></tr>
+					<tr><td class="variable-name">cfgPrintEnabled        </td><td>{{ cfgPrintEnabled }}</td></tr>
+					<tr><td class="variable-name">cfgRegionEnabled       </td><td>{{ cfgRegionEnabled }}</td></tr>
+					<tr><td class="variable-name">cfgTags                </td><td>{{ cfgTags }}</td></tr>
+					<tr><td class="variable-name">currentBranch.name     </td><td>{{ currentBranch.name }}</td></tr>
+					<tr><td class="variable-name">currentRegion.name     </td><td>{{ currentRegion.name }}</td></tr>
+					<tr><td class="variable-name">is_admin               </td><td>{{ is_admin }}</td></tr>
+					<tr><td class="variable-name">is_BranchManager       </td><td>{{ is_BranchManager }}</td></tr>
+					<tr><td class="variable-name">is_developer           </td><td>{{ is_developer }}</td></tr>
+					<tr><td class="variable-name">is_LoanOfficer         </td><td>{{ is_LoanOfficer }}</td></tr>
+					<tr><td class="variable-name">is_OnlyLoanOfficer     </td><td>{{ is_OnlyLoanOfficer }}</td></tr>
+					<tr><td class="variable-name">is_RegionManager       </td><td>{{ is_RegionManager }}</td></tr>
+					<tr><td class="variable-name">sqAcctgPeriodNo        </td><td>{{ sqAcctgPeriodNo }}</td></tr>
+					<tr><td class="variable-name">sqApprovalType         </td><td>{{ sqApprovalType }}</td></tr>
+					<tr><td class="variable-name">sqHasCommissionProfile </td><td>{{ sqHasCommissionProfile }}</td></tr>
+					<tr><td class="variable-name">sqIsCommissioned       </td><td>{{ sqIsCommissioned }}</td></tr>
+					<tr><td class="variable-name">sqRecCommProfile       </td><td>{{ sqRecCommProfile.lv_name }}</td></tr>
+					<tr><td class="variable-name">sqRecLOBeingViewed     </td><td>{{ sqRecLOBeingViewed.lv_name }}</td></tr>
+					<tr><td class="variable-name">sqRecLOYouAre          </td><td>{{ sqRecLOYouAre.lv_name }}</td></tr>
+					<tr><td class="variable-name">sqUsingApprovals       </td><td>{{ sqUsingApprovals }}</td></tr>
+					<tr><td class="variable-name">UrlFlowContactWebRole  </td><td>{{ setupRecord.lv_urlflowcontactwebrole }}</td></tr>
+					<tr><td class="variable-name">userBranch             </td><td>{{ userBranch }}</td></tr>
+					<tr><td class="variable-name">userBranch.id          </td><td>{{ userBranch.id }}</td></tr>
+					<tr><td class="variable-name">userBranchList         </td><td>{{ userBranchList }}</td></tr>
+					<tr><td class="variable-name">userRegion             </td><td>{{ userRegion }}</td></tr>
+					<tr><td class="variable-name">website                </td><td>{{ website }}</td></tr>
+					<tr><td class="variable-name">website.id             </td><td>{{ website.id }}</td></tr>
+					<tr><td class="variable-name">websiteid              </td><td>{{ websiteid }}</td></tr>
+					<tr><td class="variable-name">site                   </td><td>{{ site }}</td></tr>
+					<tr><td class="variable-name">site.id                </td><td>{{ site.id }}</td></tr>
+					<tr><td class="variable-name">portal                 </td><td>{{ portal }}</td></tr>
+					<tr><td class="variable-name">portal.id              </td><td>{{ portal.id }}</td></tr>
+					<tr><td class="variable-name">userRegion.id          </td><td>{{ userRegion.id }}</td></tr>
+					<tr><td class="variable-name">userRegionList         </td><td>{{ userRegionList }}</td></tr>					
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+
+<div class="card mt-3"> <!-- API SECTION -->
+	<div class="card-header">
+		<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#apiCollapse" aria-expanded="true" aria-controls="apiCollapse">
+			API Calls
+		</button>
+	</div>
+	<div class="collapse show" id="apiCollapse">
+		<div class="card-body">
+
+			<div class="row mb-3 align-items-center">  <!-- Prefix, Table, Id, and Action -->
+				<div class="col-3"> <!-- Prefix Select -->
+					<div class="row g-2 align-items-center">
+						<div class="col-auto">
+							<label for="cboPrefix" class="col-form-label me-2">Prefix</label>
+						</div>
+
+						<div class="col">
+							<select id="cboPrefix" class="form-select rj-persist" onchange="updateApiUrl()">
+								<option value="BCODataV4LVM">BusCent ODataV4 LVM</option>
+								<option value="BCODataV4">BusCent ODataV4</option>
+								<option value="PowerPages">Power Pages Shortcut</option>
+								<option value="Dataverse">Dataverse</option>
+							</select>
+						</div>
+					</div>
+				</div>
+
+				<div class="col-3"> <!-- Table Select ~tablenames -->
+					<div class="row g-2 align-items-center">
+						<div class="col-auto">
+							<label for="cboTable" class="col-form-label me-2">Table</label>
+						</div>
+
+						<div class="col">
+							<select id="cboTable" class="form-select rj-persist" onchange="updateApiUrl()"> {% comment %}  if you add here, be sure to add to translatetablename  {% endcomment %} 
+								<option value="account">account</option>
+								<option value="ApprovalLO">ApprovalLO</option>
+								<option value="Branch">Branch</option>
+								<option value="CommissionApproval">CommissionApproval</option>
+								<option value="CommissionProfile">CommissionProfile</option>
+								<option value="CommissionValue">CommissionValue</option>
+								<option value="contact">contact</option>
+								<option value="EmailLog">EmailLog</option>
+								<option value="Loan">Loan</option>
+								<option value="LoanOfficer">LoanOfficer</option>
+								<option value="Log">Log</option>
+								<option value="RBLO">RBLO</option>
+							</select>
+						</div>
+					</div>
+				</div>
+
+				<div class="col-3"> <!-- ID -->
+					<div class="row g-2 align-items-center">
+						<div class="col-auto">
+							<label for="cboId" class="col-form-label me-2">ID</label>
+						</div>
+
+						{% comment %}    todo8: have this query contacts, and dynamically populate with correct id's         {% endcomment %} 
+						<div class="col">
+							<select id="cboId" class="form-select rj-persist" onchange="updateApiUrl()">
+								<option value=""></option>
+								<option value="EDA25D58-1CA8-EF11-B8E8-6045BDD4B776">Contact: Robert.Martin@LoanVision.com (EDA25D58-1CA8-EF11-B8E8-6045BDD4B776)</option>
+								<option value="0A25BDD1-B2E7-EF11-A730-7C1E525A5C41">Contact: Rodj@LoanVision.com (0A25BDD1-B2E7-EF11-A730-7C1E525A5C41)</option>
+								<option value="47bf5a15-5380-ef11-ac21-6045bda6e4f2">Contact: Jenna (47bf5a15-5380-ef11-ac21-6045bda6e4f2)</option>
+								<option value="b108c67a-7aa0-ef11-8a69-6045bdd4b776">Contact: Richard (b108c67a-7aa0-ef11-8a69-6045bdd4b776)</option>
+								<option value="50A76DCA-E380-EF11-AC21-6045BDA6E4F2">Contact: Leslie Knope (50A76DCA-E380-EF11-AC21-6045BDA6E4F2)</option>
+								<option value="172A2341-E001-F011-BAE3-7C1E52153266">LO: Rodj Martin (172A2341-E001-F011-BAE3-7C1E52153266)</option>
+							</select>
+						</div>
+					</div>
+				</div>
+
+				<div class="col-3"> <!-- Action -->
+					<div class="row g-2 align-items-center">
+						<div class="col-auto">
+							<label for="cboAction" class="col-form-label me-2">Action</label>
+						</div>
+
+						<div class="col">
+							<select id="cboAction" class="form-select rj-persist" onchange="updateApiUrl()">
+								<option value=""></option>
+								<option value="Top10">Top10</option>
+								<option value="Count">Count</option>
+								<option value="Count">Filter</option>
+								<option value="Top1">Top1</option>
+								<option value="Select">&$select=nickname,emailaddress1</option>
+								<option value="Id">Id</option>
+							</select>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="row mb-3 align-items-center"> <!-- SUCCESS HISTORY -->
+				<div class="col-12">
+					<div class="row g-2 align-items-center">
+						<div class="col-1">
+							<label for="contactSelect" class="col-form-label me-2">HISTORY</label>
+						</div>
+
+						<div class="col-11">
+							<select id="cboUrlSuccessHistory" class="form-select rj-persist" onchange="$('#apiUrl').val('rodj')">
+							<option value=""></option>
+							</select>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="row mb-3 align-items-center"> <!-- FINAL URL -->
+				<div class="col-12">
+					<div class="row g-2 align-items-center">
+						<div class="col-1">
+							<label for="apiUrl" class="col-form-label me-2">API URL</label>
+						</div>
+						<div class="col-11">
+							<input type="text" id="apiUrl" class="form-control rj-persist font-monospace" value="https://api.businesscentral.dynamics.com/v2.0/1598698c-cbd2-4d4a-94f0-0b4b2b701763/SandboxDev/ODataV4/Company('LVM')/branches?$top=3" />
+						</div>
+					</
+					div>
+				</div>
+			</div>
+			
+			<div class="row mb-3"> <!-- Headers and POST Data in Two Columns -->
+				
+				<div class="col-md-6"> <!-- Headers Section -->
+					<div class="form-group">
+						<label for="headersArea" class="form-label">Headers:</label>
+						<textarea id="headersArea" class="form-control font-monospace rj-persist" rows="6">OData-MaxVersion | 4.0
+OData-Version | 4.0
+Accept | application/json
+Content-Type | application/json; charset=utf-8
+Prefer | return=representation</textarea>
+					</div>
+				</div>
+
+				<div class="col-md-6"> <!-- POST Data Section -->
+					<div class="form-group">
+						<label for="postDataArea" class="form-label">POST data:</label>
+						<textarea id="postDataArea" class="form-control font-monospace rj-persist" rows="6"></textarea>
+					</div>
+				</div>
+			</div>
+
+			<div class="row mb-3"> <!-- Action Button and Method Selector -->
+				<div class="col-12">
+					<div class="d-flex align-items-center">
+						<button id="btnCallApi" class="btn btn-primary me-3"
+							onclick="callSelectedFunction()">Go!</button>
+
+						<div class="d-inline-flex align-items-center me-3"> <!-- Dropdown for func name: testApi, ShowWebRoles, etc. -->
+							<select id="jsFuncName" class="form-select rj-persist"> <!-- only need to add here. All else is in js file, function callSelectedFunction -->
+								<option value="testApi">testApi (uses apiUrl entry and js testApi() in rcm2)</option>
+								<option value="apiCall">callApi (uses apiUrl entry and js apiCall in Footer)</option>
+								<option value="addWebRoleToContact">addWebRoleToContact API Url should have contid,roleid</option>
+								<option value="SetWebRoles" title="Uses whatever value is in API Url and di from contact ">Set Web Roles</option>
+								<option value="SetYesAllRoles" title="Hardcoded to Admin,Region,Branch,LO,Assign ">SetYesAllRoles</option>
+								<option value="SetLOAndAssign" title="Hardcoded to LO,Assign ">SetLOAndAssign</option>
+								<option value="DeleteAllApprovals" title="Delete approval records for specific period number (reads period from P1 input)">Delete All Approvals by Period</option>
+								<option value="DeleteLogs" title="Uses whatever value is in API Url as kind contains">DeleteLogs</option>
+								<option value="DeleteRows" title="Ultimately will superceded DeleteLogs. Put logicalname, conainsfieldcolname, searchtext as comma separated in URL">DeleteRows</option>
+								<option value="apiGetRecord" title="Calls footer.apiGetRecord(tbl, filt) with tbl from Table dropdown and filt from P1">apiGetRecord(tbl,filt)</option>
+								<option value="apiGetRecords" title="Calls footer.apiGetRecords(tbl, filt) with tbl from Table dropdown and filt from P1">apiGetRecords(tbl,filt)</option>
+								<option value="apiGetColumnStringArray" title="Calls footer.apiGetColumnStringArray(tbl, col, filtX) with tbl from Table, filt from P1, colName from colRegex">apiGetColumnStringArray(tbl,colName,filt)</option>
+								<option value="apiGetColumnStringScalar" title="Calls footer.apiGetColumnStringScalar(tbl, col, filtX) with tbl from Table, filt from P1, colName from colRegex">apiGetColumnStringScalar(tbl,colName,filt)</option>
+								<option value="UpdateAllContactRoles" title="Updates lv_roles field for all contacts based on their actual web role assignments">UpdateAllContactRoles - Bulk Update All Contact Roles</option>
+								<option value="TestUpdateContactRoles" title="Test the role update logic on first 5 contacts only (no actual updates)">TestUpdateContactRoles - Test Role Update Logic</option>
+								<option value="LocalStorageRead" title="Read specific key (from P1) or all keys if P1 is empty">Local Storage: Read</option>
+								<option value="LocalStorageSet" title="Set local storage key (P1) to value (ColRx)">Local Storage: Set</option>
+								<option value="LocalStorageDelete" title="Delete local storage key specified in P1">Local Storage: Delete</option>
+							</select>
+						</div>
+
+						<div class="d-inline-flex align-items-center me-3"> <!-- Dropdown for Method -->
+							<label for="apiMethod" class="form-label me-2 mb-0">Method:</label>
+							<select id="apiMethod" class="form-select rj-persist">
+								<option value="GET">GET</option>
+								<option value="POST">POST</option>
+								<option value="DELETE">DELETE</option>
+								<option value="PUT">PUT</option>
+								<option value="PATCH">PATCH</option>
+							</select>
+						</div>
+
+						<div class="form-input ms-3"> <!-- P1 parameter one -->
+							<label for="txtP1" class="col-form-label me-2">P1</label>
+							<input class="form-input rj-persist" type="text" id="txtP1" name="txtP1>
+						</div>
+
+						<div class="form-input ms-3"> <!-- ColRegex parameter one -->
+							<label for="txtColRegex" class="col-form-label me-2">ColRx</label>
+							<input class="form-input rj-persist" type="text" id="txtColRegex" name="txtColRegex">
+						</div>
+
+						<div class="form-check ms-3"> <!-- Checkbox: Show Full Request Info -->
+							<input class="form-check-input rj-persist" type="checkbox" checked id="chkFullRequestInfo" name="chkFullRequestInfo" value="chkFullRequestInfo">
+							<label class="form-check-label" for="chkFullRequestInfo">Verbose</label>
+						</div>
+
+						<div class="form-check ms-3"> <!-- Checkbox: lv_ only -->
+							<input class="form-check-input rj-persist" type="checkbox" checked id="chkLVOnly" name="chkLVOnly" value="chkLVOnly">
+							<label class="form-check-label" for="chkLVOnly">lv_ Only</label>
+						</div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="row"> <!-- Results Area -->
+				<div class="col-12">
+					<div class="form-group">
+						<label for="resultsArea" class="form-label" id="lblResults" onclick="$('#resultsArea').val('');">Results:</label>
+						<textarea id="resultsArea" class="form-control font-monospace" rows="10"></textarea>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="card mt-3"> <!-- LOGS -->
+	<div class="card-header">
+		<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#divLog" aria-expanded="true" aria-controls="divLog">
+			Logs
+		</button>
+
+		<div class="collapse hide" id="divLog">
+		
+			<div class="container-fluid mt-2">
+				<form>
+					<div class="row mb-1">
+						<div class="col-auto form-column">
+							<label id="lblLogFrom" for="txtLogFrom" class="form-label">From (Local)</label>
+							<input id="txtLogFrom" onchange="updateLogQueryUrl()" type="text" class="form-control rj-persist" style="width: 175px;">
+						</div>
+						
+						<div class="col-auto form-column">
+							<label id="lblLogThru" for="txtLogThru" class="form-label">Thru (Local)</label>
+							<input id="txtLogThru" onchange="updateLogQueryUrl()" type="text" class="form-control rj-persist" style="width: 175px;">
+						</div>
+						
+						<div class="col-auto form-column">
+							<label id="lblLogUserName" for="txtLogUserName" class="form-label">User</label>
+							<input id="txtLogUserName" onchange="updateLogQueryUrl()" type="text" class="form-control rj-persist" style="width: 120px;">
+						</div>
+						
+						<div class="col-auto form-column">
+							<label id="lblLogKind" for="txtLogKind" class="form-label">Kind</label>
+							<input id="txtLogKind" onchange="updateLogQueryUrl()" type="text" class="form-control" style="width: 100px;">
+						</div>
+						
+						<div class="col-auto form-column">
+							<label id="lblLogDetail" for="txtLogDetail" class="form-label">Detail</label>
+							<input id="txtLogDetail" onchange="updateLogQueryUrl()" type="text" class="form-control rj-persist" style="width: 150px;">
+						</div>
+						
+						<div class="col-auto form-column">
+							<label for="ddlOrderBy" class="form-label">Order By</label>
+							<select id="ddlOrderBy" onchange="updateLogQueryUrl()" class="form-select rj-persist" style="width: 160px;">
+								<option value="createdon desc" selected>Date (Newest)</option>
+								<option value="createdon">Date (Oldest)</option>
+								<option value="lv_UserFullName">User Name</option>
+								<option value="lv_Kind">Kind</option>
+								<option value="lv_Detail">Detail</option>
+							</select>
+						</div>
+
+						<div class="col-auto form-column">
+							<input type="button" value="Query" onclick="return btnLogQuery_Click();"/>
+						</div>
+					</div>
+
+					<div class="row mb-2">
+						<div class="col-md-1 form-column">
+							<label id="lblLogUrl" for="txtLogUrl" class="form-label">URL</label>
+						</div>
+						<div class="col-md-5 form-column">
+							<input type="text" class="form-control rj-persist" id="txtLogUrl">
+						</div>
+					</div>
+				</form>
+			</div>
+
+			<div class="card-body">
+				<div style="margin-bottom: 10px;">
+					<label for="txtUserFilterRx" style="margin-right: 10px;">Filter by Username (Regex):</label>
+					<input type="text" id="txtUserFilterRx" value="^(?!Robert Martin$).*$" style="padding: 5px; min-width: 250px;">
+					<select id="ddlUserFilterPresets" onchange="applyUserFilterPreset()" style="margin-left: 10px; padding: 5px;">
+						<option value="">-- Common Filters --</option>
+						<option value="^(?!Robert Martin$).*$">Exclude Robert Martin</option>
+						<option value=".*">Show All Users</option>
+						<option value="^Robert Martin$">Only Robert Martin</option>
+						<option value=".*@loanvision\.com$">Only @loanvision.com</option>
+						<option value="^(?!.*@loanvision\.com$).*$">Exclude @loanvision.com</option>
+						<option value="^(Mickey|Minnie|Daffy|Goofy).*">Test Users Only</option>
+					</select>
+				</div>
+	
+				<table id="logTable" class="table table-striped" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+					<thead>
+						<tr style="background-color: #f2f2f2;">
+							<th>Time</th>
+							<th>User</th>
+							<th>Kind</th>
+							<th>Detail</th>
+							<th>K1Name</th>
+							<th>K1Value</th>
+							<th>K2Name</th>
+							<th>K2Value</th>
+							<th>Memo</th>
+						</tr>
+					</thead>
+					<tbody id="logTableBody">
+					</tbody>
+				</table>
+			</div>
+		</div>		
+	</div>
+</div>
+
+<div class="card mt-3"> <!-- COMMISSION PERIOD APPROVALa -->
+	<div class="card-header">
+		<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#divCPA" aria-expanded="true" aria-controls="divCPA">
+			lv_lvcompcommissionapproval
+		</button>
+
+		<div class="collapse hide" id="divCPA">
+			{% fetchxml cpaQuery %}
+				<fetch top="50">
+					<entity name="lv_lvcompcommissionapproval">
+						<attribute name="createdon" />
+						<attribute name="lv_name" />
+						<attribute name="lv_periodno" />
+						<attribute name="lv_periodcode" />
+						<attribute name="lv_loanofficercode" />
+						<order attribute="createdon" descending="true" />
+					</entity>
+				</fetch>
+			{% endfetchxml %}
+		
+			<div class="card-body">
+	
+				<table id="cpaTable" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+					<thead>
+						<tr style="background-color: #f2f2f2;">
+							<th>Time</th>
+							<th>FullName</th>
+							<th>PeriodCode</th>
+							<th>LOName</th>
+							<th>LOId</th>
+						</tr>
+					</thead>
+					<tbody id="cpaTableBody">
+						{% for cpa in cpaQuery.results.entities %}
+							<tr data-username="{{ cpa.lv_fullname }}" class="cpa-row">
+								<td>{{ cpa.createdon | date: "ddd HH:mm:ss" }}</td>
+								<td>{{ cpa.lv_fullname }}</td>
+								<td>{{ cpa.lv_periodcode }}</td>
+								<td>{{ cpa.LOName }}</td>
+								<td>{{ cpa.lv_loanofficercode }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		</div>		
+	</div>
+</div>
+
+{% comment %}    JAVASCRIPT is in separate file    {% endcomment %} 
+
+
+{% comment %}
+
+
+{% fetchxml abc %}
+	<fetch>
+		<entity name="lv_lvcompcommission">
+			<attribute name="lv_calculationdate" />
+			<attribute name="lv_amount" />
+			<attribute name="lv_description" />
+			<attribute name="lv_bpscalculated" />
+			<attribute name="lv_cappedcommissionbaseamount" />
+			<attribute name="lv_xloanofficer" />
+			<attribute name="lv_loanofficer" />
+		</entity>
+	</fetch>
+{% endfetchxml %}
+
+<div class="container">
+	<div class="row">
+		<div class="col-12 table-container">
+			<h2>Commission Records</h2>
+			<div class="table-responsive">
+				<table class="table table-striped table-hover">
+					<thead class="table-dark">
+						<tr>
+							<th>Calculation Date</th>
+							<th class="money-column">Amount</th>
+							<th>Description</th>
+							<th class="money-column">BPS Calculated</th>
+							<th class="money-column">Capped Commission Base</th>
+							<th>Branch</th>
+							<th>Loan Officer</th>
+							<th>LOLook</th>
+						</tr>
+					</thead>
+					<tbody>
+						<!-- This is where FetchXML results would be rendered -->
+						{% for item in abc.results.entities %}
+						<tr>
+							<td class="date-column">{{ item.lv_calculationdate }}</td>
+							<td class="money-column">{{ item.lv_amount }}</td>
+							<td>{{ item.lv_description }}</td>
+							<td class="money-column">{{ item.lv_bpscalculated }}</td>
+							<td class="money-column">{{ item.lv_cappedcommissionbaseamount }}</td>
+							<td>{{ item.lv_xbranchcode }}</td>
+							<td>{{ item.lv_xloanofficer }}</td>
+							<td>{{ item.lv_loanofficer.name }}</td>
+						</tr>
+						{% endfor %}
+
+						{% if abc.results.entities.size == 0 %}
+						<tr>
+							<td colspan="7" class="text-center">No commission records found.</td>
+						</tr>
+						{% endif %}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+{% endcomment %} 
+
+<!-- Last modified Fri Oct 31  8:04AM -->
+
+<!-- Last modified Fri Oct 31 8:41AM -->

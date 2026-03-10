@@ -1,0 +1,18 @@
+adx_append: true
+adx_appendto: true
+adx_create: true
+adx_delete: false
+adx_entitylogicalname: lv_lvcompcommissionapproval
+adx_entityname: lvcApproval
+adx_entitypermission_webrole:
+- 007ff13c-35b2-410f-aaff-3b671f3876bd
+- 0e895982-bf14-f011-998a-002248045044
+- 40653bb0-5116-f011-9989-002248045044
+- 5a90d3ec-5116-f011-9989-002248045044
+- 862bea8f-c12a-f011-8c4d-6045bd078e56
+- 940ca42e-4f16-f011-9989-002248045044
+- e8341cc3-a325-f011-8c4d-6045bd078e56
+adx_entitypermissionid: 2c222cf2-7750-f011-877a-6045bd078e56
+adx_read: true
+adx_scope: 756150000
+adx_write: true

@@ -1,0 +1,12 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<ul class="dropdown-menu" role="menu">
+  {% assign ordered_languages = page.languages | order_by: "name" %}
+  {% for language in ordered_languages %}
+    <li role="menuitem">
+      <a class="dropdown-item"  href="/{{ language.url_substitution }}" title="{{ language.name }}" data-code="{{ language.code }}">{{ language.name }}</a>
+    </li>
+  {% endfor %}
+</ul>
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

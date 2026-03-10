@@ -1,0 +1,312 @@
+<!-- Last modified Mon Nov 17 7:17PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Tue Sep 30 7:45AM -->
+<!-- Last modified 2508301435 -->
+
+<!-- ENTER>> /web-templates/Header -->
+
+{% comment %}
+	This hack is necessary because setting Authentication/Registration/ProfileRedirectEnabled does not work as one would expect: 
+	when set to true, it applies to ALL authentication, not just new registrations
+
+	I wasted a RIDICULOUS amount of time trying to get this hack to work using only Liquid. In theory, it should be possible, using
+	something like:
+
+	assign namelen = user.firstname | size
+	if namelen == 0
+		unless request.path contains "profile" %}
+			<script>
+				window.location.href = "/profile";
+			</script>
+		endunless
+	endif
+
+	But, I swear there are inconsistent results from Liquid 'request.path', for example, I would be on the /Accounting page,
+	yet it would report the previous page I was on, say, /Branch. Yes that sounds crazy, but I swear that was happening.
+
+	So, I gave up and used Javascript for the part preventing infinite redirect
+
+{% endcomment %} 
+
+{% if user %}
+	{% assign namelen = user.firstname | size %}
+	{% if namelen == 0 %}
+		<script>
+			const currpath = window.location.href;
+			if (!currpath.includes("/profile")) // to prevent inifinite
+				window.location.href = "/profile";
+		</script>
+	{% endif %}
+{% endif %}
+
+
+
+{% comment %} HEADER: Simple permission logic for navigation {% endcomment %}
+{% comment %} TODO8: DUPLICATED LOGIC - This duplicates is_OnlyLoanOfficer calculation from SetupQuery {% endcomment %}
+{% comment %} to avoid double-including SetupQuery. Future investigation should determine {% endcomment %}
+{% comment %} what permission logic can be moved from SetupQuery to Header to eliminate duplication. {% endcomment %}
+
+{% if user %}
+	{% assign is_admin = user | has_role: 'Administrators' %}
+	{% assign is_BranchManager = user | has_role: 'Branch Manager' %}
+	{% assign is_LoanOfficer = user | has_role: 'Loan Officer' %}
+	
+	{% comment %} Calculate is_OnlyLoanOfficer using simple specification: {% endcomment %}
+	{% comment %} true when user HAS 'Loan Officer' role AND does NOT have blocking roles OR LOO assignments {% endcomment %}
+	{% assign is_OnlyLoanOfficer = false %}
+	{% if is_LoanOfficer %}
+		{% unless is_admin or is_BranchManager %}
+			{% assign is_OnlyLoanOfficer = true %}
+		{% endunless %}
+	{% endif %}
+
+	{% comment %} Check for Loan Officer Oversight assignments - if present, user is NOT "only" a loan officer {% endcomment %}
+	{% if is_OnlyLoanOfficer %}
+		{% fetchxml fxmHeaderLOO %}
+			<fetch>
+				<entity name="lv_contactloanofficerrelationship">
+					<attribute name="lv_loanofficer" />
+					<filter type="and">
+						<condition attribute="lv_contact" operator="eq" value="{{user.id}}" />
+						<condition attribute="lv_relationshiptype" operator="eq" value="O" />
+					</filter>
+				</entity>
+			</fetch>
+		{% endfetchxml %}
+
+		{% assign hasLOOAssignments = false %}
+		{% if fxmHeaderLOO.results.entities.size > 0 %}
+			{% assign hasLOOAssignments = true %}
+		{% endif %}
+
+		{% comment %} Only treat as "Only Loan Officer" if no LOO assignments {% endcomment %}
+		{% if hasLOOAssignments %}
+			{% assign is_OnlyLoanOfficer = false %}
+		{% endif %}
+	{% endif %}
+{% else %}
+	{% assign is_admin = false %}
+	{% assign is_BranchManager = false %}
+	{% assign is_OnlyLoanOfficer = false %}
+{% endif %}
+
+{% comment %} DEBUG: Add visible debug output to troubleshoot {% endcomment %}
+<!-- DEBUG HEADER: user={{user.firstname}} is_admin={{is_admin}} is_BranchManager={{is_BranchManager}} is_OnlyLoanOfficer={{is_OnlyLoanOfficer}} -->
+
+{% assign defaultlang = settings['LanguageLocale/Code'] | default: 'en-us' %}
+{% assign homeurl = website.adx_partialurl %}
+
+<!-- BEGIN: template/~header ~navbar 2504281021 cfgRegionEnabled={{cfgRegionEnabled}} ; is_OnlyLoanOfficer={{is_OnlyLoanOfficer}} -->
+
+<div class=" navbar-expand-xl navbar navbar-dark static-top" style="flex-wrap:wrap;" role="banner">
+	<div class="skip-to-content"><a href="#mainContent">{{ resx.Skip_To_Content | default: "Skip to main content" }}</a></div><div class="container custom-container">
+		<div class="navbar-brand navbar-header">
+			{% editable snippets 'Mobile Header' type: 'html' %}
+		</div>
+		<button type="button" class="navbar-toggler collapsed custom-navbar-toggler" title="{{ snippets["Header/Toggle Navigation"] | default: resx['Toggle_Navigation'] | h }}" data-bs-toggle="collapse" data-bs-target="#navbar" aria-expanded="false" onclick="setHeight();">
+			<span class="visually-hidden">{{ snippets["Header/Toggle Navigation"] | default: resx['Toggle_Navigation'] | h }}</span>
+			<span class="navbar-toggler-icon"></span>
+		</button>
+
+		<div id="navbar" class="navbar-collapse collapse" style="width: min-content;">
+			{% assign primary_nav = weblinks["Default"] %}
+			{% if primary_nav %}
+				<nav aria-label="{{ resx.Main_Navigation | default: "Main Navigation" }}" class="ms-auto menu-bar {% if primary_nav.editable %}xrm-entity xrm-editable-adx_weblinkset{% endif %}" data-weblinks-maxdepth="2">
+					<ul class="nav navbar-nav weblinks"> {% comment %}  Tag=2503200956 {% endcomment %} 
+						
+						{% comment %} SIMPLE NAVIGATION: Show each section once based on user permissions {% endcomment %}
+						
+						{% if is_admin %}
+							<li class="nav-item weblink">
+								<a aria-label="Accounting" href="/Accounting" aria-roledescription="link" class="nav-link" title="Accounting">
+									Accounting
+								</a>
+							</li>
+							<li class="nav-item divider-vertical" aria-hidden="true"></li>
+						{% endif %}
+
+						{% if is_admin or is_BranchManager %}
+							<li class="nav-item weblink">
+								<a aria-label="Branch" href="/Branch" aria-roledescription="link" class="nav-link" title="Branch">
+									Branch
+								</a>
+							</li>
+							<li class="nav-item divider-vertical" aria-hidden="true"></li>
+						{% endif %}
+
+						{% comment %} Everyone can access Loan Officer page - filtering happens inside {% endcomment %}
+						{% if user %}
+							<li class="nav-item weblink">
+								<a aria-label="Loan Officer" href="/Loan-Officer" aria-roledescription="link" class="nav-link" title="Loan Officer">
+									{% if is_OnlyLoanOfficer %}My Commissions{% else %}Loan Officer{% endif %}
+								</a>
+							</li>
+							<li class="nav-item divider-vertical" aria-hidden="true"></li>
+
+							<li class="nav-item weblink">
+								<a aria-label="Email Log" href="/Email-Log" aria-roledescription="link" class="nav-link" title="Email Log">
+									Email Log
+								</a>
+							</li>
+							<li class="nav-item divider-vertical" aria-hidden="true"></li>
+						{% endif %} 
+
+						{% assign profile_enabled = settings['Profile/Enabled'] | boolean | default: true %}
+						{% if profile_enabled %}
+							{% if user %}
+								<li class=" nav-item dropdown">
+									{% assign username = user.fullname | escape %}
+									<a href="#" class=" nav-link dropdown-toggle" aria-roledescription="link" title="{{username | default: resx["Default_Profile_name"] }}" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+										<span class="username">{{ username | default: resx['Default_Profile_name'] }}</span>
+										<span class="caret"></span>
+									</a>
+									<ul class="dropdown-menu">
+										{% assign show_profile_nav = settings["Header/ShowAllProfileNavigationLinks"] | boolean | default: true %}
+										{% if show_profile_nav %}
+											{% assign profile_nav = weblinks["Profile Navigation"] %}
+											{% if profile_nav %}
+												{% for link in profile_nav.weblinks %}
+													<li>
+														<a class="dropdown-item" aria-label="{{ link.name | escape }}" aria-roledescription="link" href="{{ link.url | escape }}" title="{{ link.name | escape }}">{{ link.name | escape }}</a>
+													</li>
+												{% endfor %}
+											{% endif %}
+										{% else %}
+											<li><a class="dropdown-item" aria-label="{{ snippets["Profile Link Text"] | default:resx["Profile_Text"] | escape }}" aria-roledescription="link" href="{{ sitemarkers['Profile'].url | escape }}">{{ snippets["Profile Link Text"] | default: resx["Profile_Text"] | escape }}</a></li>
+										{% endif %}
+										<li class="dropdown-divider" role="separator" aria-hidden="true"></li>
+										<li>
+											<a class="dropdown-item" aria-label="{{ snippets["links/logout"] | default:resx["Sign_Out"] | escape }}" aria-roledescription="link" href="{% if homeurl%}/{{ homeurl }}{% endif %}{{ website.sign_out_url_substitution }}" title="{{ snippets["links/logout"] | default:resx["Sign_Out"] | escape }}">
+												{{ snippets["links/logout"] | default:resx["Sign_Out"] | escape }}
+											</a>
+										</li>
+									</ul>
+								</li>
+							{% else %}
+								<li class="nav-item">
+									<a class="nav-link" aria-label="{{ snippets["links/login"] | default:resx["Sign_In"] | escape }}" aria-roledescription="link" href="{% if homeurl%}/{{ homeurl }}{% endif %}{{ website.sign_in_url_substitution }}">
+										{{ snippets["links/login"] | default:resx["Sign_In"] | escape }}
+									</a>
+								</li>
+							{% endif %}
+						{% endif %}
+					</ul>
+					{% editable primary_nav %}
+				</nav>
+			{% endif %}
+		</div>
+	</div>
+</div>
+
+{% substitution %}
+	{% assign current_page = page.id %}
+	{% assign sr_page = sitemarkers["Search"].id %}
+	{% assign forum_page = sitemarkers["Forums"].id %}
+	{% if current_page %}
+		{% if current_page == sr_page or current_page == forum_page %}
+			{% assign section_class = "section-landing-search" %}
+			{% if current_page == forum_page %}
+				{% assign section_class = "section-landing-forums" %}
+			{% endif %}
+			<section class="page_section {{ section_class | h }} color-inverse">
+				<div class="row sectionBlockLayout sectionFixedStyle" style="display: flex; flex-wrap: wrap; text-align: center;">
+					<div class="container" style="display: flex; flex-wrap: wrap;">
+						<div class="col-lg-12 columnBlockLayout" style="display: flex; flex-direction: column; justify-content: center;">
+							{% if current_page == sr_page %}
+								<h1 id="mainContent">{% editable snippets 'Search/Title' default: resx["Discover_Contoso"] %}</h1>
+								{% include 'Search' search_id:'search_control' %}
+							{% endif %}
+						</div>
+					</div>
+				</div>
+			</section>
+		{% endif %}
+	{% endif %}
+{% endsubstitution %}
+
+
+<script type="text/javascript">
+	window.onload = function() {
+		if (window.navigator.appName == "Microsoft Internet Explorer" || window.navigator.userAgent.indexOf("Trident") > 0) {
+			var searchElement = document.getElementById("search");
+			if (searchElement != null) searchElement.setAttribute("href", "");
+		}
+	};
+	function setHeight() {
+		var windowHeight = window.innerHeight - 140;
+		var navbar = document.getElementById("navbar");
+		if (navbar) {
+			navbar.style.maxHeight = windowHeight + "px";
+		}
+	}
+	window.addEventListener('resize', function(event) {
+		setHeight();
+	});
+
+	function showNavigationSpinner(linkElement) {
+		// Create spinner overlay
+		const spinner = document.createElement('div');
+		spinner.id = 'nav-spinner-overlay';
+		spinner.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background-color: rgba(255, 255, 255, 0.8);
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			z-index: 9999;
+			font-size: 18px;
+			color: #333;
+		`;
+		
+		spinner.innerHTML = `
+			<div style="text-align: center;">
+				<div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
+				<div>Loading...</div>
+			</div>
+			<style>
+				@keyframes spin {
+					0% { transform: rotate(0deg); }
+					100% { transform: rotate(360deg); }
+				}
+			</style>
+		`;
+		
+		document.body.appendChild(spinner);
+		
+		// Hide spinner after a reasonable timeout (in case navigation fails)
+		setTimeout(() => {
+			const existingSpinner = document.getElementById('nav-spinner-overlay');
+			if (existingSpinner) {
+				existingSpinner.remove();
+			}
+		}, 10000); // 10 second timeout
+	}
+
+	// Add click handlers to all navbar links
+	document.addEventListener('DOMContentLoaded', function() {
+		const navLinks = document.querySelectorAll('.navbar-nav.weblinks .nav-link');
+		
+		navLinks.forEach(function(link, index) {
+			link.addEventListener('click', function(event) {
+				// Only show spinner for actual navigation (not javascript: links or external links)
+				const href = this.getAttribute('href');
+				if (href && href !== '#' && !href.startsWith('javascript:') && !href.startsWith('http')) {
+					showNavigationSpinner(this);
+				} else {
+				}
+			});
+		});
+	});
+</script>
+
+<!-- <<LEAVE /web-templates/Header -->
+
+<!-- Last modified 2508301435 -->
+
+<!-- Last modified Tue Sep 30 7:45AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Mon Nov 17 7:17PM -->

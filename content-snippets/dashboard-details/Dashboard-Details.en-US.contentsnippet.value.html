@@ -1,0 +1,245 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sun Aug 31 2:26PM -->
+<!-- Last modified Sat Aug 30 3:10PM -->
+<!-- Last modified Sat Aug 30 3:02PM -->
+
+<!-- dashboard details -->
+<style>
+	.dashboard {
+		width: 100%;
+		margin: 20px 0;
+		float: none;
+		clear: both;
+	}
+	
+	.dashboard__grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: 1rem;
+		width: 100%;
+	}
+	
+	.dashboard__header {
+		width: 100%;
+		text-align: left;
+		margin-bottom: 1rem;
+	}
+	
+	.dashboard__card {
+		background: #f5f5f5;
+		padding: 1rem;
+		border-radius: 4px;
+	}
+	
+	/* Force left alignment of card content */
+	.dashboard__card-title,
+	.dashboard__info-row {
+		text-align: right;
+	}
+	
+	/* Clear any floating elements before and after */
+	.dashboard::before,
+	.dashboard::after {
+		content: "";
+		display: table;
+		clear: both;
+	}
+</style>
+
+<div class="dashboard">
+    <h3 class="dashboard__header">
+		<span style="color: white; margin-right: 10px;" title="PeriodNo: {{sqRecUISelPeriodNo}}">{{ sqRecUISelPeriod.lv_name }}</span>
+		<span style="color: gainsboro; margin-left: 10px;">Summary</span>
+	</h3>
+
+    <div class="dashboard__grid">
+        <div class="dashboard__card">
+            <h4 class="dashboard__card-title">Period Dates</h4>
+            <div class="dashboard__info-row">
+                <p class="dashboard__info-label">Date From:</p>
+                <p class="dashboard__info-value">{{ sqRecUISelPeriod.lv_datefrom | date: 'MM/dd/yy' }}</p>
+            </div>
+            <div class="dashboard__info-row">
+                <p class="dashboard__info-label">Date To:</p>
+                <p class="dashboard__info-value">{{ sqRecUISelPeriod.lv_dateto | date: 'MM/dd/yy' }}</p>
+            </div>
+        </div>
+
+        <div class="dashboard__card">
+            <h4 class="dashboard__card-title">Loans</h4>
+            <div class="dashboard__info-row">
+                <p class="dashboard__info-label">Loan $</p>
+                <p id="cardLoanTotal" class="dashboard__info-value">{% if page.title == 'Accounting' %}Calculating...{% else %}{{ cpLoanTotal | format: 'C0' }}{% endif %}</p>
+            </div>
+            <div class="dashboard__info-row">
+                <p class="dashboard__info-label">Loan Count</p>
+                <p id="cardLoanCount" class="dashboard__info-value">{% if page.title == 'Accounting' %}Calculating...{% else %}{{ cpLoanCount | integer }}{% endif %}</p>
+            </div>
+        </div>
+
+        <div class="dashboard__card">
+            <h4 class="dashboard__card-title" style="text-align: right;">Commissions</h4>
+            <div class="dashboard__info-row" style="justify-content: end;">
+                <p id="cardCommissionTotal" class="dashboard__info-value">{% if page.title == 'Accounting' %}Calculating...{% else %}{{ cpCommTotal | format: 'C' }}{% endif %}</p>
+            </div>
+        </div>
+
+        <div class="dashboard__card">
+            <h4 class="dashboard__card-title" style="text-align: right;">Adjustments</h4>
+            <div class="dashboard__info-row" style="justify-content: end;">
+                <p id="cardAdjustmentTotal" class="dashboard__info-value">{% if page.title == 'Accounting' %}Calculating...{% else %}{{ cpAdjuTotal | format: 'C' }}{% endif %}</p>
+            </div>            
+        </div>
+
+        <div class="dashboard__card">
+            <h4 class="dashboard__card-title">Total</h4>
+            <div class="dashboard__info-row">
+				{% assign tmpTotalSum = cpCommTotal | plus: cpAdjuTotal %}
+                <p class="dashboard__info-label">Total:</p>
+                <p id="cardCommTotal" class="dashboard__info-value">{% if page.title == 'Accounting' %}Calculating...{% else %}{{ tmpTotalSum | format: 'C' }}{% endif %}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{%- comment -%} FEATURE FLAG: DebtLog - only show if lv_enablecommissiondraws is true in setup record {%- endcomment -%}
+{%- if page.title == 'Loan Officer' and setupRecord.lv_enablecommissiondraws == true -%}
+<!-- Debt Balance Section (below summary cards, simple label format) -->
+<div class="dashboard" style="margin-top: 0;">
+	<div class="debt-balance-row" onclick="toggleDebtBalanceDetail()" style="cursor: pointer; display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: #f5f5f5; border-radius: 4px; max-width: fit-content;">
+		<span style="font-weight: bold; color: #333;">Current Debt Balance:</span>
+		<span id="debtBalanceAmount" style="font-weight: bold; color: #2c5aa0;">
+			<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+		</span>
+		<span id="debtBalanceHint" style="font-size: 0.75em; color: #888; margin-left: 0.5rem;">(click for details)</span>
+	</div>
+</div>
+{%- endif -%}
+
+{%- if page.title == 'Loan Officer' and setupRecord.lv_enablecommissiondraws == true -%}
+<!-- Debt Balance Detail Panel (appears below grid when expanded) -->
+<style>
+    .debt-balance-detail {
+        background: #f5f5f5;
+        padding: 1rem;
+        border-radius: 4px;
+        max-width: 600px;
+        margin: 1rem 0 1rem 8px;
+        display: none;
+    }
+    .debt-balance-detail__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #ddd;
+    }
+    .debt-balance-detail__title {
+        font-size: 1.1em;
+        font-weight: bold;
+        color: #333;
+        margin: 0;
+    }
+    .debt-balance-detail__close {
+        cursor: pointer;
+        color: #666;
+        font-size: 0.9em;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: #e0e0e0;
+    }
+    .debt-balance-detail__close:hover {
+        background: #d0d0d0;
+    }
+    .debt-balance-detail__table-container {
+        max-height: 200px;  /* Approximately 5 rows */
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    .debt-balance-detail__table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .debt-balance-detail__table thead {
+        position: sticky;
+        top: 0;
+        background: #f5f5f5;
+        z-index: 1;
+    }
+    .debt-balance-detail__table th {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 2px solid #ccc;
+        font-weight: bold;
+        color: #555;
+    }
+    .debt-balance-detail__table td {
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+    }
+    .debt-balance-detail__table .amount-positive {
+        color: #27ae60;
+        font-weight: bold;
+    }
+    .debt-balance-detail__table .amount-negative {
+        color: #c0392b;
+        font-weight: bold;
+    }
+    .debt-balance-detail__total {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 1rem;
+        padding-top: 0.5rem;
+        border-top: 2px solid #ccc;
+        font-weight: bold;
+    }
+    .debt-balance-detail__total-label {
+        color: #333;
+    }
+    .debt-balance-detail__total-amount {
+        color: #2c5aa0;
+        font-size: 1.2em;
+    }
+    .debt-balance-detail__total-amount.negative {
+        color: #c0392b;
+    }
+    #debtBalanceAmount.negative {
+        color: #c0392b;
+    }
+</style>
+
+<div id="debtBalanceDetail" class="debt-balance-detail">
+    <div class="debt-balance-detail__header">
+        <h4 class="debt-balance-detail__title">Current Debt Balance Details</h4>
+        <span class="debt-balance-detail__close" onclick="toggleDebtBalanceDetail()">Close</span>
+    </div>
+    <div class="debt-balance-detail__table-container">
+        <table class="debt-balance-detail__table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Date</th>
+                    <th style="text-align: right;">Amount</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody id="debtBalanceTableBody">
+                <!-- Populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    <div class="debt-balance-detail__total">
+        <span class="debt-balance-detail__total-label">Total Balance:</span>
+        <span id="debtBalanceTotalDetail" class="debt-balance-detail__total-amount">$0.00</span>
+    </div>
+</div>
+{%- endif -%}
+
+<!-- dashboard details -->
+
+<!-- Last modified Sat Aug 30 3:02PM -->
+<!-- Last modified Sat Aug 30 3:10PM -->
+<!-- Last modified Sun Aug 31 2:26PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

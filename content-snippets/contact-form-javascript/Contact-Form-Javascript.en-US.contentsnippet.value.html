@@ -1,0 +1,363 @@
+{% comment %}
+  Shared JavaScript for Contact Form (Add/Edit Profile)
+
+  This replaces the duplicated JavaScript between Add and Edit Profile pages.
+  Mode is auto-detected from URL path.
+
+  Configuration is passed from main template via window.contactFormConfig.
+  {% endcomment %}
+
+<script>
+
+// Safe debug functions - fallback if main ones not loaded yet
+if (typeof dbglog === 'undefined') {
+    window.dbglog = function(msg, tag) { 
+        // Simple fallback - just do nothing for now, main functions will override later
+    };
+    window.dbgerr = function(msg, tag) { 
+        // Always show errors regardless of debug state
+        console.error(msg);
+    };
+    window.dbgwarn = function(msg, tag) { 
+        // Simple fallback - just do nothing for now
+    };
+}
+
+// Auto-detect mode from URL path
+const IS_ADD_MODE = (function() {
+    const path = window.location.pathname.toLowerCase();
+    if (path.includes('add-profile')) return true;
+    if (path.includes('edit-profile')) return false;
+
+    // Fallback: Check if we have contact ID parameter (edit mode)
+    const urlParams = new URLSearchParams(window.location.search);
+    return !urlParams.has('id');
+})();
+
+
+// Wait for configuration to be available
+const waitForConfig = () => {
+    if (typeof window.contactFormConfig === 'undefined') {
+        setTimeout(waitForConfig, 100);
+        return;
+    }
+    
+    initializeContactFormValidation();
+};
+
+// Initialize validation after config is available
+const initializeContactFormValidation = () => {
+    
+    // Branch Manager role validation (for submit only)
+    const validateBranchManagerRole = (showErrors = true) => {
+
+        // Find Branch Manager checkbox using config
+        const branchManagerCheckbox = $('input[name="webroles[]"][value="' + window.contactFormConfig.branchRoleId + '"]');
+
+        if (branchManagerCheckbox.is(':checked')) {
+            let hasBranchAssignment = false;
+
+            if (window.contactFormConfig.useNewAssignment === false) {
+                // Legacy: Check if branch dropdown has a value
+                const branchSelect = $('#lv_Branch\\@odata\\.bind');
+                if (branchSelect.length && branchSelect.val() && branchSelect.val() !== '') {
+                    hasBranchAssignment = true;
+                }
+            } else {
+                // New system: Check if there are branch manager assignments
+                const branchManagerList = $('#branchManagerList');
+                if (branchManagerList.length) {
+                    // Look for table rows with assignment data (skip header row)
+                    const assignmentItems = branchManagerList.find('tbody tr.assignment-item');
+                    if (assignmentItems.length > 0) {
+                        hasBranchAssignment = true;
+                    } else {
+                    }
+                } else {
+                }
+            }
+
+
+            if (!hasBranchAssignment) {
+                if (showErrors) {
+                    showBranchManagerValidationError('Branch assignment required for Branch Manager role');
+                } else {
+                }
+                return false;
+            } else {
+                if (showErrors) {
+                    clearBranchManagerValidationError();
+                }
+            }
+        } else {
+            if (showErrors) {
+                clearBranchManagerValidationError();
+            }
+        }
+
+        return true;
+    };
+
+    // Show validation error for branch manager role
+    const showBranchManagerValidationError = (message) => {
+        // Clear any existing validation messages
+        clearBranchManagerValidationError();
+
+        // Create validation message element
+        const validationDiv = $('<div id="branchManagerValidation" style="color: red; font-weight: bold; margin-top: 10px; padding: 10px; background-color: #ffe6e6; border: 1px solid #ff0000; border-radius: 4px;">' + message + '</div>');
+
+        // Insert after the web-roles section
+        const webRolesSection = $('.web-roles');
+        if (webRolesSection.length) {
+            webRolesSection.after(validationDiv);
+        }
+
+        // Scroll to the validation message
+        validationDiv[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    // Clear validation error
+    const clearBranchManagerValidationError = () => {
+        $('#branchManagerValidation').remove();
+    };
+
+    // Export validation function for use in page-specific handlers
+    window.validateBranchManagerRole = validateBranchManagerRole;
+    
+    // Hook into form submit to run validation
+    const userForm = document.getElementById('userForm');
+    if (userForm) {
+        userForm.addEventListener('submit', function(event) {
+            
+            // Run Branch Manager validation (with error display)
+            if (!validateBranchManagerRole(true)) {
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+            
+        });
+    } else {
+    }
+    
+    // Initialize branch management functionality
+    initializeBranchManagement();
+    
+    // Initialize loan officer management functionality  
+    initializeLoanOfficerManagement();
+    
+};
+
+// Branch Management Functions
+const initializeBranchManagement = () => {
+    
+    // Region functionality completely removed - branch dropdown now populates directly from server
+    
+    // Branch Manager Add link event handler is now handled in Edit Profile JavaScript
+    // to avoid conflicts between multiple event handlers
+    
+    // Cancel and Add buttons removed - using auto-add on dropdown selection instead
+    
+    // Button handlers and dropdown change handlers are now in Edit Profile JavaScript
+    
+};
+
+// Function to add a branch manager assignment to the list
+const addBranchManagerAssignment = (branchName) => {
+    
+    const branchManagerList = document.getElementById('branchManagerList');
+    if (!branchManagerList) {
+        dbgerr('ERROR: branchManagerList not found', 'assignment');
+        return;
+    }
+    
+    // Initialize table if it doesn't exist
+    let table = branchManagerList.querySelector('table');
+    if (!table) {
+        table = document.createElement('table');
+        table.className = 'assignments-table';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Branch</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+        branchManagerList.appendChild(table);
+    }
+    
+    const tbody = table.querySelector('tbody');
+    if (!tbody) {
+        dbgerr('ERROR: tbody not found in assignments table', 'assignment');
+        return;
+    }
+    
+    // Create new row
+    const newRow = document.createElement('tr');
+    newRow.className = 'assignment-item';
+    newRow.setAttribute('data-branch', branchName);
+    
+    newRow.innerHTML = `
+        <td>${branchName}</td>
+        <td>
+            <button type="button" class="btn-remove" onclick="removeBranchManagerAssignment(this)">Remove</button>
+        </td>
+    `;
+    
+    tbody.appendChild(newRow);
+    
+    
+    // Trigger auto-check of Branch Manager role
+    if (window.validateBranchManagerRole) {
+        window.validateBranchManagerRole(false); // Don't show errors, just auto-check
+    }
+    
+    // Make save changes link visible if it exists
+    const saveLink = document.getElementById('saveBranchManagerChanges');
+    if (saveLink) {
+        saveLink.style.display = 'inline';
+        saveLink.textContent = 'Save Changes';
+    }
+};
+
+// Function to remove a branch manager assignment
+const removeBranchManagerAssignment = (button) => {
+    
+    const row = button.closest('tr');
+    if (row) {
+        const branch = row.getAttribute('data-branch');
+        
+        row.remove();
+        
+        // Check if table is now empty and remove table if so
+        const branchManagerList = document.getElementById('branchManagerList');
+        const table = branchManagerList?.querySelector('table');
+        const tbody = table?.querySelector('tbody');
+        
+        if (tbody && tbody.children.length === 0) {
+            table.remove();
+        }
+        
+        // Trigger validation update
+        if (window.validateBranchManagerRole) {
+            window.validateBranchManagerRole(false); // Don't show errors, just update auto-check
+        }
+        
+        // Make save changes link visible
+        const saveLink = document.getElementById('saveBranchManagerChanges');
+        if (saveLink) {
+            saveLink.style.display = 'inline';
+            saveLink.textContent = 'Save Changes';
+        }
+    }
+};
+
+// Make functions globally available
+window.addBranchManagerAssignment = addBranchManagerAssignment;
+window.removeBranchManagerAssignment = removeBranchManagerAssignment;
+
+// Loan Officer Assignment Functions
+const initializeLoanOfficerManagement = () => {
+    
+    // Setup event handlers for Add Loan Officer
+    const addLOOLink = document.getElementById('addLOOAssignmentLink');
+    if (addLOOLink) {
+        addLOOLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Hide the link and show the controls
+            this.style.display = 'none';
+            const controls = document.getElementById('addLOOAssignmentControls');
+            if (controls) {
+                controls.style.display = 'block';
+            } else {
+            }
+        });
+    } else {
+    }
+    
+    // Setup cancel handler
+    const cancelLOOButton = document.getElementById('canceladdLOOAssignment');
+    if (cancelLOOButton) {
+        cancelLOOButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Hide controls and show link
+            const controls = document.getElementById('addLOOAssignmentControls');
+            const link = document.getElementById('addLOOAssignmentLink');
+            if (controls) controls.style.display = 'none';
+            if (link) link.style.display = 'block';
+            
+            // Reset form - clear the loan officer select (it's a Select2 dropdown)
+            const officerSelect = document.getElementById('looOfficerSelect');
+            if (officerSelect) {
+                // Check if it's a Select2 dropdown
+                if ($(officerSelect).hasClass('select2-hidden-accessible')) {
+                    $(officerSelect).select2('val', '');
+                } else {
+                    officerSelect.selectedIndex = 0;
+                }
+            }
+        });
+    } else {
+    }
+    
+    // Setup loan officer change handler
+    const looOfficerSelect = document.getElementById('looOfficerSelect');
+    if (looOfficerSelect) {
+        looOfficerSelect.addEventListener('change', handleLOOOfficerChange);
+    } else {
+    }
+    
+};
+
+// Branch Dropdown Handlers (region functionality removed)
+
+const handleBMBranchChange = () => {
+    const branchSelect = document.getElementById('bmBranchSelect');
+    const confirmBtn = document.getElementById('confirmAddBranchManager');
+    const selectedBranch = branchSelect ? branchSelect.value : '';
+    
+    
+    if (confirmBtn) {
+        confirmBtn.disabled = !selectedBranch;
+    }
+};
+
+const handleLOOOfficerChange = () => {
+    const officerSelect = document.getElementById('looOfficerSelect');
+    const confirmBtn = document.getElementById('confirmaddLOOAssignment');
+    let selectedOfficer = '';
+    
+    
+    if (officerSelect) {
+        // Handle both Select2 and regular select
+        const hasSelect2 = $(officerSelect).hasClass('select2-hidden-accessible');
+        
+        if (hasSelect2) {
+            selectedOfficer = $(officerSelect).select2('val');
+        } else {
+            selectedOfficer = officerSelect.value;
+        }
+    } else {
+    }
+    
+    
+    if (confirmBtn) {
+        // Enable button if officer is selected and not placeholder
+        const isValid = selectedOfficer && selectedOfficer !== '' && selectedOfficer !== '__NONE__';
+        const previousState = confirmBtn.disabled;
+        confirmBtn.disabled = !isValid;
+    } else {
+    }
+};
+
+// Start waiting for config
+waitForConfig();
+
+// Make IS_ADD_MODE globally available
+window.IS_ADD_MODE = IS_ADD_MODE;
+
+</script>

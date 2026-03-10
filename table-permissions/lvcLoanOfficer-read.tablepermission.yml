@@ -1,0 +1,12 @@
+adx_append: false
+adx_appendto: false
+adx_create: false
+adx_delete: false
+adx_entitylogicalname: lv_lvcomploanofficer
+adx_entityname: lvcLoanOfficer-read
+adx_entitypermission_webrole:
+- e1e17fc7-e0e5-4803-b01b-0ba213d4c790
+adx_entitypermissionid: 3374f0a9-e519-f011-9989-002248045044
+adx_read: true
+adx_scope: 756150000
+adx_write: false

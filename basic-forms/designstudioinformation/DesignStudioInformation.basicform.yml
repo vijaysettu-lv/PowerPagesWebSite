@@ -1,0 +1,17 @@
+adx_attachfilestoragelocation: 756150000
+adx_captcharequired: false
+adx_containername: ''
+adx_entityformid: d1398561-bf9e-40b0-9e98-c3792c8c4f38
+adx_entityname: lv_lvcompcommission
+adx_entitypermissionsenabled: true
+adx_entitysourcetype: 756150001
+adx_formname: Information
+adx_hideformonsuccess: true
+adx_maximumnooffiles: 5
+adx_mode: 100000001
+adx_name: DesignStudioInformation
+adx_onsuccess: 756150001
+adx_recordidquerystringparametername: id
+adx_redirectwebpage: 3904d53f-e8bc-9c7d-8920-cda5e7854416
+adx_showcaptchaforauthenticatedusers: false
+adx_storageaccountname: ''

@@ -1,0 +1,12 @@
+adx_append: true
+adx_appendto: true
+adx_create: true
+adx_delete: true
+adx_entitylogicalname: lv_contactloanofficerrelationship
+adx_entityname: ContactLoanOfficerRelationship (Admin)
+adx_entitypermission_webrole:
+- 007ff13c-35b2-410f-aaff-3b671f3876bd
+adx_entitypermissionid: 71b10340-c8ca-f011-bbd3-6045bd078e56
+adx_read: true
+adx_scope: 756150000
+adx_write: true

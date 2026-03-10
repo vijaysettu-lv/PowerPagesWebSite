@@ -1,0 +1,386 @@
+<!-- Last modified Mon Nov 17 7:17PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Wed Oct 01 3:16PM -->
+<!-- Last modified Tue Sep 02 10:36AM -->
+<!-- Last modified Sat Aug 30 12:13PM -->
+<!-- Last modified Sat Aug 30 12:12PM -->
+
+<!-- ENTER: LoanOfficerDropdown -->
+
+{% comment %}
+FILE PURPOSE: PERMISSION-FILTERED LOAN OFFICER DROPDOWN WITH SELECT2
+
+This web template creates a responsive loan officer dropdown using Select2 library.
+Key features:
+- Permission-based filtering (only shows loan officers user can access)
+- Select2 enhanced dropdown with search capability 
+- Auto-focus on search field for better UX
+- Supports multiple dropdown instances on same page
+- Branch manager and direct assignment permission logic
+- Real-time filtering based on user roles and assignments
+
+PERMISSION-FILTERED LOAN OFFICER DROPDOWN
+
+This dropdown now enforces proper access control and only shows loan officers
+the current user is permitted to view based on their role assignments.
+
+PERMISSION LOGIC (from simplest to most complex):
+
+1. ADMIN USERS: See all loan officers (no filtering)
+
+2. DIRECT LOAN OFFICER ASSIGNMENT: 
+   - User has contact.lv_loanofficer field populated
+   - Can view only their own commissions
+   - NOTE: If is_OnlyLoanOfficer=true, no dropdown shown (handled by parent page)
+
+3. LOAN OFFICER OVERSIGHT:
+   - User assigned to specific loan officers via lv_contactloanofficerrelationship (relationshiptype='O')
+   - Can view their own LO (if assigned) + all assigned LOs
+
+4. BRANCH MANAGER (SINGLE):
+   - User has contact.lv_branch field populated (legacy)
+   - Can view all loan officers in that branch
+
+5. BRANCH MANAGER (MULTIPLE):
+   - User assigned to branches via lv_contactbranchassignment table
+   - Can view all loan officers in assigned branches
+
+6. COMPLEX COMBINATIONS:
+   - User may have multiple assignment types simultaneously
+   - System combines all permissions (union of accessible loan officers)
+
+The actual permission filtering is handled by SetupQuery content snippet which creates:
+- userLoanOfficerList: Pipe-delimited list like "|name1|id1|name2|id2|"
+- This list is built by combining all permission sources
+
+This dropdown simply filters against that pre-built permission list.
+{% endcomment %}
+
+{% assign pRefreshOnChange = parmRefreshOnChange | default: true %}
+
+{% comment %} At some point I would like to rename this to allow blank selection, which I think makes more sense {% endcomment %}
+{% assign pAllowClear = parmAllowClear | default: false %} 
+
+{% assign pShowAllOption = parmShowAllOption | default: true %}
+{% assign pRequired = parmRequired | default: true %}
+
+{% assign pFieldName = parmFieldName | default: 'loan-officer-select' %}
+{% assign pFieldId = parmFieldId | default: 'loan-officer-select' %}
+{% assign pContainerId = parmContainerId | default: 'loan-officer-select-container' %}
+{% assign pCurrentValue = parmCurrentValue | default: '' %}
+
+{% comment %} 
+IMPORTANT: This dropdown must ONLY show loan officers the user is permitted to view.
+The SetupQuery content snippet creates userLoanOfficerList with permitted officers.
+We still fetch all officers but filter them using permission logic below.
+{% endcomment %}
+
+{% comment %} Branch-Manager-Loan-Officer-List is now included in the main page to ensure commission data is available {% endcomment %}
+
+<!-- Existing code hide-->
+
+ {% fetchxml fxmOfficers %}
+	<fetch>
+		<entity name="lv_lvcomploanofficer">
+			<attribute name="lv_name" />
+			<attribute name="lv_lvcomploanofficerid" />
+			<attribute name="lv_code" />
+			<order attribute="lv_name" />
+		</entity>
+	</fetch>
+{% endfetchxml %} 
+
+
+
+<!-- Match the structure of the Period Selection snippet -->
+<div id="divLoanOfficerDropdown" class="form-group mb-3">
+	<label for="{{pFieldId}}" class="form-label" style="width: 100%; display: block; white-space: nowrap;">Loan Officer</label>
+	<div id="{{pContainerId}}">
+		<select id="{{pFieldId}}" name="{{pFieldName}}" class="form-control"></select>
+	</div>
+</div>
+
+
+<script>
+
+// Create unique variable name based on field ID to prevent conflicts between multiple dropdowns
+// Use IIFE to avoid const redeclaration errors when multiple dropdowns exist
+(function() {
+    const uniqueVarName = 'loanOfficers_{{pFieldId}}';
+
+    // All loan officers from database for this specific dropdown
+    window[uniqueVarName] = [
+		//code hidden existing
+   {% for row in fxmOfficers.results.entities %}
+    ["{{row.lv_lvcomploanofficerid}}","{{row.lv_name}}","{{row.lv_code}}"],
+    {% endfor %} 
+
+    ];
+
+
+    // Filter based on permissions: Use appropriate logic for each user type
+    let filteredOfficers = [];
+    
+    const isAdmin = {% if is_admin %}true{% else %}false{% endif %};
+    const isBranchManager = {% if is_BranchManager %}true{% else %}false{% endif %};
+    const userPermissionList = "{{userLoanOfficerList}}";
+    
+    console.log('DEBUG: Dropdown - isAdmin=', isAdmin, 'isBranchManager=', isBranchManager);
+    console.log('DEBUG: Dropdown - userPermissionList=', userPermissionList);
+    console.log('DEBUG: Dropdown - Total officers in database=', window[uniqueVarName].length);
+    
+    if (isAdmin) {
+        // Admins see all officers
+        filteredOfficers = window[uniqueVarName];
+    } else if (isBranchManager) {
+        // Branch Managers: Use commission-based logic (same as Branch page cards)
+        // This ensures consistency between Branch page and Loan Officer dropdown
+        
+        const branchManagerOfficerCodes = "{{branchManagerOfficerCodes}}";
+        console.log('DEBUG: Dropdown - branchManagerOfficerCodes=', branchManagerOfficerCodes);
+        console.log('DEBUG: Dropdown - branchManagerOfficerCodes.length=', branchManagerOfficerCodes.length);
+        
+        if (branchManagerOfficerCodes && branchManagerOfficerCodes.trim() !== '') {
+            // Parse the template-generated officer codes
+            const allowedCodes = new Set();
+            const codeParts = branchManagerOfficerCodes.split('|');
+            for (let i = 0; i < codeParts.length; i++) {
+                const code = codeParts[i].trim();
+                if (code !== '') {
+                    allowedCodes.add(code);
+                }
+            }
+            
+            // Filter officers based on the template-generated list (same as Branch page)
+            window[uniqueVarName].forEach(function(officer) {
+                const officerCode = officer[2]; // lv_code
+                if (allowedCodes.has(officerCode)) {
+                    filteredOfficers.push(officer);
+                }
+            });
+        } else {
+            // Fallback: no officers found (shouldn't happen if template is working)
+            console.log('DEBUG: Dropdown - Branch Manager but NO branchManagerOfficerCodes found!');
+            filteredOfficers = [];
+        }
+    } else {
+        // Regular Loan Officers: Use direct assignment logic (userLoanOfficerList)
+        // These users don't have access to /Branch page, so they use their direct assignments
+        
+        if (userPermissionList && userPermissionList.trim() !== '') {
+            // Parse userLoanOfficerList to extract officer codes
+            const allowedCodes = new Set();
+            const permissionCodes = userPermissionList.split('|');
+            for (let i = 0; i < permissionCodes.length; i++) {
+                const code = permissionCodes[i].trim();
+                if (code !== '') {
+                    allowedCodes.add(code);
+                }
+            }
+            
+            // Filter officers based on direct assignments
+            window[uniqueVarName].forEach(function(officer) {
+                const officerCode = officer[2]; // lv_code
+                if (allowedCodes.has(officerCode)) {
+                    filteredOfficers.push(officer);
+                }
+            });
+        } else {
+            // No direct assignments found
+            filteredOfficers = [];
+        }
+    }
+    
+    // Replace the full list with filtered list
+    console.log('DEBUG: Dropdown - Final filteredOfficers count=', filteredOfficers.length);
+    window[uniqueVarName] = filteredOfficers;
+
+    // Create unique function name to avoid conflicts
+    const initFunctionName = 'initLoanOfficerSelect_{{pFieldId}}';
+    window[initFunctionName] = function(selector, defaultId) {
+	console.log('DEBUG LO Dropdown init: selector=', selector, 'defaultId=', defaultId);
+	// Use the unique variable name for this dropdown instance
+	const uniqueVarName = 'loanOfficers_{{pFieldId}}';
+	const officersForThisDropdown = window[uniqueVarName];
+
+	const allowClear = {% if pAllowClear %}true{% else %}false{% endif %};
+
+	// Destroy any existing select2 instance
+	if ($(selector).hasClass('select2-hidden-accessible')) {
+		$(selector).select2('destroy');
+	}
+	
+	// Create options array - ONLY the new logic
+	const allOptions = [];
+	
+	// Add "no assignment" option when allowClear is true
+	if (allowClear) {
+		allOptions.push({
+			id: '__NONE__',
+			text: '-- No Loan Officer Assigned --'
+		});
+	}
+	
+	// REMOVED "All Loan Officers" option for performance reasons
+	// Users should either select specific officers or use /Accounting page for comprehensive views
+	// This eliminates server-side performance bottleneck when loading all commission records
+	
+	// Add all loan officers for this specific dropdown
+	if (officersForThisDropdown && officersForThisDropdown.length > 0) {
+		officersForThisDropdown.forEach(function(officer, index) {
+			allOptions.push({
+				id: officer[0],
+				text: officer[1] === officer[2] ? officer[1] : officer[1] + ' (' + officer[2] + ')'
+			});
+		});
+	}
+	
+	const containerSelector = '{{pContainerId}}';
+	const $container = $('#' + containerSelector);
+
+	$(selector).select2({
+		placeholder: allowClear ? "Select loan officer (optional)" : "Please select a loan officer", 
+		allowClear: false,
+		width: '350px',
+		dropdownParent: $container.length > 0 ? $container : $('body'),
+		data: allOptions
+	});
+
+	// ENHANCEMENT: Auto-focus search field when dropdown opens for better UX
+	$(selector).on('select2:open', function (e) {
+		setTimeout(function() {
+			const searchField = $('.select2-search__field');
+			if (searchField.length > 0 && searchField[0]) {
+				// Use native DOM focus to bypass Select2's focus management
+				searchField[0].focus();
+			}
+		}, 100); // Small delay to ensure dropdown is fully rendered
+	});
+
+	// Check if the select2 was actually created successfully
+	setTimeout(function() {
+		const $select2 = $(selector).next('.select2-container');
+		if ($select2.length > 0) {
+		}
+	}, 100);
+
+	// Set the default value - Since "All Loan Officers" is removed, use appropriate defaults
+	let valueToSet = defaultId;
+	if (!defaultId || defaultId.trim() === '') {
+		// No specific officer selected - show placeholder
+		if (allowClear) {
+			valueToSet = '__NONE__';
+		} else {
+			valueToSet = '';  // Shows "Please select" placeholder
+		}
+	}
+
+	console.log('DEBUG LO Dropdown: Final valueToSet=', valueToSet, 'defaultId=', defaultId);
+
+	if (valueToSet && valueToSet.trim() !== '') {
+		console.log('DEBUG LO Dropdown: Setting value to', valueToSet);
+		$(selector).val(valueToSet).trigger('change');
+	} else {
+		// Show "Please select" message by leaving empty
+		console.log('DEBUG LO Dropdown: Setting to empty (placeholder)');
+		$(selector).val('').trigger('change');
+	}
+
+    }; // Close the function
+
+    // Store function name for later use
+    window['initLoanOfficerSelect_{{pFieldId}}_name'] = initFunctionName;
+
+})(); // Close the IIFE
+
+
+document.addEventListener("LVGlobalDOCReady", function() {	
+
+	const url = new URL(window.location.href);
+	const urlOfficer = url.searchParams.get('officer');
+	const refreshOnChange = {% if pRefreshOnChange %}true{% else %}false{% endif %};
+
+	// Use passed parameter first, then fall back to URL parameter
+	const pCurrentValue = '{{pCurrentValue}}';
+	const currentOfficer = pCurrentValue || urlOfficer || '';
+
+	console.log('DEBUG LO Dropdown: pCurrentValue=', pCurrentValue, 'urlOfficer=', urlOfficer, 'currentOfficer=', currentOfficer);
+
+	
+	$('#{{pFieldId}}').on('change', function(e) {
+		const value = $(this).val();
+		
+		// Needed to prevent infinite redirect!
+		if (value && refreshOnChange && value !== currentOfficer) {
+			spinShow(true);
+
+			// Get current URL and update the 'officer' parameter
+			const url = new URL(window.location.href);
+			url.searchParams.set('officer', value);
+
+			// AUTO-PERIOD SELECTION: If no period is currently selected, auto-select the first available period
+			const currentPeriod = url.searchParams.get('period');
+			if (!currentPeriod || currentPeriod.trim() === '') {
+				// Find the period dropdown and get the first valid option
+				const periodSelect = document.getElementById('period-select');
+				if (periodSelect) {
+					// Look for the first non-placeholder option
+					const options = Array.from(periodSelect.options);
+					let firstValidOption = null;
+
+					for (const option of options) {
+						if (option.value && option.value.trim() !== '' && !option.disabled && option.value !== '__NONE__') {
+							firstValidOption = option;
+							break;
+						}
+					}
+
+					if (firstValidOption) {
+						console.log('DEBUG: Auto-selecting period for loan officer:', firstValidOption.textContent, 'value:', firstValidOption.value);
+						url.searchParams.set('period', firstValidOption.value);
+					}
+				}
+			}
+
+			console.log('DEBUG: Loan Officer selection navigation:', url.toString());
+			window.location.href = url.toString();
+		}
+	});
+
+	// Add required validation based on parameter
+	{% if pRequired %}$('#{{pFieldId}}').prop('required', true);{% endif %}
+
+	setTimeout(function() {
+		const initFunctionName = 'initLoanOfficerSelect_{{pFieldId}}';
+		console.log('DEBUG LO Dropdown: About to call', initFunctionName, 'with currentOfficer=', currentOfficer);
+		window[initFunctionName]('#{{pFieldId}}', currentOfficer);
+
+		// AUTO-SELECTION: If exactly one loan officer exists and no officer is pre-selected, auto-select it
+		const uniqueVarName = 'loanOfficers_{{pFieldId}}';
+		const officersForThisDropdown = window[uniqueVarName];
+
+		if (officersForThisDropdown && officersForThisDropdown.length === 1 && (!currentOfficer || currentOfficer.trim() === '')) {
+			const singleOfficerId = officersForThisDropdown[0][0];
+			const singleOfficerName = officersForThisDropdown[0][1];
+			console.log('DEBUG LO Dropdown: Auto-selecting single officer:', singleOfficerName, 'ID:', singleOfficerId);
+
+			// Set the value and trigger change to cascade to period dropdown
+			setTimeout(function() {
+				$('#{{pFieldId}}').val(singleOfficerId).trigger('change');
+			}, 200); // Slight additional delay to ensure select2 is fully initialized
+		}
+	}, 100); // Small delay to ensure DOM is fully ready
+});
+
+
+
+
+</script>
+
+<!-- Last modified Sat Aug 30 10:53AM -->
+<!-- Last modified Sat Aug 30 12:12PM -->
+<!-- Last modified Sat Aug 30 12:13PM -->
+<!-- Last modified Tue Sep 02 10:36AM -->
+<!-- Last modified Wed Oct 01 3:16PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Mon Nov 17 7:17PM -->

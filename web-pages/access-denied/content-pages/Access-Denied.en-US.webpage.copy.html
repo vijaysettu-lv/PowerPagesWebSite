@@ -1,0 +1,108 @@
+<!-- Last modified Wed Oct 29 8:54AM -->
+<!-- Last modified Wed Oct 29 8:37AM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+
+{% comment %} Check for critical null branch data error {% endcomment %}
+{% if request.params.reason == 'null-branch-data' %}
+	<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; min-height: 50px; background: var(--portalThemeColor2);"></div>
+	<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; min-height: 50px; background: var(--portalThemeColor6);"></div>
+	<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; text-align: left; min-height: 600px;">
+		<div class="container" style="padding: 20px; display: flex; flex-wrap: wrap;">
+			<div class="col-lg-12 columnBlockLayout" style="flex-grow: 1; display: flex; flex-direction: column; min-width: 300px; padding: 16px;">
+
+				<div style="max-width: 700px; margin: 0 auto; padding: 40px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+
+					<h2 style="color: var(--portalThemeColor1); margin-top: 0; font-size: 24px;">
+						Account Access Issue
+					</h2>
+
+					<p style="font-size: 16px; line-height: 1.6; color: #495057; margin: 20px 0;">
+						We're unable to load your account at this time due to a configuration issue.
+						Please contact your system administrator for assistance.
+					</p>
+
+					<div style="margin: 30px 0;">
+						<p style="font-size: 16px; margin-bottom: 10px;">
+							<strong>Contact Information:</strong>
+						</p>
+						<p style="font-size: 16px; margin: 5px 0; color: #495057;">
+							Your email: {{ user.emailaddress1 }}
+						</p>
+					</div>
+
+					<div style="margin-top: 30px; border-top: 1px solid #dee2e6; padding-top: 20px;">
+						<a href="#" onclick="toggleDetails(); return false;" style="color: var(--portalThemeColor9); text-decoration: none; font-size: 14px;">
+							<span id="detailsToggleText">Show technical details</span> <span id="detailsToggleIcon">▼</span>
+						</a>
+
+						<div id="technicalDetails" style="display: none; margin-top: 15px; padding: 15px; background-color: #fff; border: 1px solid #dee2e6; border-radius: 4px;">
+							<h4 style="margin-top: 0; font-size: 14px; color: #6c757d;">Technical Information</h4>
+							<table style="width: 100%; font-size: 13px; color: #6c757d;">
+								<tr>
+									<td style="padding: 4px 0; width: 140px;"><strong>Error Code:</strong></td>
+									<td style="padding: 4px 0;">NULL_BRANCH_ASSIGNMENT</td>
+								</tr>
+								<tr>
+									<td style="padding: 4px 0;"><strong>User Name:</strong></td>
+									<td style="padding: 4px 0;">{{ user.fullname }}</td>
+								</tr>
+								<tr>
+									<td style="padding: 4px 0;"><strong>User ID:</strong></td>
+									<td style="padding: 4px 0; font-family: monospace; font-size: 11px;">{{ user.id }}</td>
+								</tr>
+								{% if request.params.count %}
+								<tr>
+									<td style="padding: 4px 0;"><strong>Affected Records:</strong></td>
+									<td style="padding: 4px 0;">{{ request.params.count }}</td>
+								</tr>
+								{% endif %}
+							</table>
+							<p style="font-size: 12px; color: #6c757d; margin-top: 15px; margin-bottom: 0;">
+								<em>This error has been automatically logged for administrative review.</em>
+							</p>
+						</div>
+					</div>
+
+				</div>
+
+			</div>
+		</div>
+	</div>
+
+	<script>
+	function toggleDetails() {
+		const details = document.getElementById('technicalDetails');
+		const toggleText = document.getElementById('detailsToggleText');
+		const toggleIcon = document.getElementById('detailsToggleIcon');
+
+		if (details.style.display === 'none') {
+			details.style.display = 'block';
+			toggleText.textContent = 'Hide technical details';
+			toggleIcon.textContent = '▲';
+		} else {
+			details.style.display = 'none';
+			toggleText.textContent = 'Show technical details';
+			toggleIcon.textContent = '▼';
+		}
+	}
+	</script>
+
+	<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; min-height: 315px; background: var(--portalThemeColor1);"></div>
+
+{% else %}
+	{% comment %} Normal access denied page {% endcomment %}
+	<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; min-height: 50px; background: var(--portalThemeColor2);"></div>
+	<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; min-height: 50px; background: var(--portalThemeColor6);"></div>
+	<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; text-align: left; min-height: 374px;">
+	  <div class="container" style="padding: 0px; display: flex; flex-wrap: wrap;">
+	    <div class="col-lg-12 columnBlockLayout" style="flex-grow: 1; display: flex; flex-direction: column; min-width: 300px; padding: 16px;"><img src="/Cat-PC.png" alt="" name="Cat-PC.png" style="width: 200px; height: 161px; margin-left: auto; margin-right: auto;">
+	      <h2 style="text-align: center; color: var(--portalThemeColor9);">You don't have access to this</h2>
+	      <p style="text-align: center; color: var(--portalThemeColor8);">Check your credentials or ask your admin to request access</p>
+	    </div>
+	  </div>
+	</div>
+{% endif %}
+<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; min-height: 315px; background: var(--portalThemeColor1);"></div>
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Wed Oct 29 8:37AM -->
+<!-- Last modified Wed Oct 29 8:54AM -->

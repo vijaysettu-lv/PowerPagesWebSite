@@ -1,0 +1,44 @@
+<!-- 
+ ENTER: fxmCurrentPeriod  selPeriodNo={{sqUISelPeriodNo}}      2506061341 Fri Jun 6 -->
+<!-- VERSION MARKER: FetchXML-Current-Period v300530-TEST-DEPLOY -->
+<!-- DEBUG ISOLATE: FetchXML Current Period starting -->
+<!-- DEBUG ISOLATE: FetchXML Current Period completed -->
+
+{% comment %}~commissions ~commquery {% endcomment %} 
+
+<!-- 
+
+-->
+
+{% comment %} FetchXML queries moved to Commission-Filter snippet {% endcomment %}
+
+<!-- fxmCP::000 -->
+
+{% comment %}
+Absolute insanity: I never could get any fetchXml to do this calculation properly
+So I thought sure, it will be easy to do procedurally. Nope. The only thing I could
+ever get to work is terrible giant string concatenation. Could NOT get array to 
+work: never could get it to indicate that yes, such and such value is indeed already in the array
+{% endcomment %} 
+
+{% assign seenLoansString = "" %}
+{% comment %} Loan counts and totals now provided by Commission-Filter snippet - removed duplicate initialization {% endcomment %}
+
+{% assign enableDebug = false %}
+{% if request.params.dbg == "1" %}
+	{% assign enableDebug = true %}
+{% endif %}
+
+<!-- fxmCP::001 -->
+
+{% comment %} REMOVED: Duplicate filtering and loan calculation logic - now handled by Commission-Filter snippet {% endcomment %}
+
+<!-- fxmCP::100a Legacy debug output - cpCommCount and cpCommTotal now set by Commission-Filter -->
+
+
+{% comment %} FetchXML queries moved to Commission-Filter snippet {% endcomment %}
+
+<!-- fxmCP::200 -->
+
+{% comment %} Adjustment counts and totals now provided by Commission-Filter snippet {% endcomment %}
+

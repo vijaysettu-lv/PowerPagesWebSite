@@ -1,0 +1,1280 @@
+<!-- Last modified Mon Nov 10 1:41PM -->
+<!-- Last modified Mon Nov 10 1:28PM -->
+<!-- Last modified Tue Sep 02 5:27PM -->
+<!-- Last modified thu jul 31 10:49am -->
+{% include 'snippet' snippet_name:'FetchXML - SetupQuery' %}
+
+<div class="row sectionBlockLayout text-start" style="display: flex; flex-wrap: wrap; margin: 0px; min-height: auto; padding: 8px;">
+	<div class="container" style="display: flex; flex-wrap: wrap;">
+		<div class="col-lg-12 columnBlockLayout" style="flex-grow: 1; display: flex; flex-direction: column; min-width: 250px; padding: 16px; margin: 60px 0px;">
+
+			<h1>System Diagnostics & Data Browser</h1>
+			<p class="text-muted">Comprehensive system information and data inspection tool</p>
+			<p class="text-muted"><small>Updated Thu Oct 23, 6:10am</small></p>
+
+			<!-- Commission Summary Controls -->
+			<div class="card mt-3">
+				<div class="card-header bg-info text-white">
+					<h5 class="mb-0"><i class="fas fa-chart-bar"></i> Commission Summary Reports</h5>
+				</div>
+				<div class="card-body">
+					<p class="mb-3">
+						<strong>Note:</strong> These reports query all commission data and may be slow on large installations.
+						Select which summaries to display below.
+					</p>
+					<div class="row">
+						<div class="col-md-6">
+							<div class="form-check">
+								<input class="form-check-input" type="checkbox" id="showPeriodCheck">
+								<label class="form-check-label" for="showPeriodCheck">
+									<strong>Commissions by Period</strong> - Aggregate totals grouped by period
+								</label>
+							</div>
+							<div class="form-check mt-2">
+								<input class="form-check-input" type="checkbox" id="showLoopingCheck">
+								<label class="form-check-label" for="showLoopingCheck">
+									<strong>Looping Method</strong> - Alternative calculation approach (slower)
+								</label>
+							</div>
+							<div class="form-check mt-2">
+								<input class="form-check-input" type="checkbox" id="showBranchCheck">
+								<label class="form-check-label" for="showBranchCheck">
+									<strong>By Period and Branch</strong> - Grouped by period and branch
+								</label>
+							</div>
+						</div>
+						<div class="col-md-6">
+							<div class="form-check">
+								<input class="form-check-input" type="checkbox" id="showOfficerCheck">
+								<label class="form-check-label" for="showOfficerCheck">
+									<strong>By Period, Branch, and Loan Officer</strong> - Full hierarchy
+								</label>
+							</div>
+							<div class="form-check mt-2">
+								<input class="form-check-input" type="checkbox" id="showCommissionsCheck">
+								<label class="form-check-label" for="showCommissionsCheck">
+									<strong>Raw Commission Data</strong> - Latest period verification
+								</label>
+							</div>
+						</div>
+					</div>
+					<div class="mt-3">
+						<button class="btn btn-primary" onclick="loadSelectedSections()">
+							<i class="fas fa-sync-alt"></i> Load Selected Reports
+						</button>
+						<button class="btn btn-secondary ms-2" onclick="clearAllSections()">
+							<i class="fas fa-times"></i> Clear All
+						</button>
+					</div>
+					<div id="loadingMessage" class="mt-3 alert alert-info" style="display: none;">
+						<i class="fas fa-spinner fa-spin"></i> Loading selected reports...
+					</div>
+				</div>
+			</div>
+
+			<!-- Commission Summary Report Output Area (populated by JavaScript) -->
+			<div id="commissionReportsContainer"></div>
+
+			{% comment %} I try to keep this in sync with same in rcm2, but never a guarantee {% endcomment %}
+			<div class="card mt-3"> <!-- USER INFORMATION -->
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#currentUserCollapse" aria-expanded="true" aria-controls="currentUserCollapse">
+						Current User Information
+					</button>
+				</div>
+
+				<div class="collapse" id="currentUserCollapse">
+					<div class="card-body">
+						<table class="user-table">
+							<thead>
+								<tr>
+									<th>Variable</th>
+									<th>Value</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr><td>user.id</td><td>{{ user.id }}</td></tr>
+								<tr><td>user.username</td><td>{{ user.username }}</td></tr>
+								<tr><td>user.firstname</td><td>{{ user.firstname }}</td></tr>
+								<tr><td>user.middlename</td><td>{{ user.middlename }}</td></tr>
+								<tr><td>user.lastname</td><td>{{ user.lastname }}</td></tr>
+								<tr><td>user.fullname             </td><td>{{ user.fullname }}</td></tr>
+								<tr><td>user.emailaddress1        </td><td>{{ user.emailaddress1 }}</td></tr>
+								<tr><td>user.lv_branch.id</td><td>{{ user.lv_branch.id }}</td></tr>
+								<tr><td>user.lv_branch.name</td><td>{{ user.lv_branch.name }}</td></tr>		
+								<tr><td>user.lv_loanofficer.id</td><td>{{ user.lv_loanofficer.id }}</td></tr>
+								<tr><td>user.lv_loanofficer.name</td><td>{{ user.lv_loanofficer.name }}</td></tr>
+								<tr><td>user.lv_loanofficer.code</td><td>{{ user.lv_loanofficer.code }}</td></tr>
+								<tr><td>user.lv_loanofficer.lv_code</td><td>{{ user.lv_loanofficer.lv_code }}</td></tr>
+								<tr><td>user.lv_loanofficer (full object)</td><td>{{ user.lv_loanofficer }}</td></tr>
+
+								<tr>
+									<td>user.roles</td>
+									<td>
+										{% for role in user.roles %}
+											{{ role }} ;
+										{% endfor %}
+									</td>
+								</tr>
+
+								<tr><td>user.isAuthenticated</td><td class="authenticated">{{ user.isAuthenticated }}</td></tr>
+								<tr><td>user.type</td><td>{{ user.type }}</td></tr>
+
+								<tr><td>userBranchList</td><td>{{userBranchList}}</td></tr>
+								<tr><td>userLoanOfficerList</td><td>{{userLoanOfficerList}}</td></tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+			<div class="card mt-3"> <!-- PERIOD INFORMATION -->
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#periodCollapse" aria-expanded="false" aria-controls="periodCollapse">
+						Period
+					</button>
+				</div>
+
+				<div class="collapse" id="periodCollapse">
+					<div class="card-body">
+						{% fetchxml periodData %}
+							<fetch>
+								<entity name="lv_lvcompcommperiodcalc">
+									<attribute name="lv_periodno" />
+									<attribute name="lv_name" />
+									<attribute name="lv_visibleonweb" />
+									<attribute name="lv_datefrom" />
+									<attribute name="lv_dateto" />
+									<attribute name="lv_periodcode" />
+
+									<order attribute="lv_periodno" descending="true" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						<p><strong>Count:</strong> {{ periodData.results.entities.size }}</p>
+
+						<table class="table table-striped sortable-table" id="periodTable">
+							<thead>
+								<tr>
+									<th class="sortable-header" data-column="periodno">Period No</th>
+									<th class="sortable-header" data-column="name">Name</th>
+									<th class="sortable-header" data-column="visible">Visible</th>
+									<th class="sortable-header" data-column="datefrom">Date From</th>
+									<th class="sortable-header" data-column="dateto">Date To</th>
+									<th class="sortable-header" data-column="periodcode">Period Code</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for period in periodData.results.entities %}
+									<tr>
+										<td>{{ period.lv_periodno }}</td>
+										<td>{{ period.lv_name }}</td>
+										<td>{{ period.lv_visibleonweb }}</td>
+										<td>{{ period.lv_datefrom | date: 'yyyy-MM-dd' }}</td>
+										<td>{{ period.lv_dateto | date: 'yyyy-MM-dd' }}</td>
+										<td>{{ period.lv_periodcode }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+			<div class="card mt-3"> <!-- LOAN OFFICER INFORMATION -->
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#loanOfficerCollapse" aria-expanded="false" aria-controls="loanOfficerCollapse">
+						Loan Officers
+					</button>
+				</div>
+
+				<div class="collapse" id="loanOfficerCollapse">
+					<div class="card-body">
+						{% fetchxml loanOfficerData %}
+							<fetch>
+								<entity name="lv_lvcomploanofficer">
+									<attribute name="lv_name"></attribute>
+									<attribute name="lv_code"></attribute>
+									<attribute name="lv_xbranchcode"></attribute>
+									<order attribute="lv_name" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						<p><strong>Count:</strong> {{ loanOfficerData.results.entities.size }}</p>
+
+						<table class="table table-striped sortable-table" id="loanOfficerTable">
+							<thead>
+								<tr>
+									<th class="sortable-header" data-column="name">Name</th>
+									<th class="sortable-header" data-column="code">Code</th>
+									<th class="sortable-header" data-column="branchcode">Branch Code</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for officer in loanOfficerData.results.entities %}
+									<tr>
+										<td>{{ officer.lv_name }}</td>
+										<td>{{ officer.lv_code }}</td>
+										<td>{{ officer.lv_xbranchcode }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+			<div class="card mt-3"> <!-- BRANCH LOAN OFFICER ASSIGNMENTS -->
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#branchAssignmentsCollapse" aria-expanded="false" aria-controls="branchAssignmentsCollapse">
+						Contact Branch Assignments
+					</button>
+				</div>
+
+				<div class="collapse" id="branchAssignmentsCollapse">
+					<div class="card-body">
+						{% fetchxml branchAssignmentData %}
+							<fetch>
+								<entity name="lv_contactbranchassignment">
+									<attribute name="lv_name" />
+									<attribute name="lv_contactname" />
+									<attribute name="lv_branchname" />
+									<attribute name="lv_branchcode" />
+									<attribute name="createdby" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						<p><strong>Count:</strong> {{ branchAssignmentData.results.entities.size }}</p>
+
+						<table class="table table-striped sortable-table" id="branchAssignmentTable">
+							<thead>
+								<tr>
+									<th class="sortable-header" data-column="name">Name</th>
+									<th class="sortable-header" data-column="contact">Contact</th>
+									<th class="sortable-header" data-column="branch">Branch</th>
+									<th class="sortable-header" data-column="code">Code</th>
+									<th class="sortable-header" data-column="createdby">Created By</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for row in branchAssignmentData.results.entities %}
+									<tr>
+										<td>{{ row.lv_name }}</td>
+										<td>{{ row.lv_contactname }}</td>
+										<td>{{ row.lv_branchname }}</td>
+										<td>{{ row.lv_branchcode }}</td>
+										<td>{{ row.createdby.name }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+			<div class="card mt-3"> <!-- Contact LO Relationships -->
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#loRelationshipsCollapse" aria-expanded="false" aria-controls="loRelationshipsCollapse">
+						Contact Loan Officer Relationships
+					</button>
+				</div>
+
+				<div class="collapse" id="loRelationshipsCollapse">
+					<div class="card-body">
+						{% fetchxml loRelationshipData %}
+							<fetch>
+								<entity name="lv_contactloanofficerrelationship">
+									<attribute name="lv_name" />
+									<attribute name="lv_contactname" />
+									<attribute name="lv_loanofficername" />
+									<attribute name="lv_loanofficercode" />
+									<attribute name="lv_relationshiptype" />
+									<attribute name="lv_reason" />
+									<attribute name="createdby" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						<p><strong>Count:</strong> {{ loRelationshipData.results.entities.size }}</p>
+
+						<table class="table table-striped sortable-table" id="loRelationshipTable">
+							<thead>
+								<tr>
+									<th class="sortable-header" data-column="name">Name</th>
+									<th class="sortable-header" data-column="contact">Contact</th>
+									<th class="sortable-header" data-column="loanofficer">Loan Officer</th>
+									<th class="sortable-header" data-column="code">Code</th>
+									<th class="sortable-header" data-column="type">Type</th>
+									<th class="sortable-header" data-column="reason">Reason</th>
+									<th class="sortable-header" data-column="createdby">Created By</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for row in loRelationshipData.results.entities %}
+									<tr>
+										<td>{{ row.lv_name }}</td>
+										<td>{{ row.lv_contactname }}</td>
+										<td>{{ row.lv_loanofficername }}</td>
+										<td>{{ row.lv_loanofficercode }}</td>
+										<td>{% if row.lv_relationshiptype == 'O' %}Oversight{% elsif row.lv_relationshiptype == 'X' %}Exclusion{% else %}{{ row.lv_relationshiptype }}{% endif %}</td>
+										<td>{{ row.lv_reason }}</td>
+										<td>{{ row.createdby.name }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+			<div class="card mt-3"> <!-- LV COMP BRANCH -->
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#lvCompBranchCollapse" aria-expanded="false" aria-controls="lvCompBranchCollapse">
+						lv_lvcompBranch
+					</button>
+				</div>
+
+				<div class="collapse" id="lvCompBranchCollapse">
+					<div class="card-body">
+						{% fetchxml lvCompBranchData %}
+							<fetch>
+								<entity name="lv_lvcompbranch">
+									<attribute name="lv_code" />
+									<attribute name="lv_name" />
+									<order attribute="lv_code" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						<p><strong>Count:</strong> {{ lvCompBranchData.results.entities.size }}</p>
+
+						<table class="table table-striped sortable-table" id="lvCompBranchTable">
+							<thead>
+								<tr>
+									<th class="sortable-header" data-column="code">Code</th>
+									<th class="sortable-header" data-column="name">Name</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for branch in lvCompBranchData.results.entities %}
+									<tr>
+										<td>{{ branch.lv_code }}</td>
+										<td>{{ branch.lv_name }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+			<div class="card mt-3"> <!-- DYN365BC BRANCH -->
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#dyn365bcBranchCollapse" aria-expanded="false" aria-controls="dyn365bcBranchCollapse">
+						dyn365bc_branch_loanvision_loanvision_v2_0
+					</button>
+				</div>
+
+				<div class="collapse" id="dyn365bcBranchCollapse">
+					<div class="card-body">
+						{% fetchxml dyn365bcBranchData %}
+							<fetch>
+								<entity name="dyn365bc_branch_loanvision_loanvision_v2_0">
+									<attribute name="dyn365bc_code" />
+									<attribute name="dyn365bc_name" />
+									<order attribute="dyn365bc_code" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						<p><strong>Count:</strong> {{ dyn365bcBranchData.results.entities.size }}</p>
+
+						<table class="table table-striped sortable-table" id="dyn365bcBranchTable">
+							<thead>
+								<tr>
+									<th class="sortable-header" data-column="code">Code</th>
+									<th class="sortable-header" data-column="name">Name</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for branch in dyn365bcBranchData.results.entities %}
+									<tr>
+										<td>{{ branch.dyn365bc_code }}</td>
+										<td>{{ branch.dyn365bc_name }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+			<!-- First Card: Commissions by Period (Hidden by default) -->
+				<div class="card mt-3 commission-section" data-section="period" style="display: none;">
+					<div class="card-header">
+						<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#periodCommissionsCollapse" aria-expanded="true" aria-controls="periodCommissionsCollapse">
+							Commissions by Period <span class="text-muted">(period)</span>
+						</button>
+					</div>
+					<div class="collapse show" id="periodCommissionsCollapse">
+						<div class="card-body">
+							{% fetchxml commissionDataByPeriod %}
+								<fetch distinct="false" mapping="logical" aggregate="true">
+									<entity name="lv_lvcompcommission">
+										<attribute name="lv_periodno" groupby="true" alias="period" />
+										<attribute name="lv_lvcompcommissionid" aggregate="count" alias="count" />
+										<attribute name="lv_amount" aggregate="sum" alias="total_amount" />
+										<order alias="period" descending="true" />
+									</entity>
+								</fetch>
+							{% endfetchxml %}
+							
+							{% comment %} Get period names separately to avoid groupby issues {% endcomment %}
+							{% fetchxml periodNames %}
+								<fetch distinct="true" mapping="logical">
+									<entity name="lv_lvcompcommperiodcalc">
+										<attribute name="lv_periodno" />
+										<attribute name="lv_name" />
+										<order attribute="lv_periodno" descending="true" />
+									</entity>
+								</fetch>
+							{% endfetchxml %}
+
+							<div class="w-50">
+								<table id="commissionTable" class="table table-striped">
+									<thead>
+										<tr>
+											<th class="w-15">Period Number</th>
+											<th class="w-45">Period Name</th>
+											<th class="w-20 text-end">Count</th>
+											<th class="w-20 text-end">Total Amount</th>
+										</tr>
+									</thead>
+									<tbody>
+										{% assign total_count = 0 %}
+										{% assign total_amount = 0 %}
+										
+										{% for item in commissionDataByPeriod.results.entities %}
+											{% comment %} Find matching period name {% endcomment %}
+											{% assign period_name = "Unknown" %}
+											{% for period in periodNames.results.entities %}
+												{% if period.lv_periodno == item.period %}
+													{% assign period_name = period.lv_name %}
+													{% break %}
+												{% endif %}
+											{% endfor %}
+											
+											<tr>
+												<td class="w-15">{{ item.period }}</td>
+												<td class="w-45">{{ period_name }}</td>
+												<td class="w-20 text-end">{{ item.count }}</td>
+												<td class="w-20 text-end lv-currency">{{ item.total_amount }}</td>
+											</tr>
+											{% assign total_count = total_count | plus: item.count %}
+											{% assign total_amount = total_amount | plus: item.total_amount %}
+										{% endfor %}
+										
+										<tr class="summary-row">
+											<td colspan="2">Total</td>
+											<td class="text-end">{{ total_count }}</td>
+											<td class="text-end lv-currency">{{ total_amount }}</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+
+			<!-- Looping Card: Commissions by Period (Primitive Looping Approach) -->
+				<div class="card mt-3 commission-section" data-section="looping" style="display: none;">
+					<div class="card-header">
+						<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#loopingCollapse" aria-expanded="false" aria-controls="loopingCollapse">
+							Commissions by Period - Looping Method <span class="text-muted">(looping)</span>
+						</button>
+					</div>
+					<div class="collapse" id="loopingCollapse">
+						<div class="card-body">
+							{% comment %} First get all periods {% endcomment %}
+							{% fetchxml allPeriods %}
+								<fetch distinct="true" mapping="logical">
+									<entity name="lv_lvcompcommperiodcalc">
+										<attribute name="lv_periodno" />
+										<attribute name="lv_name" />
+										<order attribute="lv_periodno" descending="true" />
+									</entity>
+								</fetch>
+							{% endfetchxml %}
+							
+							<div class="w-50">
+								<table id="loopingCommissionTable" class="table table-striped">
+									<thead>
+										<tr>
+											<th class="w-15">Period Number</th>
+											<th class="w-45">Period Name</th>
+											<th class="w-20 text-end">Count</th>
+											<th class="w-20 text-end">Total Amount</th>
+										</tr>
+									</thead>
+									<tbody>
+										{% assign loop_total_count = 0 %}
+										{% assign loop_total_amount = 0.0 %}
+										
+										{% comment %} Loop through each period and query commissions {% endcomment %}
+										{% for period in allPeriods.results.entities %}
+											{% assign currentPeriodNo = period.lv_periodno %}
+											{% assign currentPeriodName = period.lv_name %}
+											
+											{% comment %} Query commissions for this specific period {% endcomment %}
+											{% fetchxml periodCommissions %}
+												<fetch distinct="false" mapping="logical">
+													<entity name="lv_lvcompcommission">
+														<attribute name="lv_lvcompcommissionid" />
+														<attribute name="lv_amount" />
+														<filter type="and">
+															<condition attribute="lv_periodno" operator="eq" value="{{currentPeriodNo}}" />
+														</filter>
+													</entity>
+												</fetch>
+											{% endfetchxml %}
+											
+											{% comment %} Manual counting and summing {% endcomment %}
+											{% assign period_count = 0 %}
+											{% assign period_amount = 0.0 %}
+											
+											{% for commission in periodCommissions.results.entities %}
+												{% assign period_count = period_count | plus: 1 %}
+												{% assign period_amount = period_amount | plus: commission.lv_amount %}
+											{% endfor %}
+											
+											{% comment %} Only show rows with data {% endcomment %}
+											{% if period_count > 0 %}
+												<tr>
+													<td class="w-15">{{ currentPeriodNo }}</td>
+													<td class="w-45">{{ currentPeriodName }}</td>
+													<td class="w-20 text-end">{{ period_count }}</td>
+													<td class="w-20 text-end lv-currency">{{ period_amount }}</td>
+												</tr>
+												{% assign loop_total_count = loop_total_count | plus: period_count %}
+												{% assign loop_total_amount = loop_total_amount | plus: period_amount %}
+											{% endif %}
+										{% endfor %}
+										
+										<tr class="summary-row">
+											<td colspan="2">Total</td>
+											<td class="text-end">{{ loop_total_count }}</td>
+											<td class="text-end lv-currency">{{ loop_total_amount }}</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+							
+							<div class="mt-3">
+								<p><strong>Method:</strong> Primitive looping approach</p>
+								<p><strong>Periods processed:</strong> {{ allPeriods.results.entities.size }}</p>
+								<p><strong>Note:</strong> This method should work even when aggregate FetchXML fails, as it uses simple filtering on lv_periodno.</p>
+							</div>
+						</div>
+					</div>
+				</div>
+
+			<!-- Second Card: Commissions by Period and Branch, With Branch Name -->
+			<div class="card mt-3 commission-section" data-section="branch" style="display: none;">
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#branchCommissionsCollapse" aria-expanded="true" aria-controls="branchCommissionsCollapse">
+						Commissions by Period and Branch <span class="text-muted">(branch)</span>
+					</button>
+				</div>
+				<div class="collapse show" id="branchCommissionsCollapse">
+					<div class="card-body">
+						{% fetchxml commissionDataByBranch %}
+							<fetch distinct="false" mapping="logical" aggregate="true">
+								<entity name="lv_lvcompcommission">
+									<attribute name="lv_periodno" groupby="true" alias="period" />
+									<attribute name="lv_xbranchcode" groupby="true" alias="branch" />
+									<attribute name="lv_lvcompcommissionid" aggregate="count" alias="count" />
+									<attribute name="lv_amount" aggregate="sum" alias="total_amount" />
+
+									<link-entity name="lv_lvcompcommperiodcalc" from="lv_periodno" to="lv_periodno" link-type="inner">
+										<attribute name="lv_name" groupby="true" alias="period_name" />
+									</link-entity>
+
+									<link-entity name="lv_lvcompbranch" from="lv_code" to="lv_xbranchcode" link-type="inner">
+										<attribute name="lv_name" groupby="true" alias="branch_name" />
+									</link-entity>
+
+									<order alias="period" descending="true" />
+									<order alias="branch" descending="false" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						<div class="w-75">
+							<table id="branchTable" class="table table-striped">
+								<thead>
+									<tr>
+										<th class="w-10">Period</th>
+										<th class="w-20">Period Name</th>
+										<th class="w-10">Branch</th>
+										<th class="w-20">Branch Name</th>
+										<th class="w-20 text-end">Count</th>
+										<th class="w-20 text-end">Total Amount</th>
+									</tr>
+								</thead>
+								<tbody>
+									{% assign total_count = 0 %}
+									{% assign total_amount = 0.0 %}
+									{% assign current_period = "" %}
+									{% assign current_period_name = "" %}
+									{% assign period_count = 0 %}
+									{% assign period_amount = 0.0 %}
+									{% assign period_index = 0 %}
+									
+									{% for item in commissionDataByBranch.results.entities %}
+										{% if current_period != item.period and forloop.index > 1 %}
+											<tr class="period-summary" data-period="{{ period_index }}">
+												<td colspan="4" class="branch-toggle" data-period="{{ period_index }}">
+													<i class="bi bi-caret-right-fill"></i> Period {{ current_period }} - {{ current_period_name }}
+												</td>
+												<td class="text-end">{{ period_count }}</td>
+												<td class="text-end lv-currency">{{ period_amount }}</td>
+											</tr>
+											{% assign period_count = 0 %}
+											{% assign period_amount = 0.0 %}
+											{% assign period_index = period_index | plus: 1 %}
+										{% endif %}
+										
+										<tr class="branch-row" data-period="{{ period_index }}">
+											<td class="w-10">{{ item.period }}</td>
+											<td class="w-20">{{ item.period_name }}</td>
+											<td class="w-10">{{ item.branch }}</td>
+											<td class="w-20">{{ item.branch_name }}</td>
+											<td class="w-20 text-end">{{ item.count }}</td>
+											<td class="w-20 text-end lv-currency">{{ item.total_amount }}</td>
+										</tr>
+										
+										{% assign current_period = item.period %}
+										{% assign current_period_name = item.period_name %}
+										{% assign period_count = period_count | plus: item.count %}
+										{% assign period_amount = period_amount | plus: item.total_amount %}
+										{% assign total_count = total_count | plus: item.count %}
+										{% assign total_amount = total_amount | plus: item.total_amount %}
+									{% endfor %}
+									
+									{% if commissionDataByBranch.results.entities.size > 0 %}
+										<tr class="period-summary" data-period="{{ period_index }}">
+											<td colspan="4" class="branch-toggle" data-period="{{ period_index }}">
+												<i class="bi bi-caret-right-fill"></i> Period {{ current_period }} - {{ current_period_name }}
+											</td>
+											<td class="text-end">{{ period_count }}</td>
+											<td class="text-end lv-currency">{{ period_amount }}</td>
+										</tr>
+									{% endif %}
+									
+									<tr class="summary-row">
+										<td colspan="4">Total</td>
+										<td class="text-end">{{ total_count }}</td>
+										<td class="text-end lv-currency">{{ total_amount }}</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Third Card: Commissions by Period, Branch, and Loan Officer -->
+			<div class="card mt-3 commission-section" data-section="officer" style="display: none;">
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#officerCommissionsCollapse" aria-expanded="true" aria-controls="officerCommissionsCollapse">
+						Commissions by Period, Branch, and Loan Officer <span class="text-muted">(officer)</span>
+					</button>
+				</div>
+				<div class="collapse show" id="officerCommissionsCollapse">
+					<div class="card-body">
+						{% fetchxml commissionByPeriod %}
+							<fetch distinct="false" mapping="logical" aggregate="true">
+								<entity name="lv_lvcompcommission">
+									<attribute name="lv_periodno" groupby="true" alias="period" />
+									<attribute name="lv_lvcompcommissionid" aggregate="count" alias="count" />
+									<attribute name="lv_amount" aggregate="sum" alias="total_amount" />
+									<link-entity name="lv_lvcompcommperiodcalc" from="lv_periodno" to="lv_periodno" link-type="inner">
+										<attribute name="lv_name" groupby="true" alias="period_name" />
+									</link-entity>
+									<order alias="period" descending="true" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						{% fetchxml commissionByBranch %}
+							<fetch distinct="false" mapping="logical" aggregate="true">
+								<entity name="lv_lvcompcommission">
+									<attribute name="lv_periodno" groupby="true" alias="period" />
+									<attribute name="lv_xbranchcode" groupby="true" alias="branch" />
+									<attribute name="lv_lvcompcommissionid" aggregate="count" alias="count" />
+									<attribute name="lv_amount" aggregate="sum" alias="total_amount" />
+									<link-entity name="lv_lvcompcommperiodcalc" from="lv_periodno" to="lv_periodno" link-type="inner">
+										<attribute name="lv_name" groupby="true" alias="period_name" />
+									</link-entity>
+									<link-entity name="lv_lvcompbranch" from="lv_code" to="lv_xbranchcode" link-type="inner">
+										<attribute name="lv_name" groupby="true" alias="branch_name" />
+									</link-entity>
+									<order alias="period" descending="true" />
+									<order alias="branch" descending="false" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+						
+						{% fetchxml commissionByLoanOfficer %}
+							<fetch distinct="false" mapping="logical" aggregate="true">
+								<entity name="lv_lvcompcommission">
+									<attribute name="lv_periodno" groupby="true" alias="period" />
+									<attribute name="lv_xbranchcode" groupby="true" alias="branch" />
+									<attribute name="lv_xloanofficercode" groupby="true" alias="loan_officer" />
+									<attribute name="lv_lvcompcommissionid" aggregate="count" alias="count" />
+									<attribute name="lv_amount" aggregate="sum" alias="total_amount" />
+									<link-entity name="lv_lvcompcommperiodcalc" from="lv_periodno" to="lv_periodno" link-type="inner">
+										<attribute name="lv_name" groupby="true" alias="period_name" />
+									</link-entity>
+									<link-entity name="lv_lvcompbranch" from="lv_code" to="lv_xbranchcode" link-type="inner">
+										<attribute name="lv_name" groupby="true" alias="branch_name" />
+									</link-entity>
+									<order alias="period" descending="true" />
+									<order alias="branch" descending="false" />
+									<order alias="loan_officer" descending="false" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+
+						<div class="w-100">
+							<table id="hierarchyTable" class="table table-striped">
+								<thead>
+									<tr>
+										<th>Period</th>
+										<th>Period Name</th>
+										<th>Branch/Loan Officer</th>
+										<th class="text-end">Count</th>
+										<th class="text-end">Total Amount</th>
+									</tr>
+								</thead>
+								<tbody>
+									{% assign total_count = 0 %}
+									{% assign total_amount = 0.0 %}
+									
+									{% for period_item in commissionByPeriod.results.entities %}
+										{% assign period = period_item.period %}
+										{% assign period_name = period_item.period_name %}
+										{% assign period_count = period_item.count %}
+										{% assign period_amount = period_item.total_amount %}
+										
+										{% assign total_count = total_count | plus: period_count %}
+										{% assign total_amount = total_amount | plus: period_amount %}
+										
+										<tr class="period-row" data-period="{{ period }}">
+											<td>{{ period }}</td>
+											<td>{{ period_name }}</td>
+											<td>
+												<i class="bi bi-caret-right-fill"></i> <strong>Period Total</strong>
+											</td>
+											<td class="text-end">{{ period_count }}</td>
+											<td class="text-end lv-currency">{{ period_amount }}</td>
+										</tr>
+										
+										{% for branch_item in commissionByBranch.results.entities %}
+											{% if branch_item.period == period %}
+												{% assign branch = branch_item.branch %}
+												{% assign branch_name = branch_item.branch_name %}
+												
+												<tr class="branch-row hidden-row" data-period="{{ period }}" data-branch="{{ branch }}">
+													<td></td>
+													<td></td>
+													<td>
+														<i class="bi bi-caret-right-fill"></i> Branch: {{ branch }} - {{ branch_name }}
+													</td>
+													<td class="text-end">{{ branch_item.count }}</td>
+													<td class="text-end lv-currency">{{ branch_item.total_amount }}</td>
+												</tr>
+												
+												{% for officer_item in commissionByLoanOfficer.results.entities %}
+													{% if officer_item.period == period and officer_item.branch == branch %}
+														<tr class="loan-officer-row hidden-row" data-period="{{ period }}" data-branch="{{ branch }}">
+															<td></td>
+															<td></td>
+															<td style="padding-left: 2rem;">
+																Loan Officer: {{ officer_item.loan_officer }}
+															</td>
+															<td class="text-end">{{ officer_item.count }}</td>
+															<td class="text-end lv-currency">{{ officer_item.total_amount }}</td>
+														</tr>
+													{% endif %}
+												{% endfor %}
+											{% endif %}
+										{% endfor %}
+									{% endfor %}
+									
+									<tr class="summary-row">
+										<td colspan="3">Total</td>
+										<td class="text-end">{{ total_count }}</td>
+										<td class="text-end lv-currency">{{ total_amount }}</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Fourth Card: Raw Commission Data Verification -->
+			<div class="card mt-3 commission-section" data-section="commissions" style="display: none;">
+				<div class="card-header">
+					<button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#commissionsCollapse" aria-expanded="true" aria-controls="commissionsCollapse">
+						Raw Commission Data Verification <span class="text-muted">(commissions)</span>
+					</button>
+				</div>
+				<div class="collapse show" id="commissionsCollapse">
+					<div class="card-body">
+						{% comment %} First find the latest period in the system {% endcomment %}
+						{% fetchxml latestPeriod %}
+							<fetch distinct="false" mapping="logical" aggregate="true" top="1">
+								<entity name="lv_lvcompcommission">
+									<attribute name="lv_periodno" aggregate="max" alias="max_period" />
+								</entity>
+							</fetch>
+						{% endfetchxml %}
+						
+						{% assign maxPeriod = latestPeriod.results.entities[0].max_period %}
+						
+						{% comment %} Override sqUISelPeriodNo temporarily to use latest period {% endcomment %}
+						{% assign originalPeriod = sqUISelPeriodNo %}
+						{% assign sqUISelPeriodNo = maxPeriod %}
+						
+						<p><strong>Latest Period in System:</strong> {{ maxPeriod }}</p>
+						<p><strong>Current Selected Period:</strong> {{ originalPeriod }}</p>
+						
+						{% comment %} Include Commission Filter to get the same data it uses {% endcomment %}
+						{% include 'snippet' snippet_name:'Commission Filter' %}
+						
+						<h5>Commission Filter Results (Latest Period {{ maxPeriod }}):</h5>
+						<p><strong>Raw Commission Records Found:</strong> {{ allLoanBasedCommissions.results.entities.size }}</p>
+						<p><strong>Filtered Commission Count:</strong> {{ cpCommCount }}</p>
+						<p><strong>Filtered Commission Total:</strong> {{ cpCommTotal | format: 'C' }}</p>
+						
+						{% if allLoanBasedCommissions.results.entities.size > 0 %}
+							<h6>First 20 Raw Commission Records:</h6>
+							<div class="table-responsive">
+								<table class="table table-sm table-striped">
+									<thead class="table-dark">
+										<tr>
+											<th>Entry No</th>
+											<th>Amount</th>
+											<th>Borrower Name</th>
+											<th>LO Name</th>
+											<th>LO Code</th>
+											<th>Branch Code</th>
+											<th>Period No</th>
+											<th>Type</th>
+										</tr>
+									</thead>
+									<tbody>
+										{% assign recordCount = 0 %}
+										{% for row in allLoanBasedCommissions.results.entities %}
+											{% assign recordCount = recordCount | plus: 1 %}
+											{% if recordCount <= 20 %}
+												<tr>
+													<td>{{ row.lv_entryno }}</td>
+													<td>{{ row.lv_amount | format: 'C' }}</td>
+													<td>{{ row.lv_xborrowername }}</td>
+													<td>{{ row.lv_xloanofficername }}</td>
+													<td>{{ row.lv_xloanofficercode }}</td>
+													<td>{{ row.lv_xbranchcode }}</td>
+													<td>{{ row.lv_periodno }}</td>
+													<td>{{ row.lv_commissiontype }}</td>
+												</tr>
+											{% endif %}
+										{% endfor %}
+									</tbody>
+								</table>
+							</div>
+						{% else %}
+							<p><em>No commission records found for the latest period.</em></p>
+						{% endif %}
+						
+						{% comment %} Reset the period to original value {% endcomment %}
+						{% assign sqUISelPeriodNo = originalPeriod %}
+					</div>
+				</div>
+			</div>
+
+		</div>
+	</div>
+</div>
+
+<style>
+	.user-table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+
+	.user-table th,
+	.user-table td {
+		padding: 5px;
+		border: 1px solid #ccc;
+		text-align: left;
+	}
+
+	.user-table th {
+		background-color: #f2f2f2;
+	}
+
+	.authenticated {
+		color: green;
+		font-weight: bold;
+	}
+
+	.card-header .btn-link {
+		text-decoration: none;
+		color: inherit;
+		font-weight: bold;
+	}
+
+	.card-header .btn-link:hover {
+		text-decoration: underline;
+	}
+
+	.summary-row {
+		font-weight: bold;
+		background-color: #f8f9fa;
+		border-top: 2px solid #6c757d;
+	}
+
+	.period-summary {
+		background-color: #e9ecef;
+		font-weight: bold;
+		cursor: pointer;
+	}
+
+	.period-summary:hover {
+		background-color: #dee2e6;
+	}
+
+	.branch-row {
+		background-color: #f8f9fa;
+	}
+
+	.loan-officer-row {
+		background-color: #ffffff;
+	}
+
+	.hidden-row {
+		display: none;
+	}
+
+	.bi-caret-right-fill {
+		transition: transform 0.2s;
+	}
+
+	.bi-caret-down-fill {
+		transform: rotate(90deg);
+	}
+
+	/* Sortable table styles */
+	.sortable-header {
+		cursor: pointer;
+		user-select: none;
+		position: relative;
+		background-color: #f2f2f2 !important;
+	}
+
+	.sortable-header:hover {
+		background-color: #e0e0e0 !important;
+	}
+
+	.sortable-header.sort-asc::after {
+		content: ' ▲';
+		font-size: 0.8em;
+		color: #0066cc;
+	}
+
+	.sortable-header.sort-desc::after {
+		content: ' ▼';
+		font-size: 0.8em;
+		color: #0066cc;
+	}
+
+	.sortable-table th {
+		background-color: #f2f2f2;
+	}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Format all currency values
+    document.querySelectorAll('.lv-currency').forEach(function(element) {
+        const value = parseFloat(element.textContent.replace(/[,$]/g, ''));
+        if (!isNaN(value)) {
+            element.textContent = value.toLocaleString('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            });
+        }
+    });
+
+    // Initialize table sorting for all sortable tables
+    initializeTableSorting();
+
+    function initializeTableSorting() {
+        document.querySelectorAll('.sortable-table').forEach(function(table) {
+            const headers = table.querySelectorAll('.sortable-header');
+            headers.forEach(function(header) {
+                header.addEventListener('click', function() {
+                    handleHeaderClick(table, header);
+                });
+            });
+        });
+    }
+
+    function handleHeaderClick(table, clickedHeader) {
+        const column = clickedHeader.dataset.column;
+        const currentSort = clickedHeader.classList.contains('sort-asc') ? 'asc' :
+                           clickedHeader.classList.contains('sort-desc') ? 'desc' : null;
+
+        // Clear all sort indicators from this table
+        table.querySelectorAll('.sortable-header').forEach(function(header) {
+            header.classList.remove('sort-asc', 'sort-desc');
+        });
+
+        // Determine new sort direction
+        let newDirection;
+        if (currentSort === 'asc') {
+            newDirection = 'desc';
+        } else if (currentSort === 'desc') {
+            newDirection = 'asc';
+        } else {
+            newDirection = 'asc';
+        }
+
+        // Add sort indicator to clicked header
+        clickedHeader.classList.add('sort-' + newDirection);
+
+        // Sort the table
+        sortTable(table, column, newDirection);
+    }
+
+    function sortTable(table, column, direction) {
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        // Get column index
+        const headers = table.querySelectorAll('.sortable-header');
+        let columnIndex = -1;
+        for (let i = 0; i < headers.length; i++) {
+            if (headers[i].dataset.column === column) {
+                columnIndex = i;
+                break;
+            }
+        }
+
+        if (columnIndex === -1) return;
+
+        // Sort rows
+        rows.sort(function(rowA, rowB) {
+            const cellA = rowA.cells[columnIndex].textContent.trim();
+            const cellB = rowB.cells[columnIndex].textContent.trim();
+
+            // Try to parse as numbers first
+            const numA = parseFloat(cellA.replace(/[,$]/g, ''));
+            const numB = parseFloat(cellB.replace(/[,$]/g, ''));
+
+            let comparison;
+            if (!isNaN(numA) && !isNaN(numB)) {
+                // Numeric comparison
+                comparison = numA - numB;
+            } else {
+                // String comparison
+                comparison = cellA.localeCompare(cellB);
+            }
+
+            return direction === 'asc' ? comparison : -comparison;
+        });
+
+        // Clear tbody and re-append sorted rows
+        tbody.innerHTML = '';
+        rows.forEach(function(row) {
+            tbody.appendChild(row);
+        });
+    }
+
+    // Branch collapse/expand functionality for the branch table
+    document.querySelectorAll('.branch-toggle').forEach(function(toggle) {
+        toggle.addEventListener('click', function() {
+            const period = this.dataset.period;
+            const branchRows = document.querySelectorAll(`tr.branch-row[data-period="${period}"]`);
+            const loanOfficerRows = document.querySelectorAll(`tr.loan-officer-row[data-period="${period}"]`);
+            const icon = this.querySelector('i');
+            
+            const isHidden = branchRows[0] && branchRows[0].classList.contains('hidden-row');
+            
+            branchRows.forEach(row => {
+                if (isHidden) {
+                    row.classList.remove('hidden-row');
+                } else {
+                    row.classList.add('hidden-row');
+                }
+            });
+            
+            // Always hide loan officer rows when collapsing period
+            if (!isHidden) {
+                loanOfficerRows.forEach(row => {
+                    row.classList.add('hidden-row');
+                });
+            }
+            
+            // Update icon
+            if (icon) {
+                if (isHidden) {
+                    icon.classList.remove('bi-caret-right-fill');
+                    icon.classList.add('bi-caret-down-fill');
+                } else {
+                    icon.classList.remove('bi-caret-down-fill');
+                    icon.classList.add('bi-caret-right-fill');
+                }
+            }
+        });
+    });
+
+    // Similar functionality for period rows in the hierarchy table
+    document.querySelectorAll('.period-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+            const period = this.dataset.period;
+            const branchRows = document.querySelectorAll(`tr.branch-row[data-period="${period}"]`);
+            const loanOfficerRows = document.querySelectorAll(`tr.loan-officer-row[data-period="${period}"]`);
+            const icon = this.querySelector('i');
+            
+            const isHidden = branchRows[0] && branchRows[0].classList.contains('hidden-row');
+            
+            branchRows.forEach(row => {
+                if (isHidden) {
+                    row.classList.remove('hidden-row');
+                } else {
+                    row.classList.add('hidden-row');
+                }
+            });
+            
+            // Always hide loan officer rows when collapsing period
+            if (!isHidden) {
+                loanOfficerRows.forEach(row => {
+                    row.classList.add('hidden-row');
+                });
+            }
+            
+            // Update icon
+            if (icon) {
+                if (isHidden) {
+                    icon.classList.remove('bi-caret-right-fill');
+                    icon.classList.add('bi-caret-down-fill');
+                } else {
+                    icon.classList.remove('bi-caret-down-fill');
+                    icon.classList.add('bi-caret-right-fill');
+                }
+            }
+        });
+    });
+
+    // Branch expand/collapse functionality for loan officers
+    document.querySelectorAll('.branch-row').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent period row click
+            const period = this.dataset.period;
+            const branch = this.dataset.branch;
+            const loanOfficerRows = document.querySelectorAll(`tr.loan-officer-row[data-period="${period}"][data-branch="${branch}"]`);
+            const icon = this.querySelector('i');
+            
+            const isHidden = loanOfficerRows[0] && loanOfficerRows[0].classList.contains('hidden-row');
+            
+            loanOfficerRows.forEach(row => {
+                if (isHidden) {
+                    row.classList.remove('hidden-row');
+                } else {
+                    row.classList.add('hidden-row');
+                }
+            });
+            
+            // Update icon
+            if (icon) {
+                if (isHidden) {
+                    icon.classList.remove('bi-caret-right-fill');
+                    icon.classList.add('bi-caret-down-fill');
+                } else {
+                    icon.classList.remove('bi-caret-down-fill');
+                    icon.classList.add('bi-caret-right-fill');
+                }
+            }
+        });
+    });
+});
+
+// Commission Section Control Functions
+function loadSelectedSections() {
+    const loadingMessage = document.getElementById('loadingMessage');
+    const container = document.getElementById('commissionReportsContainer');
+    loadingMessage.style.display = 'block';
+
+    // Hide all sections first (but don't destroy them)
+    document.querySelectorAll('.commission-section').forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Show selected sections by moving them to the container
+    const sections = ['period', 'looping', 'branch', 'officer', 'commissions'];
+    let anySelected = false;
+
+    sections.forEach(section => {
+        const checkbox = document.getElementById(`show${section.charAt(0).toUpperCase() + section.slice(1)}Check`);
+        if (checkbox && checkbox.checked) {
+            // Search for section globally (it may have been moved previously)
+            const sectionDiv = document.querySelector(`.commission-section[data-section="${section}"]`);
+            if (sectionDiv) {
+                sectionDiv.style.display = 'block';
+                // Move to container if not already there
+                if (sectionDiv.parentElement !== container) {
+                    container.appendChild(sectionDiv);
+                }
+                anySelected = true;
+            }
+        }
+    });
+
+    // Hide loading message after a short delay
+    setTimeout(() => {
+        loadingMessage.style.display = 'none';
+        if (!anySelected) {
+            alert('Please select at least one report to display.');
+        } else {
+            // Scroll to container
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, 500);
+}
+
+function clearAllSections() {
+    // Hide all sections
+    document.querySelectorAll('.commission-section').forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Uncheck all checkboxes
+    const checkboxes = ['showPeriodCheck', 'showLoopingCheck', 'showBranchCheck', 'showOfficerCheck', 'showCommissionsCheck'];
+    checkboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) {
+            checkbox.checked = false;
+        }
+    });
+}
+</script>
+<!-- Last modified Tue Sep 02 5:27PM -->
+<!-- Last modified Mon Nov 10 1:28PM -->
+<!-- Last modified Mon Nov 10 1:41PM -->

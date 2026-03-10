@@ -1,0 +1,147 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Mon Dec 02 11:15AM -->
+<!-- Last modified Mon Dec 02 12:00PM -->
+<!-- Last modified Mon Dec 02 12:15PM -->
+{% include 'snippet' snippet_name:'FetchXML - SetupQuery' %}
+
+{%- comment -%} ============================================= {%- endcomment -%}
+{%- comment -%} ASSIGNMENT INFORMATION SECTION {%- endcomment -%}
+{%- comment -%} This div is moved via JavaScript to appear after "Your information" {%- endcomment -%}
+{%- comment -%} ============================================= {%- endcomment -%}
+
+<div id="assignment-info-section" class="assignment-info-section" style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6; display: none;">
+	<h4 style="margin-bottom: 15px; color: #495057;">Your Assignments</h4>
+
+	{%- comment -%} 1) Direct Loan Officer Assignment {%- endcomment -%}
+	<div style="margin-bottom: 10px;">
+		<strong>Your Direct Loan Officer Assignment:</strong>
+		{%- if user.lv_loanofficer and user.lv_loanofficer.id != blank -%}
+			{%- comment -%} Look up the code from allLoanOfficers {%- endcomment -%}
+			{%- assign directLoCode = "" -%}
+			{%- for lo in allLoanOfficers.results.entities -%}
+				{%- if lo.lv_lvcomploanofficerid == user.lv_loanofficer.id -%}
+					{%- assign directLoCode = lo.lv_code -%}
+					{%- break -%}
+				{%- endif -%}
+			{%- endfor -%}
+			<span>{{ user.lv_loanofficer.name }}{%- if directLoCode != "" %} ({{ directLoCode }}){%- endif -%}</span>
+		{%- else -%}
+			<span style="color: #6c757d;">(none)</span>
+		{%- endif -%}
+	</div>
+
+	{%- comment -%} 2) Branch Manager Assignments {%- endcomment -%}
+	<div style="margin-bottom: 10px;">
+		<strong>Branch Manager:</strong>
+		{%- assign bmCount = 0 -%}
+		{%- assign bmDisplay = "" -%}
+		{%- for row in fxmUserAsBM.results.entities -%}
+			{%- assign bmCount = bmCount | plus: 1 -%}
+			{%- if bmDisplay != "" -%}
+				{%- assign bmDisplay = bmDisplay | append: ", " -%}
+			{%- endif -%}
+			{%- assign bmDisplay = bmDisplay | append: row.lv_branchname -%}
+			{%- if row.lv_branchcode and row.lv_branchcode != blank -%}
+				{%- assign bmDisplay = bmDisplay | append: " (" | append: row.lv_branchcode | append: ")" -%}
+			{%- endif -%}
+		{%- endfor -%}
+		{%- if bmCount > 0 -%}
+			<span>{{ bmDisplay }}</span>
+		{%- else -%}
+			<span style="color: #6c757d;">(none)</span>
+		{%- endif -%}
+	</div>
+
+	{%- comment -%} 3) Loan Officer Oversight Assignments (only type='O', NOT exclusions) {%- endcomment -%}
+	<div style="margin-bottom: 10px;">
+		<strong>Loan Officer Oversight:</strong>
+		{%- assign looCount = 0 -%}
+		{%- assign looDisplay = "" -%}
+		{%- for row in fxmUserAsLOO.results.entities -%}
+			{%- comment -%} fxmUserAsLOO already filters for type='O' in SetupQuery {%- endcomment -%}
+			{%- assign looCount = looCount | plus: 1 -%}
+			{%- if looDisplay != "" -%}
+				{%- assign looDisplay = looDisplay | append: ", " -%}
+			{%- endif -%}
+			{%- assign looDisplay = looDisplay | append: row.lv_loanofficername -%}
+			{%- if row.lv_loanofficercode and row.lv_loanofficercode != blank -%}
+				{%- assign looDisplay = looDisplay | append: " (" | append: row.lv_loanofficercode | append: ")" -%}
+			{%- endif -%}
+		{%- endfor -%}
+		{%- if looCount > 0 -%}
+			<span>{{ looDisplay }}</span>
+		{%- else -%}
+			<span style="color: #6c757d;">(none)</span>
+		{%- endif -%}
+	</div>
+
+	{%- comment -%} 4) Web Roles {%- endcomment -%}
+	<div>
+		<strong>Roles:</strong>
+		{%- assign roleDisplay = "" -%}
+		{%- assign roleCount = 0 -%}
+		{%- for role in user.roles -%}
+			{%- assign roleCount = roleCount | plus: 1 -%}
+			{%- if roleDisplay != "" -%}
+				{%- assign roleDisplay = roleDisplay | append: ", " -%}
+			{%- endif -%}
+			{%- capture roleStr -%}{{ role }}{%- endcapture -%}
+			{%- assign roleDisplay = roleDisplay | append: roleStr -%}
+		{%- endfor -%}
+		{%- if roleCount > 0 -%}
+			<span>{{ roleDisplay }}</span>
+		{%- else -%}
+			<span style="color: #6c757d;">(none)</span>
+		{%- endif -%}
+	</div>
+</div>
+
+<script>
+
+document.addEventListener("LVGlobalDOCReady", function() {
+	console.log("contact form doc ready!!!!");
+
+	// After submit, redirect the user to the home page
+	$("#content_form").attr('action', "/profile/?returnUrl=/");
+
+	const hidethese = ["adx_organizationname", "jobtitle", "nickname", "websiteurl", "adx_publicprofilecopy", "mspp_userpreferredlcid", "ContentContainer_MainContent_MainContent_ContentBottom_MarketingOptionsPanel"];
+
+	hidethese.forEach(eid => {
+		$("#" + eid).hide();
+		$("#" + eid + "_label").hide();
+		$("#" + eid).closest("tr").hide();
+	});
+
+	// Hide "Your information for this site:" text
+	$("p:contains('Your information for this site')").hide();
+
+	// Hide the old "Roles" section from the Microsoft form (we display roles in our custom section now)
+	// The Roles field has label "Roles" - find and hide the entire row
+	$("label:contains('Roles')").closest("tr").hide();
+	$("label:contains('Roles')").closest(".form-group").hide();
+	// Also try by field name pattern
+	$("[id*='webroles'], [id*='WebRoles'], [id*='Roles']").closest("tr").hide();
+	$("[id*='webroles'], [id*='WebRoles'], [id*='Roles']").closest(".form-group").hide();
+
+	// Move assignment section to appear after the "Your information" section (after the form)
+	const assignmentSection = $("#assignment-info-section");
+	const submitButton = $("#ContentContainer_MainContent_MainContent_ContentBottom_SubmitButton");
+
+	if (assignmentSection.length && submitButton.length) {
+		// Add moderate spacing before our section (reduced from 200px to keep some separation)
+		submitButton.css("margin-bottom", "40px");
+		// Insert after the submit button
+		assignmentSection.insertAfter(submitButton);
+		assignmentSection.show();
+	} else {
+		// Fallback: just show it where it is
+		assignmentSection.show();
+	}
+});
+
+</script>
+
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Mon Dec 02 12:00PM -->

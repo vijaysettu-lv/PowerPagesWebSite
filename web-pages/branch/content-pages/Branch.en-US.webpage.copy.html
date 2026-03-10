@@ -1,0 +1,772 @@
+<!-- Last modified Mon Nov 17 8:41PM -->
+<!-- Last modified Wed Oct 01 1:50PM -->
+<!-- Last modified Wed Oct 01 1:05PM -->
+<!-- Last modified Sun Aug 31 5:00PM -->
+<!-- Last modified fri aug 15 8:35am -->
+<!-- Last modified tue aug 12 11:58am -->
+<!-- Last modified sun aug 10 7:02am -->
+<!-- Last modified sun aug 10 6:07am -->
+<!-- Last modified fri aug 8 2:15pm -->
+
+{% comment %} DEBUG: Adding debug output to troubleshoot period dropdown issue {% endcomment %}
+<!-- DEBUG: Branch page SetupQuery include about to execute -->
+{% include 'snippet' snippet_name:'FetchXML - SetupQuery' %}
+<!-- Branch page SetupQuery include completed, currentPeriodQuery.results.entities.size = {{currentPeriodQuery.results.entities.size}} -->
+<!-- sqRecUISelPeriod = {{sqRecUISelPeriod.lv_name}} -->
+<!-- is_admin = {{is_admin}}, is_BranchManager = {{is_BranchManager}} -->
+
+{% comment %} ~pageBranch {% endcomment %} 
+
+{% if is_admin or is_BranchManager %}
+	{% comment %} User has access to Branch page {% endcomment %}
+{% else %}
+	<script>
+		(function() {
+			let redir = "~/";
+
+			if (G_Roles.isLO)
+				redir = "/Loan-Officer";
+			
+			console.log("Branch page: Access denied: Branch permission required. Admin=" + (G_Roles.isAdmin || false) + " BranchMgr=" + (G_Roles.isBranchManager || false) + " Redir=" + redir);
+
+			// Delay the redirect slightly to allow for logging
+			setTimeout(function() {
+				window.location.href = redir;
+			}, 100);
+		})();
+	</script>
+{% endif %}
+
+{% if is_admin or is_BranchManager %}
+	<div class="row sectionBlockLayout text-start" style="display: flex; flex-wrap: wrap; margin: 0px; min-height: auto; padding: 8px;">
+		<div class="container" style="display: flex; flex-wrap: wrap;">
+			<div class="col-lg-12 columnBlockLayout email-modal-container" style="flex-grow: 1; display: flex; flex-direction: column; min-width: 250px; word-break: break-word; padding: 16px; margin: 60px 0px;">
+				{% include 'snippet' snippet_name:'FetchXML - BranchQuery' %}                          {% comment %} Queries Branch, and jsets javascript global window.PAGE_BRANCH based on currentBranch.lv_name  {% endcomment %}
+
+				{%- comment -%} NOTE: Exclusions are now handled via userExclusionLOList from SetupQuery {%- endcomment -%}
+
+				{% comment %} Parse pageSize parameter with default of 10 using safe conversion {% endcomment %}
+				{% capture cfPageSizeTemp %}10{% endcapture %}
+				{% if request.params.pageSize and request.params.pageSize != "" %}
+					{% capture cfPageSizeTemp %}{{ request.params.pageSize | times: 1 }}{% endcapture %}
+					{% assign cfPageSizeTest = cfPageSizeTemp | plus: 0 %}
+					{% if cfPageSizeTest < 1 %}
+						{% capture cfPageSizeTemp %}10{% endcapture %}
+					{% endif %}
+				{% endif %}
+				{% assign cfPageSize = cfPageSizeTemp | plus: 0 %}
+
+				{% comment %} Use Commission Filter snippet for all filtering logic - SINGLE SOURCE OF TRUTH {% endcomment %}
+				{% include 'snippet' snippet_name:'Commission Filter' %}
+
+
+				{% comment %} Commission counts and totals now provided by Commission Filter snippet {% endcomment %}
+				{% comment %} cpCommValueRowCount is already calculated by Commission Filter snippet {% endcomment %}
+
+
+				{% if currentBranch == "ALL_BRANCHES" %}
+					<h1 style="text-align: left;">All Branches</h1>
+				{% else %}
+					<h1 style="text-align: left;">{{ currentBranch.lv_name }} Branch</h1>
+				{% endif %}
+				<div class="admin-panel">
+					<div style="display: flex; flex-direction: column; gap: 1rem; padding:.825rem;">
+						{% comment %} REORDERED: Branch selection comes FIRST, then period selection {% endcomment %}
+						{% comment %} Show branch dropdown for Administrators and Branch Managers with multiple assignments {% endcomment %}
+						{% if is_admin %}
+							{% comment %} Administrators always see branch dropdown {% endcomment %}
+							{% include 'snippet' snippet_name:'Branch Selection' %}                    {% comment %} Dropdown {% endcomment %} 
+ 
+						{% elsif is_BranchManager %}
+							{% comment %} Count how many branches this Branch Manager has access to {% endcomment %}
+							{% assign userBranchCount = 0 %}
+							{% for branch in branchQuery.results.entities %}
+								{% assign found = false %}
+								{% assign parts = userBranchList | split: "|" %}
+								{% for part in parts %}
+									{% if part == branch.lv_name %}
+										{% assign found = true %}
+										{% break %}
+									{% endif %}
+								{% endfor %}
+								{% if found == true %}
+									{% assign userBranchCount = userBranchCount | plus: 1 %}
+								{% endif %}
+							{% endfor %}
+							
+							{% comment %} Show dropdown if Branch Manager has access to multiple branches {% endcomment %}
+							{% if userBranchCount > 1 %}
+								{% include 'snippet' snippet_name:'Branch Selection' %}                    {% comment %} Dropdown {% endcomment %} 
+							{% endif %}
+						{% endif %}
+
+						{% comment %} Period selection comes SECOND - will be populated based on branch selection {% endcomment %}
+						{% include 'snippet' snippet_name:'Current Period Selection' %}                {% comment %} Dropdown {% endcomment %}
+					</div>
+				</div>
+
+				<!-- BRANCH MANAGER APPROVAL SECTION DEBUG OUTPUT -->
+				<!-- DEBUG APPROVAL VARS: sqUsingApprovals={{sqUsingApprovals}} ; canApproveCommissions={{canApproveCommissions}} ; is_admin={{is_admin}} ; is_BranchManager={{is_BranchManager}} -->
+				{% comment %} DEBUG: Show detailed breakdown of approval logic {% endcomment %}
+				{% assign bmAssignmentCount = 0 %}
+				{% for row in fxmUserAsBM.results.entities %}
+					{% assign bmAssignmentCount = bmAssignmentCount | plus: 1 %}
+				{% endfor %}
+				<!-- DEBUG BM LOGIC: bmAssignmentCount={{bmAssignmentCount}} ; userBranchList={{userBranchList}} ; approvalType={{sqApprovalType}} -->
+				{% if enableDebug %}
+					<!-- qqq APPROVAL DEBUG: sqUsingApprovals={{sqUsingApprovals}} canApproveCommissions={{canApproveCommissions}} bmAssignmentCount={{bmAssignmentCount}} is_admin={{is_admin}} sqApprovalType={{sqApprovalType}} -->
+				{% endif %}
+				
+				{% if sqUsingApprovals == true and canApproveCommissions == true %}
+					<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 25px;"></div>
+					
+					<div id="branchApprovalSection" class="approval-section" style="margin: 20px 0; border: 1px solid #ddd; border-radius: 8px; padding: 20px; background-color: #f9f9f9;">
+						
+						<!-- Loading state -->
+						<div id="approvalLoading" style="display: none;">
+							<div style="display: flex; align-items: center;">
+								<span style="margin-right: 10px;">Checking approval status...</span>
+								<div class="spinner-border spinner-border-sm" role="status">
+									<span class="sr-only">Loading...</span>
+								</div>
+							</div>
+						</div>
+						
+						<!-- Needs approval state -->
+						<div id="approvalReady" style="display: none;">
+							<p style="font-size: 18px; margin-bottom: 15px;">Approve all commissions for this period?</p>
+							<button id="btnApproveAll" class="btn btn-lg" 
+								style="background-color: var(--portalThemeColor10); color: white; border: none; border-radius: 8px; padding: 12px 30px;"
+								onclick="return btnBulkApproveClick();">
+								<i class="fas fa-check" style="margin-right: 8px;"></i>
+								Approve All Commissions
+							</button>
+							
+							<!-- Collapsible details section -->
+							<div style="margin-top: 20px;">
+								<a href="#" onclick="toggleApprovalDetails(); return false;" style="text-decoration: none;">
+									<i class="fas fa-chevron-down" id="detailsChevron" style="margin-right: 5px;"></i>
+									View Details
+								</a>
+								<div id="approvalDetails" style="display: none; margin-top: 15px; padding: 15px; background-color: white; border-radius: 8px;">
+									<div id="detailedStatusDisplay">
+										<!-- Will be populated by JavaScript -->
+									</div>
+								</div>
+							</div>
+						</div>
+						
+						<!-- All approved state -->
+						<div id="approvalComplete" style="display: none;">
+							<div style="color: green; font-size: 18px; margin-bottom: 15px;">
+								<i class="fas fa-check-circle" style="margin-right: 8px;"></i>
+								<span id="completeMessage">All commissions for this period have been approved.</span>
+							</div>
+							
+							<!-- Collapsible details section -->
+							<div>
+								<a href="#" onclick="toggleApprovalDetails(); return false;" style="text-decoration: none;">
+									<i class="fas fa-chevron-down" id="detailsChevronComplete" style="margin-right: 5px;"></i>
+									View Details
+								</a>
+								<div id="approvalDetailsComplete" style="display: none; margin-top: 15px; padding: 15px; background-color: white; border-radius: 8px;">
+									<div id="detailedStatusDisplayComplete">
+										<!-- Will be populated by JavaScript -->
+									</div>
+								</div>
+							</div>
+						</div>
+						
+						<!-- Progress bar for bulk approval -->
+						<div id="approvalProgress" style="display: none; margin-top: 15px;">
+							<div style="margin-bottom: 10px;">
+								<strong>Processing Approvals...</strong>
+							</div>
+							<div class="progress" style="height: 20px; margin-bottom: 10px;">
+								<div id="approvalProgressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+									0%
+								</div>
+							</div>
+							<div id="approvalProgressStatus" style="color: #666; font-size: 14px;"></div>
+						</div>
+					</div>
+				{% endif %}
+
+				{% comment %} Show branch data and loan officer cards only when BOTH branch AND period are selected {% endcomment %}
+				{% comment %} With auto-period-selection, if branch is selected, period will be auto-selected too {% endcomment %}
+				{% assign showBranchData = false %}
+
+				{% comment %} Check if branch is selected {% endcomment %}
+				{% if is_admin %}
+					{% comment %} Admin must explicitly select a branch (not empty/default) {% endcomment %}
+					{% if request.params.branch and request.params.branch != "" and request.params.branch != "all" %}
+						{% assign showBranchData = true %}
+					{% endif %}
+				{% else %}
+					{% comment %} Branch Managers: Branch is selected if currentBranch exists {% endcomment %}
+					{% if currentBranch and currentBranch != "" %}
+						{% assign showBranchData = true %}
+					{% endif %}
+				{% endif %}
+				
+				
+				{% if showBranchData %}
+					<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 15px;"></div>
+					
+					{% include 'snippet' snippet_name:'Dashboard Details' %}
+					
+					{% comment %} Include centralized loan officer list template to generate officer codes for consistency {% endcomment %}
+					{% include 'Branch-Manager-Loan-Officer-List' %}
+					{% comment %}              Branch Loan Officers is in /web-templates - it is the cards, one per loan officer                 {% endcomment %} 
+					{% include 'Branch Loan Officers' %}
+
+					{% comment %}Buttons for Print, Email, and Loan Officer{% endcomment %} 
+					<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 25px;"></div>
+
+
+					<div class="ppFlexContainer " style="display: flex; align-items: center; padding: 8px 0 8px 0;">
+
+						{% if cfgPrintEnabled %}                  {% comment %}      TODO8: this logic is duplicated across /web-pages/Accounting|Region|Branch|LoanOfficer                tag=2504021442              {% endcomment %} 
+							<div onclick="printpage()" data-component-theme="portalThemeColor10" class="ppFlexContainer" style="display: flex; border-radius: 8px 8px 8px 8px; 
+									padding: 4px 14px 4px 14px; align-items: center; justify-content: space-between; max-width: auto; width: auto; height: 45px; flex-grow: 0; 
+									flex-shrink: 0; flex-basis: 135px; flex-direction: row;cursor: pointer;">
+								<p style="text-align: left; color: var(--portalThemeColor5); font-size: 18px;">​
+									<b aria-label="Text Print" style="position: relative;">
+										Print
+									</b>
+								</p>
+								<img src="/icon-print.png" alt="icon-print" name="icon-print.png" style="width: 28.67%; height: 28px; max-width: 100%;">
+							</div>
+						{% endif %}
+
+						<div id="email_btn" data-component-theme="portalThemeColor10" class="ppFlexContainer email-modal-open" 
+								style="display: flex; border-radius: 8px 8px 8px 8px; padding: 4px 14px 4px 14px; align-items: center; justify-content: space-between; max-width: auto; 
+								width: auto; height: 45px; flex-grow: 0; flex-shrink: 0; flex-basis: 135px; flex-direction: row;">
+							<p style="text-align: left; color: var(--portalThemeColor5); font-size: 18px;">​
+								<b aria-label="Text Email" style="position: relative;">
+									Email
+								</b>
+							</p>
+							<img src="/icon-email.png" alt="icon-email" name="icon-email.png" style="width: 28.67%; height: 28px; max-width: 100%;">
+						</div>
+						
+						{% if is_admin == true %}
+							<div data-component-theme="portalThemeColor10" class="ppFlexContainer p911button">
+								<a href="/Accounting{% if request.query %}{{request.query}}{% endif %}" class="anchor-inherit-styles"
+									 onclick="spinShow(true); setTimeout(function() { return true; }, 300);"">
+									<p style="text-align: left; color: var(--portalThemeColor5); font-size: 18px;">​
+										<b>Accounting</b>
+									</p>
+								</a>
+							</div>
+						{% endif %}
+
+						{% if is_admin != true %}
+							<div data-component-theme="portalThemeColor10" class="ppFlexContainer" style="display: flex; border-radius: 8px 8px 8px 8px; align-items: center; 
+									justify-content: center; max-width: auto; width: auto; height: 45px; flex-grow: 0; flex-shrink: 0; flex-basis: 200px;">
+								<p style="text-align: left; color: var(--portalThemeColor5); font-size: 18px;">
+									<a href="/Loan-Officer{% if request.query %}{{request.query}}{% endif %}" class="anchor-inherit-styles">
+										<b aria-label="Text Loan Officers">
+											Loan Officers
+										</b>
+									</a>
+								</p>
+							</div>
+						{% endif %}
+					</div>
+
+					{% include 'snippet' snippet_name:'WebAPI' %}
+
+					<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 25px;"></div>
+					
+					{% comment %} Use shared Primary Commissions Table template - includes pageSize parameter support {% endcomment %}
+					{% include 'Primary Commissions Table' %}
+
+					<div class="row sectionBlockLayout" style="display: flex; flex-wrap: wrap; padding: 8px; margin: 0px; min-height: 25px;"></div>
+					
+					{% comment %} Use shared Primary Adjustments Table template {% endcomment %}
+					{% include 'Primary Adjustments Table' %}
+
+					{% include 'snippet' snippet_name:'Email Dialog' %}
+					{% include 'Email Modal' %}
+
+
+				{% else %}
+					{% comment %} No branch selected - show selection prompt {% endcomment %}
+					{% if is_admin %}
+						<div class="grid-container">
+							<h3 style="text-align: center; color: #666; padding: 40px;">
+								<i class="fas fa-arrow-up" style="margin-right: 10px;"></i>
+								Please select a branch from the dropdown above to view commission data.
+							</h3>
+						</div>
+					{% else %}
+						{% comment %} Branch managers with no currentBranch (shouldn't happen normally) {% endcomment %}
+						<div class="grid-container">
+							<h3 style="text-align: center; color: #666; padding: 40px;">
+								<i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i>
+								No branch assignment found. Please contact your administrator.
+							</h3>
+						</div>
+					{% endif %}
+
+				{% endif %}
+			</div>
+		</div>
+	</div>
+	
+	<!-- Approval JavaScript (only if approvals are enabled and user can approve commissions) -->
+	{% if sqUsingApprovals == true and canApproveCommissions == true %}
+	<script>
+		// Toggle approval details visibility
+		function toggleApprovalDetails() {
+			const details = document.getElementById('approvalDetails');
+			const detailsComplete = document.getElementById('approvalDetailsComplete');
+			const chevron = document.getElementById('detailsChevron');
+			const chevronComplete = document.getElementById('detailsChevronComplete');
+			
+			// Handle approvalReady state details
+			if (details && details.style.display === 'none') {
+				details.style.display = 'block';
+				if (chevron) chevron.classList.replace('fa-chevron-down', 'fa-chevron-up');
+				// Populate detailed status when expanding
+				if (window.branchApprovalOfficers) {
+					updateDetailedStatusDisplay(window.branchApprovalOfficers);
+				} else {
+				}
+			} else if (details) {
+				details.style.display = 'none';
+				if (chevron) chevron.classList.replace('fa-chevron-up', 'fa-chevron-down');
+			}
+			
+			// Handle approvalComplete state details
+			if (detailsComplete && detailsComplete.style.display === 'none') {
+				detailsComplete.style.display = 'block';
+				if (chevronComplete) chevronComplete.classList.replace('fa-chevron-down', 'fa-chevron-up');
+				// Populate detailed status when expanding
+				if (window.branchApprovalOfficers) {
+					updateDetailedStatusDisplay(window.branchApprovalOfficers);
+				} else {
+				}
+			} else if (detailsComplete) {
+				detailsComplete.style.display = 'none';
+				if (chevronComplete) chevronComplete.classList.replace('fa-chevron-up', 'fa-chevron-down');
+			}
+		}
+		
+		// Initialize approval status on page load
+		document.addEventListener("DOMContentLoaded", function() {
+			console.log('Branch page: Initializing approval status check');
+
+			// Preserve scroll position during approval initialization
+			const originalScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+			initBranchApprovalStatus().then(() => {
+				// Restore original scroll position after approval initialization
+				window.scrollTo(0, originalScrollTop);
+			}).catch(() => {
+				// Even if there's an error, restore scroll position
+				window.scrollTo(0, originalScrollTop);
+			});
+		});
+		
+		// Parse user loan officer list for branch managers
+		function parseUserLoanOfficerList() {
+			// FIXED: Use the same centralized branchManagerOfficerCodes that the cards use
+			// This ensures 100% consistency between cards and approval details
+			const officers = [];
+			const uniqueOfficers = new Map();
+
+			{% comment %} Use branchManagerOfficerCodes which is already calculated server-side {% endcomment %}
+			{% comment %} This matches the exact logic used for loan officer cards {% endcomment %}
+			const branchManagerCodes = "{{ branchManagerOfficerCodes }}";
+
+			if (branchManagerCodes && branchManagerCodes !== "") {
+				const codes = branchManagerCodes.split("|").filter(c => c && c.trim() !== "");
+
+				// For each code, find the corresponding loan officer name
+				{% for lo in allLoanOfficers.results.entities %}
+					const loCode_{{ forloop.index }} = "{{ lo.lv_code }}";
+					const loName_{{ forloop.index }} = "{{ lo.lv_name }}";
+
+					if (codes.includes(loCode_{{ forloop.index }})) {
+						uniqueOfficers.set(loCode_{{ forloop.index }}, {
+							name: loName_{{ forloop.index }},
+							code: loCode_{{ forloop.index }}
+						});
+					}
+				{% endfor %}
+			}
+
+			// Convert Map to array
+			for (const officer of uniqueOfficers.values()) {
+				officers.push(officer);
+			}
+
+			console.log(`parseUserLoanOfficerList: Found ${officers.length} loan officers from branchManagerOfficerCodes`);
+			return officers;
+		}
+		
+		// Get officer commission data from current branch view
+		function getOfficerCommissionTotal(officerCode) {
+			let total = 0;
+			let count = 0;
+			
+			
+			// Use the same commission filtering logic as parseUserLoanOfficerList
+			{% for row in allLoanBasedCommissions.results.entities %}
+				{% assign includeThisCommission = false %}
+				
+				{% comment %} ADMIN USERS: Admin override - include all commissions {% endcomment %}
+				{% if is_admin %}
+					{% assign includeThisCommission = true %}
+				{% else %}
+					{% comment %} BRANCH MANAGERS: Include commissions in their managed branches OR from their assigned loan officers {% endcomment %}
+					{% if is_BranchManager %}
+						{% assign userOfficerCode = row.lv_xloanofficercode | append: "|" %}
+						{% assign officerCheckString = "|" | append: userOfficerCode %}
+						{% if userLoanOfficerList contains officerCheckString %}
+							{% assign includeThisCommission = true %}
+						{% else %}
+							{% comment %} Check if commission is in a branch managed by this user {% endcomment %}
+							{% assign branchCheckString = "|" | append: row.lv_branchcode | append: "|" %}
+							{% if userBranchList contains branchCheckString %}
+								{% assign includeThisCommission = true %}
+							{% else %}
+								{% assign includeThisCommission = false %}
+							{% endif %}
+						{% endif %}
+					{% endif %}
+				{% endif %}
+				
+				{% if includeThisCommission and row.lv_xloanofficercode %}
+					if ("{{row.lv_xloanofficercode}}" === officerCode) {
+						total += {{row.lv_amount}};
+						count++;
+					}
+				{% endif %}
+			{% endfor %}
+			
+			return { total: total, recordCount: count };
+		}
+		
+		// Check branch manager approval status for current branch and period
+		async function checkBranchManagerApproval(branchCode, periodNo) {
+			try {
+				// Get all officers with commissions for this period
+				const officers = parseUserLoanOfficerList();
+				const officersWithCommissions = officers.filter(officer => {
+					if (officer.name && officer.code) {
+						const commissionData = getOfficerCommissionTotal(officer.code);
+						return commissionData.recordCount > 0;
+					}
+					return false;
+				});
+				
+				if (officersWithCommissions.length === 0) {
+					console.log('ℹ️ No loan officers with commissions found for this branch/period');
+					// Return no approval needed - there are no commissions to approve
+					return { 
+						hasApproval: false,
+						noCommissions: true,
+						reason: 'No commissions found for this branch/period'
+					};
+				}
+				
+				// For branch manager approvals, look for ANY ACTIVE approval record for this branch/period with blank lv_loanofficercode
+				// Note: In Dataverse, empty strings are stored as null, so we check for null values
+				// Only include active records (statecode = 0) to exclude deactivated approvals
+				const filterExpr = `$filter=lv_branchcode eq '${branchCode}' and lv_periodno eq ${periodNo} and lv_webrole eq 'Branch Manager' and lv_loanofficercode eq null and statecode eq 0`;
+				const approvalRecords = await apiGetRecords("lv_lvcompcommissionapprovals", filterExpr);
+				
+				if (!approvalRecords || !Array.isArray(approvalRecords) || approvalRecords.length === 0) {
+					return { hasApproval: false };
+				}
+				
+				// Branch manager approval exists - return details from the first (and should be only) record
+				return { 
+					hasApproval: true, 
+					details: approvalRecords[0],
+					approvedBy: approvalRecords[0].lv_fullname,
+					approvedDate: approvalRecords[0].createdon,
+					totalApprovals: approvalRecords.length
+				};
+			} catch (error) {
+				console.error('Error checking branch manager approval:', error);
+				return { hasApproval: false };
+			}
+		}
+		
+		
+		// Initialize branch approval status - BRANCH MANAGER FOCUSED
+		async function initBranchApprovalStatus() {
+			try {
+				$('#approvalLoading').show();
+				$('#approvalReady').hide();
+				$('#approvalComplete').hide();
+				
+				const currentBranchName = window.PAGE_BRANCH || "{{currentBranch.lv_name}}";
+				const currentBranchCode = window.PAGE_BRANCH_CODE || "{{currentBranch.lv_code}}";
+				const periodNo = window.PAGE_UISelPeriodNo;
+				const approvalType = "{{sqApprovalType}}";
+				
+				console.log('Branch Approval Check:', { currentBranchName, currentBranchCode, periodNo, approvalType });
+				
+				// Check if this branch has already been approved by a branch manager
+				const branchApproval = await checkBranchManagerApproval(currentBranchCode, periodNo);
+				
+				$('#approvalLoading').hide();
+				
+				if (branchApproval.noCommissions) {
+					// No commissions for this branch/period - hide entire approval section
+					console.log('ℹ️ No commissions found, hiding approval section');
+					$('#branchApprovalSection').hide();
+					return;
+				}
+				
+				if (branchApproval.hasApproval) {
+					// Branch manager has already approved
+					$('#approvalComplete').show();
+					
+					// DEBUG: Check what we received from checkBranchManagerApproval
+					console.log('Branch Approval Data:', {
+						hasApproval: branchApproval.hasApproval,
+						approvedBy: branchApproval.approvedBy,
+						details: branchApproval.details,
+						approvedDate: branchApproval.approvedDate,
+						totalApprovals: branchApproval.totalApprovals
+					});
+					
+					// Safety check: Handle case where details might be undefined
+					let approverEmail = 'unknown@example.com'; // fallback
+					if (branchApproval.details && branchApproval.details.lv_emailaddress) {
+						approverEmail = branchApproval.details.lv_emailaddress;
+						console.log('✅ Using approver email from details:', approverEmail);
+					} else {
+						console.warn('⚠️ Branch approval details missing or no lv_emailaddress, using fallback email');
+						// Try to get current user's email as fallback
+						if (window.PAGE_USEREMAIL) {
+							approverEmail = window.PAGE_USEREMAIL;
+							console.log('📧 Using current user email as fallback:', approverEmail);
+						}
+					}
+					
+					const personalizedMessage = formatPersonalizedApprovalMessage(
+						branchApproval.approvedBy || 'Branch Manager',
+						approverEmail,
+						window.PAGE_USEREMAIL,
+						branchApproval.approvedDate
+					);
+					$('#completeMessage').text(`Branch manager approval complete. ${personalizedMessage}`);
+				} else {
+					// Branch manager approval needed
+					$('#approvalReady').show();
+				}
+				
+				// Always show commission summary
+				updateCommissionSummaryDisplay();
+				
+			} catch (error) {
+				console.error('Error initializing branch approval status:', error);
+				$('#approvalLoading').hide();
+				$('#completeMessage').text('Error checking approval status. Please refresh the page.');
+				$('#approvalComplete').show();
+			}
+		}
+		
+		// Update commission summary display - NO loan officer approval logic on branch page
+		function updateCommissionSummaryDisplay() {
+			try {
+				const officers = parseUserLoanOfficerList();
+				let officersWithCommissions = [];
+				
+				for (const officer of officers) {
+					if (officer.name && officer.code) {
+						const commissionData = getOfficerCommissionTotal(officer.code);
+						
+						// Only include officers who actually have commissions for this period
+						if (commissionData.recordCount > 0) {
+							officer.commissionData = commissionData;
+							officersWithCommissions.push(officer);
+						}
+					}
+				}
+				
+				// Store officer data for detailed display and bulk approval
+				window.branchApprovalOfficers = officersWithCommissions;
+				window.pendingBulkApprovals = officersWithCommissions;
+				
+				// Show/hide View Details links based on whether there are officers with commissions
+				if (officersWithCommissions.length > 0) {
+					$('#approvalReady a[onclick*="toggleApprovalDetails"]').show();
+					$('#approvalComplete a[onclick*="toggleApprovalDetails"]').show();
+				} else {
+					$('#approvalReady a[onclick*="toggleApprovalDetails"]').hide();
+					$('#approvalComplete a[onclick*="toggleApprovalDetails"]').hide();
+				}
+				
+				
+				// Update the detailed display
+				updateDetailedStatusDisplay(window.branchApprovalOfficers);
+				
+			} catch (error) {
+				console.error('Error updating commission summary display:', error);
+			}
+		}
+		
+		// Update detailed status display - BRANCH PAGE: Commission summary only, NO approval status
+		function updateDetailedStatusDisplay(officers) {
+			let html = '<div style="max-height: 400px; overflow-y: auto;">';
+			
+			if (officers.length === 0) {
+				html += '<p style="color: #6c757d; font-style: italic;">No commissions found for this branch and period.</p>';
+			} else {
+				html += '<h6 style="margin-top: 10px;">Commission Summary (' + officers.length + '):</h6>';
+				html += '<ul>';
+
+				officers.forEach(officer => {
+					html += `<li>${officer.name} - $${formatCurrency(officer.commissionData.total)} (${officer.commissionData.recordCount})</li>`;
+				});
+				html += '</ul>';
+			}
+			
+			html += '</div>';
+			
+			
+			// Update the appropriate display area based on which is currently visible
+			if ($('#approvalReady').is(':visible')) {
+				$('#detailedStatusDisplay').html(html);
+			}
+			if ($('#approvalComplete').is(':visible')) {
+				$('#detailedStatusDisplayComplete').html(html);
+			}
+		}
+		
+		// Format date for display
+		function formatApprovalDate(dateString) {
+			const date = new Date(dateString);
+			const now = new Date();
+			const isToday = date.toDateString() === now.toDateString();
+			
+			const time = date.toLocaleTimeString('en-US', { 
+				hour: 'numeric', 
+				minute: '2-digit',
+				hour12: true 
+			});
+			
+			if (isToday) {
+				return `at ${time} today`;
+			} else {
+				const dateStr = date.toLocaleDateString('en-US', { 
+					weekday: 'short',
+					month: 'short',
+					day: 'numeric',
+					year: 'numeric'
+				});
+				return `at ${time} on ${dateStr}`;
+			}
+		}
+		
+		// Format number with commas
+		function formatCurrency(amount) {
+			return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		}
+		
+		// Bulk approve click handler
+		async function btnBulkApproveClick() {
+			if (!window.pendingBulkApprovals || window.pendingBulkApprovals.length === 0) {
+				alert('No officers pending approval.');
+				return false;
+			}
+			
+			const officersToApprove = window.pendingBulkApprovals;
+			const totalOfficers = officersToApprove.length;
+			
+			// Build confirmation message
+			let confirmMsg = `You are about to approve commissions for ${totalOfficers} loan officer${totalOfficers > 1 ? 's' : ''}:\n\n`;
+			let grandTotal = 0;
+			
+			officersToApprove.forEach(officer => {
+				confirmMsg += `• ${officer.name}: $${formatCurrency(officer.commissionData.total)} (${officer.commissionData.recordCount})\n`;
+				grandTotal += officer.commissionData.total;
+			});
+			
+			confirmMsg += `\nTotal: $${formatCurrency(grandTotal)}\n\nDo you want to proceed?`;
+			
+			if (!confirm(confirmMsg)) {
+				return false;
+			}
+			
+			// Hide ready state and show progress
+			$('#approvalReady').hide();
+			$('#approvalProgress').show();
+			
+			let approvedCount = 0;
+			let errors = [];
+			
+			const currentBranchName = window.PAGE_BRANCH || "{{currentBranch.lv_name}}";
+			const currentBranchCode = window.PAGE_BRANCH_CODE || "{{currentBranch.lv_code}}";
+			
+			// Create ONE approval record for the entire branch (not per loan officer)
+			let branchTotal = 0;
+			officersToApprove.forEach(officer => {
+				branchTotal += officer.commissionData.total;
+			});
+			
+			try {
+				$('#approvalProgressBar').css('width', '50%').attr('aria-valuenow', 50).text('50%');
+				$('#approvalProgressStatus').text('Creating branch approval record...');
+				
+				// Create single approval record for this branch
+				const approvalData = {
+					lv_periodno: window.PAGE_UISelPeriodNo,
+					lv_periodcode: window.PAGE_UISelPeriodCode,
+					lv_loanofficercode: null, // Leave null for branch approvals
+					lv_branchcode: currentBranchCode,
+					lv_amount: branchTotal,
+					lv_amountdisplayedtouser: `$${formatCurrency(branchTotal)}`,
+					lv_fullname: "{{user.fullname}}",
+					lv_emailaddress: "{{user.emailaddress1}}",
+					lv_webrole: "Branch Manager"
+				};
+				
+				await apiCall("/_api/lv_lvcompcommissionapprovals", "POST", approvalData, true);
+				approvedCount = 1;
+				
+			} catch (error) {
+				console.error('Error creating branch approval:', error);
+				errors.push('Branch approval');
+			}
+			
+			// Update final progress
+			$('#approvalProgressBar').css('width', '100%').attr('aria-valuenow', 100).text('100%');
+			
+			// Show completion
+			setTimeout(() => {
+				$('#approvalProgress').hide();
+				
+				if (errors.length === 0) {
+					alert(`Successfully approved branch commissions totaling $${formatCurrency(branchTotal)} for ${totalOfficers} loan officer${totalOfficers > 1 ? 's' : ''}.`);
+				} else {
+					alert(`Branch approval failed. Errors: ${errors.join(', ')}`);
+				}
+				
+				// Refresh the page to show updated status
+				location.reload();
+			}, 1000);
+			
+			return false;
+		}
+	</script>
+	{% endif %}
+{% endif %}
+
+<!-- Last modified fri aug 8 2:15pm -->
+<!-- Last modified sun aug 10 6:07am -->
+<!-- Last modified sun aug 10 7:02am -->
+<!-- Last modified tue aug 12 11:58am -->
+<!-- Last modified fri aug 15 8:35am -->
+<!-- Last modified Sun Aug 31 5:00PM -->
+<!-- Last modified Wed Oct 01 1:05PM -->
+<!-- Last modified Wed Oct 01 1:50PM -->
+<!-- Last modified Mon Nov 17 8:41PM -->

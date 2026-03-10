@@ -1,0 +1,187 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Sep 13 8:05AM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified wed jul 2 9:42am -->
+<!-- Last modified wed jul 2 9:35am -->
+<!-- Last modified wed jul 2 9:28-am -->
+{% comment %}
+                        Referenced in many views, including: Accounting, Region, Branch, Loan Officer ~commission
+						Data and HTML now comes from Commission-Filter snippet - SINGLE SOURCE OF TRUTH
+{% endcomment %}
+<!-- VERSION MARKER: Primary-Commissions-Table v2 - Now uses Commission-Filter output -->
+
+{% comment %}
+	Style section for commission table formatting
+{% endcomment %}
+
+<style>
+	.adjustments-section,
+	.commissions-section {
+		width: 100%;
+		display: block;
+		clear: both;
+	}
+
+	.data-table-wrapper {
+		width: 100%;
+		overflow-x: auto;
+		position: relative;
+		clear: both;
+	}
+	
+	.data-table {
+		width: 100%;
+		min-width: 100%;
+		table-layout: fixed;
+	}
+
+	/* Column width controls */
+	.data-table th[data-label="Profile"] { width: 120px; min-width: 120px; }
+	.data-table th[data-label="Loan Number"] { width: 100px; min-width: 100px; }
+	.data-table th[data-label="Borrower Name"] { width: 150px; min-width: 150px; }
+	.data-table th[data-label="Date"] { width: 100px; min-width: 100px; }
+
+	.data-table th[data-label="CommBaseAmount"],
+	.data-table td[data-label="CommBaseAmount"]
+	{
+		text-align: right;
+		width: 120px; 
+		min-width: 120px;
+	}
+
+	.data-table th[data-label="Amount"],
+	.data-table td[data-label="Amount"]
+	{
+		text-align: right;
+		width: 100px; 
+		min-width: 100px;
+	}
+
+	.data-table th[data-label="BPSCalc"],
+	.data-table td[data-label="BPSCalc"]
+	{
+		overflow-wrap: normal;
+		text-align: right;
+		width: 100px;
+		min-width: 100px;
+		word-break: keep-all; /* without this, sometimes we get 'Calculat' on one line and 'ed' on the next */
+	}
+
+	.data-table th[data-label="CalcType"],
+	.data-table td[data-label="CalcType"]
+	{
+		text-align: center; /* Otherwise, is too close to BPSCalc, which is right aligned*/
+		width: 120px;
+		min-width: 120px;
+	}
+
+	.data-table th[data-label="Branch"] { width: 120px; min-width: 120px; }
+	.data-table th[data-label="Loan Officer"] { width: 120px; min-width: 120px; }
+	
+	.data-table th[data-label="LOSplit"],
+	.data-table td[data-label="LOSplit"]
+	{ 
+		text-align: right;
+		width: 100px;
+		min-width: 100px;
+	}
+
+	.data-table .action-column {
+		width: 60px;
+		min-width: 60px;
+		text-align: center;
+		position: sticky;
+		right: 0;
+		background-color: inherit;
+		z-index: 1;
+	}
+
+	.data-table .button-group {
+		display: flex;
+		gap: 5px;
+		justify-content: center;
+		align-items: center;
+	}
+
+	.data-table .btn-email {
+		background: none;
+		border: none;
+		color: #007bff;
+		cursor: pointer;
+		padding: 5px;
+		border-radius: 3px;
+		transition: background-color 0.2s;
+	}
+
+	.data-table .btn-email:hover {
+		background-color: #f8f9fa;
+		color: #0056b3;
+	}
+
+	.data-table .btn-email i {
+		font-size: 14px;
+	}
+
+	/* Responsive adjustments */
+	@media (max-width: 768px) {
+		.data-table,
+		.data-table thead,
+		.data-table tbody,
+		.data-table th,
+		.data-table td,
+		.data-table tr {
+			display: block;
+		}
+
+		.data-table thead tr {
+			position: absolute;
+			top: -9999px;
+			left: -9999px;
+		}
+
+		.data-table tr {
+			border: 1px solid #ccc;
+			margin-bottom: 10px;
+			padding: 10px;
+		}
+
+		.data-table td {
+			border: none;
+			position: relative;
+			padding-left: 50% !important;
+			padding-top: 10px;
+			padding-bottom: 10px;
+		}
+
+		.data-table td:before {
+			content: attr(data-label) ": ";
+			position: absolute;
+			left: 6px;
+			width: 45%;
+			padding-right: 10px;
+			white-space: nowrap;
+			font-weight: bold;
+		}
+
+		.data-table td {
+			width: auto !important;
+		}
+	}
+</style>
+
+
+{% comment %} 
+=== SINGLE SOURCE OF TRUTH ===
+All commission filtering, counting, and table generation is now handled by Commission-Filter snippet.
+This template just outputs the pre-generated HTML.
+{% endcomment %}
+
+{{ cfCommissionTableOutput }}
+
+{% include 'snippet' snippet_name:'Excel Export' %}
+
+{% comment %} End of Primary-Commissions-Table template {% endcomment %}
+<!-- Last modified Sat Aug 30 10:04AM -->
+
+<!-- Last modified Sat Sep 13 8:05AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

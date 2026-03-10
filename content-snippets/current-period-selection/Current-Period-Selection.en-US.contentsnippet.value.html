@@ -1,0 +1,462 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Mon Oct 06 3:20PM -->
+<!-- Last modified Thu Oct 02 12:15PM -->
+<!-- Last modified Wed Oct 01 4:19PM -->
+<!-- Last modified Wed Oct 01 1:55PM -->
+<!-- Last modified Wed Oct 01 1:50PM -->
+<!-- Last modified Wed Oct 01 1:05PM -->
+<!-- Last modified Tue Sep 02 1:09PM -->
+<!-- Last modified mon aug 4 5:03am -->
+<!-- Last modified sun aug 4 4:43am -->
+
+<!-- spacer -->
+<!-- ENTER: currentPeriodSelection -->
+
+<div id="divPeriodDropdown" class="form-group mb-3">
+    <label for="period-select" class="form-label" style="width: 250px; display: block; white-space: nowrap;">Period</label>
+
+	<!-- cpsel:: CurrentPeriodSelection sqUISelPeriodNo={{sqUISelPeriodNo}} -->
+	<!-- DEBUG: Total periods available: {{currentPeriodQuery.results.entities.size}}, Periods with data: {{periodsWithData.results.entities.size}} -->
+    
+    
+    {%- comment -%} Calculate if branch is already determined (either via URL param or single-branch manager) {%- endcomment -%}
+    {%- assign branchAlreadyDetermined = false -%}
+    {%- if page.title == 'Branch' -%}
+        {%- if request.params.branch or (is_BranchManager and currentBranch) -%}
+            {%- assign branchAlreadyDetermined = true -%}
+        {%- endif -%}
+    {%- endif -%}
+
+    <select class="form-select" name="period-select" id="period-select" onchange="setPeriodFilter()" style="width: 100%; min-width: 200px;" {%- if page.title == 'Branch' and branchAlreadyDetermined == false -%} disabled{%- elsif page.title == 'Loan Officer' -%}{%- unless request.params.officer or is_OnlyLoanOfficer -%} disabled{%- endunless -%}{%- endif -%}>
+        {%- if page.title == 'Branch' and branchAlreadyDetermined == false -%}
+        <option value="" disabled selected>Select a branch first...</option>
+        {%- elsif page.title == 'Loan Officer' -%}{%- unless request.params.officer or is_OnlyLoanOfficer -%}
+        <option value="" disabled selected>First select a loan officer above...</option>
+        {%- endunless -%}
+        {%- endif -%}
+        {%- comment -%} For Branch page: periods will be populated dynamically by JavaScript {%- endcomment -%}
+        {%- comment -%} For other pages: show all periods with server-side filtering {%- endcomment -%}
+        {%- if page.title == 'Branch' -%}
+            {%- comment -%} On Branch page, JavaScript will populate this dynamically {%- endcomment -%}
+            {%- for period in currentPeriodQuery.results.entities -%}
+<option value="{{period.lv_lvcompcommperiodcalcid}}" {%- assign urlPeriodId = request.params.period -%}{%- if period.lv_lvcompcommperiodcalcid == sqRecUISelPeriod.lv_lvcompcommperiodcalcid or period.lv_lvcompcommperiodcalcid == urlPeriodId %} selected{% endif %} data-datefrom="{{period.lv_datefrom}}" data-dateto="{{period.lv_dateto}}" data-periodno="{{period.lv_periodno}}" style="display: none;">{{ period.lv_name }}</option>
+            {%- endfor -%}
+        {%- elsif page.title == 'Loan Officer' -%}
+            {%- unless request.params.officer or is_OnlyLoanOfficer -%}
+                {%- comment -%} On Loan-Officer page with no officer selected, don't show period options (similar to Branch page) {%- endcomment -%}
+                {%- comment -%} Period options will be enabled when loan officer is selected {%- endcomment -%}
+            {%- else -%}
+                {%- comment -%} LOAN OFFICER AUTO-PERIOD SELECTION: Check if we need to auto-select the first period {%- endcomment -%}
+                {%- unless request.params.period -%}
+                    {%- comment -%} No period in URL - find first available period and redirect {%- endcomment -%}
+                    {%- assign firstAvailablePeriod = null -%}
+                    {%- if periodsWithData.results.entities.size > 0 -%}
+                        {%- for period in currentPeriodQuery.results.entities -%}
+                            {%- assign periodHasData = false -%}
+                            {%- for dataperiod in periodsWithData.results.entities -%}
+                                {%- if dataperiod.period_number == period.lv_periodno -%}
+                                    {%- assign periodHasData = true -%}
+                                    {%- break -%}
+                                {%- endif -%}
+                            {%- endfor -%}
+                            {%- if periodHasData and firstAvailablePeriod == null -%}
+                                {%- assign firstAvailablePeriod = period -%}
+                                {%- break -%}
+                            {%- endif -%}
+                        {%- endfor -%}
+                    {%- endif -%}
+
+                    {%- if firstAvailablePeriod -%}
+                        {%- comment -%} Auto-redirect with both officer and period parameters {%- endcomment -%}
+                        <script>
+                            console.log('LOAN OFFICER AUTO-PERIOD: Redirecting to include first available period:', '{{firstAvailablePeriod.lv_name}}', '({{firstAvailablePeriod.lv_lvcompcommperiodcalcid}})');
+                            const currentUrl = new URL(window.location.href);
+                            currentUrl.searchParams.set('period', '{{firstAvailablePeriod.lv_lvcompcommperiodcalcid}}');
+                            window.location.href = currentUrl.toString();
+                        </script>
+                    {%- endif -%}
+                {%- endunless -%}
+
+                {%- comment -%} Loan-Officer page with officer selected: show filtered periods similar to Branch page {%- endcomment -%}
+                {%- for period in currentPeriodQuery.results.entities -%}
+                    {%- comment -%} Filter periods that have commission data for the selected loan officer {%- endcomment -%}
+                    {%- assign periodHasData = false -%}
+                    {%- comment -%} Check if this period has any commission data in periodsWithData {%- endcomment -%}
+                    {%- if periodsWithData.results.entities.size > 0 -%}
+                        {%- for dataperiod in periodsWithData.results.entities -%}
+                            {%- if dataperiod.period_number == period.lv_periodno -%}
+                                {%- assign periodHasData = true -%}
+                                {%- break -%}
+                            {%- endif -%}
+                        {%- endfor -%}
+                    {%- else -%}
+                        {%- comment -%} If periodsWithData is not available, show all periods for admin users {%- endcomment -%}
+                        {%- assign periodHasData = true -%}
+                    {%- endif -%}
+
+                    {%- if periodHasData -%}
+<option value="{{period.lv_lvcompcommperiodcalcid}}" {%- assign urlPeriodId = request.params.period -%}{%- if period.lv_lvcompcommperiodcalcid == sqRecUISelPeriod.lv_lvcompcommperiodcalcid or period.lv_lvcompcommperiodcalcid == urlPeriodId -%} selected{%- endif -%} data-datefrom="{{period.lv_datefrom}}" data-dateto="{{period.lv_dateto}}" data-periodno="{{period.lv_periodno}}">{{ period.lv_name }}</option>
+                    {%- endif -%}
+                {%- endfor -%}
+            {%- endunless -%}
+        {%- else -%}
+            {%- comment -%} Non-Branch pages: use original server-side filtering logic {%- endcomment -%}
+            {%- for period in currentPeriodQuery.results.entities -%}
+                {%- comment -%} Check if this period has commission data by looking for matching lv_periodno in periodsWithData {%- endcomment -%}
+                {%- assign periodHasData = false -%}
+                {%- if periodsWithData.results.entities.size > 0 -%}
+                    {%- for dataperiod in periodsWithData.results.entities -%}
+                        {%- if dataperiod.lv_periodno == period.lv_periodno -%}
+                            {%- assign periodHasData = true -%}
+                            {%- break -%}
+                        {%- endif -%}
+                    {%- endfor -%}
+                {%- else -%}
+                    {%- comment -%} If periodsWithData is not available (e.g., on Accounting page), show all periods {%- endcomment -%}
+                    {%- assign periodHasData = true -%}
+                {%- endif -%}
+
+                {%- if periodHasData -%}
+<option value="{{period.lv_lvcompcommperiodcalcid}}" {%- assign urlPeriodId = request.params.period -%}{%- if period.lv_lvcompcommperiodcalcid == sqRecUISelPeriod.lv_lvcompcommperiodcalcid or period.lv_lvcompcommperiodcalcid == urlPeriodId -%} selected{%- endif -%} data-datefrom="{{period.lv_datefrom}}" data-dateto="{{period.lv_dateto}}" data-periodno="{{period.lv_periodno}}">{{ period.lv_name }}</option>
+                {%- endif -%}
+            {%- endfor -%}
+        {%- endif -%}
+    </select>
+</div>
+
+<script>
+	
+function setPeriodFilter() {
+	spinShow();
+	const baseUrl = window.location.origin;
+	let newUrl = new URL(window.location.href); // Use full current URL to preserve all params
+	const oSel = getSelectSelected("#period-select");
+	
+	localStorage.setItem('selectedPeriod', oSel.value);
+	
+	// Set timing measurement for performance tracking
+	localStorage.setItem('TimeOfLastChangeOfPeriodDropdown', Date.now().toString());
+	
+	// Update or add the period parameter while preserving all other parameters
+	newUrl.searchParams.set('period', oSel.value);
+	
+	console.log('setPeriodFilter: newUrl=' + newUrl.toString());
+	
+	window.open(newUrl.toString(), '_self');
+	logSelect("Period", oSel);
+}
+	
+// Everything below is all about having to change ordering on mobile
+{%- if page.title == 'Branch' -%}
+// BRANCH PAGE: Set up dynamic period filtering based on branch selection
+function setupBranchPeriodFiltering() {
+	const branchSelect = document.getElementById('branch-select');
+	const periodSelect = document.getElementById('period-select');
+
+	console.log('DEBUG: setupBranchPeriodFiltering called');
+	console.log('DEBUG: branchSelect found:', !!branchSelect);
+	console.log('DEBUG: periodSelect found:', !!periodSelect);
+	console.log('DEBUG: branchPeriodsMapping available:', !!window.branchPeriodsMapping);
+	console.log('DEBUG: branchPeriodsMapping contents:', window.branchPeriodsMapping);
+	console.log('DEBUG: window.PAGE_BRANCH_CODE:', window.PAGE_BRANCH_CODE);
+
+	if (!periodSelect) {
+		console.warn('Period dropdown not found');
+		return;
+	}
+
+	// For single-branch managers, branchSelect might not exist - use PAGE_BRANCH_CODE instead
+	if (!branchSelect && !window.PAGE_BRANCH_CODE) {
+		console.warn('Neither branch dropdown nor current branch code available');
+		return;
+	}
+
+	// Store original period options for restoration
+	const originalPeriodOptions = Array.from(periodSelect.querySelectorAll('option:not([value=""])'));
+
+	// Listen for branch selection changes (only if branchSelect exists)
+	if (branchSelect) {
+		branchSelect.addEventListener('change', function() {
+		const selectedBranchCode = branchSelect.value;
+		console.log('DEBUG: Branch changed to:', selectedBranchCode);
+		console.log('DEBUG: Branch element:', branchSelect);
+		console.log('DEBUG: Selected option text:', branchSelect.options[branchSelect.selectedIndex]?.text);
+
+		// Clear current period options completely
+		periodSelect.innerHTML = '';
+
+		if (selectedBranchCode && window.branchPeriodsMapping && window.branchPeriodsMapping[selectedBranchCode]) {
+			// Get periods for selected branch
+			const availablePeriods = window.branchPeriodsMapping[selectedBranchCode].periods;
+			console.log('Available periods for branch:', availablePeriods);
+
+			// Add placeholder option FIRST
+			const placeholderOption = document.createElement('option');
+			placeholderOption.value = '';
+			placeholderOption.disabled = true;
+			placeholderOption.selected = true;
+			placeholderOption.textContent = 'Select a period...';
+			periodSelect.appendChild(placeholderOption);
+
+			// Add period options that exist for this branch
+			let addedCount = 0;
+			let firstPeriodOption = null;
+			originalPeriodOptions.forEach(option => {
+				const periodNo = parseInt(option.getAttribute('data-periodno'));
+				if (availablePeriods.includes(periodNo)) {
+					const clonedOption = option.cloneNode(true);
+					clonedOption.style.display = ''; // Remove display:none from cloned option
+					periodSelect.appendChild(clonedOption);
+					addedCount++;
+
+					// Remember the first period option for auto-selection
+					if (!firstPeriodOption) {
+						firstPeriodOption = clonedOption;
+					}
+				}
+			});
+
+			// Enable the period dropdown
+			periodSelect.disabled = false;
+
+			// Automatically select the first period and trigger navigation
+			if (firstPeriodOption) {
+				console.log('DEBUG: Auto-selecting first period:', firstPeriodOption.textContent, 'value:', firstPeriodOption.value);
+				firstPeriodOption.selected = true;
+				// Remove the placeholder option since we're selecting a real period
+				if (placeholderOption.parentNode) {
+					placeholderOption.parentNode.removeChild(placeholderOption);
+				}
+
+				// Navigate with both branch and period parameters
+				spinShow();
+				const baseUrl = window.location.origin;
+				let newUrl = new URL(window.location.href);
+
+				// Set both branch and period parameters
+				newUrl.searchParams.set('branch', selectedBranchCode);
+				newUrl.searchParams.set('period', firstPeriodOption.value);
+
+				console.log('DEBUG: Auto-navigation with branch and period:', newUrl.toString());
+				window.open(newUrl.toString(), '_self');
+				logSelect("Period", firstPeriodOption);
+			}
+		} else {
+			// No branch selected or no data - add placeholder and disable
+			const placeholderOption = document.createElement('option');
+			placeholderOption.value = '';
+			placeholderOption.disabled = true;
+			placeholderOption.selected = true;
+			placeholderOption.textContent = 'Select a branch first...';
+			periodSelect.appendChild(placeholderOption);
+			periodSelect.disabled = true;
+		}
+		});
+	}
+
+	// Check if branch is already determined (either via dropdown or PAGE_BRANCH_CODE for single-branch managers)
+	let selectedBranchGuid = null;
+	if (branchSelect && branchSelect.value && branchSelect.value !== "") {
+		console.log('DEBUG: Branch already selected via dropdown on page load:', branchSelect.value);
+		selectedBranchGuid = branchSelect.value;  // Dropdown value can be a GUID or "all"
+	} else if (window.PAGE_BRANCH_CODE && window.PAGE_BRANCH_CODE === "ALL_BRANCHES") {
+		console.log('DEBUG: Branch determined via PAGE_BRANCH_CODE (multi-branch manager with All Branches default):', window.PAGE_BRANCH_CODE);
+		selectedBranchGuid = "all";  // Use the "all" key for All Branches
+	} else if (window.PAGE_BRANCH_CODE && window.PAGE_BRANCH_CODE !== "ALL_BRANCHES") {
+		console.log('DEBUG: Branch determined via PAGE_BRANCH_CODE (single-branch manager):', window.PAGE_BRANCH_CODE);
+		// Find GUID for this branch code in the mapping
+		for (const guid in window.branchPeriodsMapping) {
+			if (window.branchPeriodsMapping[guid].code === window.PAGE_BRANCH_CODE) {
+				selectedBranchGuid = guid;
+				console.log('DEBUG: Found GUID for branch code', window.PAGE_BRANCH_CODE, ':', guid);
+				break;
+			}
+		}
+	}
+
+	if (selectedBranchGuid) {
+		console.log('DEBUG: Using selectedBranchGuid:', selectedBranchGuid);
+
+		// Populate periods directly without triggering navigation
+		periodSelect.innerHTML = '';
+
+		console.log('DEBUG: selectedBranchGuid:', selectedBranchGuid);
+		console.log('DEBUG: branchPeriodsMapping keys:', Object.keys(window.branchPeriodsMapping));
+		console.log('DEBUG: mapping lookup result:', window.branchPeriodsMapping[selectedBranchGuid]);
+
+		if (selectedBranchGuid && window.branchPeriodsMapping && window.branchPeriodsMapping[selectedBranchGuid]) {
+			const availablePeriods = window.branchPeriodsMapping[selectedBranchGuid].periods;
+			console.log('DEBUG: Available periods for initially selected branch:', availablePeriods);
+			console.log('DEBUG: originalPeriodOptions count:', originalPeriodOptions.length);
+
+			// Only add placeholder option if this is multi-branch manager or "all" branches selected
+			// For single-branch managers (PAGE_BRANCH_CODE set and not ALL_BRANCHES), skip placeholder
+			const isSingleBranchManager = window.PAGE_BRANCH_CODE && window.PAGE_BRANCH_CODE !== "ALL_BRANCHES";
+			const placeholderOption = isSingleBranchManager ? null : document.createElement('option');
+			if (!isSingleBranchManager) {
+				placeholderOption.value = '';
+				placeholderOption.disabled = true;
+				placeholderOption.selected = true;
+				placeholderOption.textContent = 'Select a period...';
+				periodSelect.appendChild(placeholderOption);
+			}
+
+			let addedCount = 0;
+			let firstPeriodOption = null;
+			originalPeriodOptions.forEach((option, index) => {
+				const periodNo = parseInt(option.getAttribute('data-periodno'));
+				console.log(`DEBUG: Option ${index}: periodno=${periodNo}, available=${availablePeriods.includes(periodNo)}`);
+				if (availablePeriods.includes(periodNo)) {
+					const clonedOption = option.cloneNode(true);
+					clonedOption.style.display = ''; // Remove display:none from cloned option
+					periodSelect.appendChild(clonedOption);
+					addedCount++;
+
+					// Remember the first period option for auto-selection
+					if (!firstPeriodOption) {
+						firstPeriodOption = clonedOption;
+					}
+				}
+			});
+
+			console.log('DEBUG: Added', addedCount, 'period options to dropdown');
+			console.log('DEBUG: Dropdown now has', periodSelect.children.length, 'total options');
+			console.log('DEBUG: Dropdown options:', Array.from(periodSelect.children).map(opt => opt.textContent));
+
+			periodSelect.disabled = false;
+
+			// On page load, if no period is already selected via URL, auto-select the first period
+			const urlPeriodParam = new URLSearchParams(window.location.search).get('period');
+			if (!urlPeriodParam && firstPeriodOption) {
+				firstPeriodOption.selected = true;
+				// Remove the placeholder option since we're selecting a real period (if placeholder exists)
+				if (placeholderOption && placeholderOption.parentNode) {
+					placeholderOption.parentNode.removeChild(placeholderOption);
+				}
+
+				// Navigate with period parameter
+				spinShow();
+
+				// Build URL carefully - preserve branch parameter if it exists
+				const periodValue = firstPeriodOption.value;
+				const currentPath = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
+				const currentUrl = new URL(window.location.href);
+				currentUrl.searchParams.set('period', periodValue);
+
+				// Ensure branch parameter is preserved (especially for "all")
+				if (selectedBranchGuid && !currentUrl.searchParams.has('branch')) {
+					currentUrl.searchParams.set('branch', selectedBranchGuid);
+				}
+
+				window.location.href = currentUrl.toString();
+				logSelect("Period", firstPeriodOption);
+			}
+		}
+	}
+}
+{%- endif -%}
+
+function isMobile() {
+	return window.innerWidth <= 768;
+}
+	
+function reorderForMobile() {
+	const container = document.getElementById('divAccounting');
+	if (!container) return;
+	const heading = container.querySelector('.accountingHeading');
+	const adminPanel = container.querySelector('.admin-panel');
+	const setupNav = container.querySelector('.admin-panel-nav');
+	const periodDropdown = document.getElementById('divPeriodDropdown');
+	
+	if (isMobile()) {
+		// For mobile: Heading, Setup, Description, Period Selection
+		if (setupNav && periodDropdown && adminPanel) {
+			// Move Setup section to be right after heading
+			if (heading && setupNav) {
+				container.insertBefore(setupNav, heading.nextSibling);
+			}
+			// Period selection comes last
+			if (heading && periodDropdown) {
+				container.insertBefore(periodDropdown, heading.nextSibling);
+			}
+			// Stack the menu items vertically (add class)
+			const menuItems = setupNav.querySelector('.panel-nav-items');
+			if (menuItems) {
+				menuItems.classList.add('mobile-stacked');
+			}
+		}
+	} else {
+		// For desktop: restore original order
+		if (adminPanel && periodDropdown && setupNav) {
+			// Put period dropdown back into admin panel
+			adminPanel.insertBefore(periodDropdown, adminPanel.firstChild);
+			// Put setup nav back into admin panel
+			adminPanel.appendChild(setupNav);
+			// Remove vertical stacking
+			const menuItems = setupNav.querySelector('.panel-nav-items');
+			if (menuItems) {
+				menuItems.classList.remove('mobile-stacked');
+			}
+		}
+	}
+}
+
+document.addEventListener('LVGlobalDOCReady', function() {
+	reorderForMobile();
+	window.addEventListener('resize', reorderForMobile);
+
+	{%- if page.title == 'Branch' -%}
+	// BRANCH PAGE: Set up dynamic period dropdown population based on branch selection
+	setupBranchPeriodFiltering();
+	{%- endif -%}
+	
+	// PERIOD DROPDOWN FIX: Ensure the dropdown shows the period from the URL parameter
+	const periodSelect = document.getElementById('period-select');
+	if (periodSelect) {
+		const urlPeriodParam = new URLSearchParams(window.location.search).get('period');
+		
+		if (urlPeriodParam) {
+			// Find and select the option that matches the URL parameter
+			let foundMatch = false;
+			Array.from(periodSelect.options).forEach((option) => {
+				if (option.value === urlPeriodParam) {
+					option.selected = true;
+					foundMatch = true;
+					console.log('Period dropdown fix: Set selection to', option.text, '(', option.value, ')');
+				} else {
+					option.selected = false;
+				}
+			});
+			
+			if (!foundMatch) {
+				console.warn('Period dropdown fix: No option found for URL parameter', urlPeriodParam);
+			}
+		}
+	}
+
+	$('option[data-datefrom]').each(function() {
+		var $option = $(this);
+		var dateFrom = $option.data('datefrom');
+		var dateTo = $option.data('dateto');
+		var periodno = $option.data('periodno');
+		
+		// Format the dates by removing the time portion
+		var cleanedFrom = dateFrom ? dateFrom.split(' ')[0] : '';
+		var cleanedTo = dateTo ? dateTo.split(' ')[0] : '';
+		
+		// Update the title attribute with formatted dates
+		$option.attr('title', cleanedFrom + ' - ' + cleanedTo + ' Num=' + periodno);
+	});
+});
+
+
+</script>
+<!-- Last modified mon aug 4 5:03am -->
+<!-- Last modified Tue Sep 02 1:09PM -->
+<!-- Last modified Wed Oct 01 1:05PM -->
+<!-- Last modified Wed Oct 01 1:50PM -->
+<!-- Last modified Wed Oct 01 1:55PM -->
+<!-- Last modified Wed Oct 01 4:19PM -->
+<!-- Last modified Thu Oct 02 12:15PM -->
+<!-- Last modified Mon Oct 06 3:20PM -->
+<!-- Last modified Tue Oct 21 12:39PM -->

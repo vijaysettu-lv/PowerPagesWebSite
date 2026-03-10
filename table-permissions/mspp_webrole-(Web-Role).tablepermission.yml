@@ -1,0 +1,12 @@
+adx_append: true
+adx_appendto: true
+adx_create: true
+adx_delete: true
+adx_entitylogicalname: mspp_webrole
+adx_entityname: mspp_webrole (Web Role)
+adx_entitypermission_webrole:
+- 5a90d3ec-5116-f011-9989-002248045044
+adx_entitypermissionid: d2beed87-8e23-f011-8c4e-7c1e521b1a65
+adx_read: true
+adx_scope: 756150000
+adx_write: true

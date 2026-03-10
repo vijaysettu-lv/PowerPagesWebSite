@@ -1,0 +1,337 @@
+/* Table Container */
+.entitylist .table-responsive {
+    border: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Table Styles */
+.entitylist .table.table-striped {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 0;
+    background-color: var(--portalThemeColor7);
+}
+
+/* Table Header */
+.entitylist .table.table-striped thead tr {
+    background-color: var(--portalThemeColor1);
+}
+
+.entitylist .table.table-striped th {
+    color: var(--portalThemeColor7);
+    font-weight: 600;
+    padding: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: none;
+    white-space: nowrap;
+}
+
+.entitylist .table.table-striped th a {
+    color: var(--portalThemeColor7);
+    text-decoration: none;
+}
+
+/* Table Body */
+.entitylist .table.table-striped tbody tr {
+    transition: background-color 0.3s ease;
+}
+
+.entitylist .table.table-striped tbody tr:nth-of-type(even) {
+    background-color: var(--portalThemeColor5);
+}
+
+.entitylist .table.table-striped tbody tr:hover {
+    background-color: var(--portalThemeColor4);
+}
+
+.entitylist .table.table-striped td {
+    padding: 12px 15px;
+    border-top: 1px solid var(--portalThemeColor5);
+    vertical-align: middle;
+}
+
+/* Action Column */
+.entitylist .table.table-striped td:last-child {
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Dropdown Action Button */
+.entitylist .table.table-striped .dropdown .btn {
+    background-color: transparent;
+    border: none;
+    color: var(--portalThemeColor1);
+}
+
+.entitylist .table.table-striped .dropdown .btn:hover,
+.entitylist .table.table-striped .dropdown .btn:focus {
+    color: var(--portalThemeColor9);
+}
+
+/* Pagination Container */
+.view-pagination {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+/* Pagination List */
+.jquery-bootstrap-pagination .pagination {
+    display: flex;
+    padding-left: 0;
+    list-style: none;
+    border-radius: 0.25rem;
+}
+
+/* Pagination Items */
+.jquery-bootstrap-pagination .page-item {
+    margin: 0 2px;
+}
+
+/* Pagination Links */
+.jquery-bootstrap-pagination .page-link {
+    position: relative;
+    display: block;
+    padding: 0.5rem 0.75rem;
+    margin-left: -1px;
+    line-height: 1.25;
+    color: var(--portalThemeColor1);
+    background-color: var(--portalThemeColor7);
+    border: 1px solid var(--portalThemeColor2);
+    transition: all 0.3s ease;
+}
+
+/* Hover and Focus States */
+.jquery-bootstrap-pagination .page-link:hover,
+.jquery-bootstrap-pagination .page-link:focus {
+    z-index: 2;
+    color: var(--portalThemeColor7);
+    text-decoration: none;
+    background-color: var(--portalThemeColor9);
+    border-color: var(--portalThemeColor9);
+}
+
+/* Active State */
+.jquery-bootstrap-pagination .page-item.active .page-link {
+    z-index: 3;
+    color: var(--portalThemeColor7);
+    background-color: var(--portalThemeColor1);
+    border-color: var(--portalThemeColor1);
+}
+
+/* Disabled State */
+.jquery-bootstrap-pagination .page-item.disabled .page-link {
+    color: var(--portalThemeColor6);
+    pointer-events: none;
+    cursor: auto;
+    
+    border-color: var(--portalThemeColor2);
+}
+
+/* Previous and Next buttons */
+.jquery-bootstrap-pagination .entity-pager-prev-link,
+.jquery-bootstrap-pagination .entity-pager-next-link {
+    font-weight: bold;
+}
+
+/* Search Container */
+.view-toolbar.grid-actions {
+    margin-bottom: 20px;
+    padding: 15px;
+    
+    border-radius: 8px;
+}
+
+/* Search Input Group */
+.view-toolbar .input-group.view-search {
+    display: flex;
+    width: 100%;
+    max-width: 500px;
+    margin-left: auto;
+}
+
+/* Search Input */
+.view-toolbar .input-group.view-search .form-control {
+    flex-grow: 1;
+    height: 40px;
+    padding: 8px 15px;
+    font-size: 14px;
+    color: var(--portalThemeColor8);
+    background-color: var(--portalThemeColor7);
+    border: 1px solid var(--portalThemeColor2);
+    border-right: none;
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.view-toolbar .input-group.view-search .form-control:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--portalThemeColor9);
+}
+
+/* Search Button */
+.view-toolbar .input-group.view-search .input-group-btn .btn {
+    height: 40px;
+    padding: 8px 15px;
+    color: var(--portalThemeColor7);
+    background-color: var(--portalThemeColor1);
+    border: 1px solid var(--portalThemeColor1);
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.view-toolbar .input-group.view-search .input-group-btn .btn:hover,
+.view-toolbar .input-group.view-search .input-group-btn .btn:focus {
+    background-color: var(--portalThemeColor9);
+    border-color: var(--portalThemeColor9);
+}
+
+.view-toolbar .input-group .btn.create-action {
+    display: flex;
+    gap: .5rem;
+}
+
+/* Search Icon */
+.view-toolbar .input-group.view-search .input-group-btn .btn .fa-search {
+    font-size: 16px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .view-toolbar.grid-actions {
+        padding: 10px;
+    }
+
+    .view-toolbar .input-group.view-search {
+        max-width: 100%;
+    }
+
+    .view-toolbar .input-group.view-search .form-control,
+    .view-toolbar .input-group.view-search .input-group-btn .btn {
+        height: 36px;
+        font-size: 13px;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .jquery-bootstrap-pagination .page-link {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .entitylist .table.table-striped {
+        font-size: 14px;
+    }
+
+    .entitylist .table.table-striped th,
+    .entitylist .table.table-striped td {
+        padding: 10px;
+    }
+}
+
+/* Ensure the action column is always visible on smaller screens */
+@media (max-width: 576px) {
+    .entitylist .table.table-striped td:last-child {
+        position: sticky;
+        right: 0;
+        background-color: inherit;
+        box-shadow: -5px 0 5px -5px rgba(0, 0, 0, 0.1);
+    }
+}
+
+/* 1. Reset Floats and Display Properties */
+/* Remove existing floats and table display styles */
+.view-toolbar.grid-actions .toolbar-actions,
+.view-toolbar.grid-actions .toolbar-actions .input-group,
+.view-toolbar.grid-actions .toolbar-actions .create-action {
+    float: none !important;
+    display: flex !important;
+    align-items: center;
+}
+
+/* 2. Set Up Flex Container for Toolbar Actions */
+/* Make the toolbar-actions a flex container */
+.view-toolbar.grid-actions .toolbar-actions {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end; /* Align items to the right */
+    gap: 15px; /* Space between search bar and create button */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+
+/* 3. Style the Search Input Group */
+/* Ensure the search input group is flexible */
+.view-toolbar.grid-actions .toolbar-actions .view-search {
+    display: flex !important;
+    flex: 1 1 auto; /* Allow to grow and shrink */
+    max-width: 500px; /* Maintain maximum width */
+}
+
+/* Override inline styles for search input and button */
+.view-toolbar.grid-actions .toolbar-actions .view-search .form-control,
+.view-toolbar.grid-actions .toolbar-actions .view-search .input-group-btn {
+    display: flex !important;
+    width: auto !important; /* Remove 100% width from input */
+}
+
+/* Ensure the search input takes available space */
+.view-toolbar.grid-actions .toolbar-actions .view-search .form-control {
+    flex: 1;
+    margin-right: 5px; /* Space between input and button */
+}
+
+/* 4. Style the Create Button */
+/* Ensure the create button aligns properly */
+.view-toolbar.grid-actions .toolbar-actions .create-action {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 8px 15px; /* Match search button height */
+    font-size: 14px;
+    white-space: nowrap; /* Prevent text wrapping */
+}
+
+/* Optional: Adjust the search button to match the create button height */
+.view-toolbar.grid-actions .toolbar-actions .view-search .input-group-btn .btn {
+    height: 40px; /* Match the height of the create button */
+    padding: 8px 15px;
+}
+
+/* 5. Responsive Adjustments */
+/* For tablets and larger phones */
+@media (max-width: 768px) {
+    .view-toolbar.grid-actions .toolbar-actions {
+        gap: 10px;
+    }
+
+    .view-toolbar.grid-actions .toolbar-actions .view-search {
+        max-width: 100%;
+    }
+
+    .view-toolbar.grid-actions .toolbar-actions .create-action {
+        flex: 1 1 100%;
+        justify-content: center;
+        margin-top: 10px;
+    }
+}
+
+/* For small phones */
+@media (max-width: 576px) {
+    .view-toolbar.grid-actions .toolbar-actions .view-search .form-control {
+        font-size: 13px;
+    }
+
+    .view-toolbar.grid-actions .toolbar-actions .create-action {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+}

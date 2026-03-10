@@ -1,0 +1,115 @@
+<!-- Last modified Tue Oct 21 12:39PM -->
+<!-- Last modified Sat Aug 30 10:04AM -->
+{% include 'snippet' snippet_name:'FetchXML - Values by Branch' %}
+
+{% if valuesByBranch.size > 0 %}
+<h3 style="margin-bottom: 1rem;">Branch List</h3>
+<div class="employee-container">
+    {% assign groups = valuesByBranch | group_by: 'name' | order_by: 'desc' %}
+    {% for grp in groups %}
+    {% assign firstRecord = grp.items | first %}
+    <div class="employee">
+        <div class="employee-header" data-attr="{{firstRecord.branch_id.id}}" onclick="handleBranchClick(this)"
+            style="cursor: pointer;">
+            <p class="employee-name">{{ grp.key }}</p>
+            <a class="employee-link">
+                <i class="fas fa-arrow-right" style="padding-bottom: 12px;"></i>
+            </a>
+        </div>
+        {% for item in grp.items %}
+        <div class="compensation">
+            <p class="compensation-type">{{item.desc | default: 'N/A'}}</p>
+            <p class="compensation-amount">{{item.total | format:'C' }}</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% endfor %}
+</div>
+<div class="loan-officers-pagination">
+    <button id="prevPage" class="loan-officers-pagination__button loan-officers-pagination__button--prev">Previous</button>
+    <span id="pageInfo" class="loan-officers-pagination__info">Page 1 of 1</span>
+    <button id="nextPage" class="loan-officers-pagination__button loan-officers-pagination__button--next">Next</button>
+</div>
+<script>
+    const handleBranchClick = (el) => {
+
+        const baseUrl = window.location.origin;
+        let newURL = new URL('/branch/', baseUrl);
+        const branchID = el.dataset.attr;
+
+        let currentQueryParams = new URLSearchParams(window.location.search);
+        //If no current query params exist go ahead add the one we need
+        if (currentQueryParams.size === 0) {
+            newURL.searchParams.append('branch', branchID);
+        } else {
+            if (currentQueryParams.has('branch')) {
+                currentQueryParams.set('branch', branchID);
+            } else {
+                // If 'branch' does not exist, append it
+                currentQueryParams.append('branch', branchID);
+            }
+            // Reconstruct the URL with the updated query parameters
+            newURL.search = currentQueryParams.toString();
+        }
+        // Redirect to the new URL
+        window.open(newURL.toString(), '_blank');
+    };
+    document.addEventListener('LVGlobalDOCReady', function () {
+        const employeeContainer = document.querySelector('.employee-container');
+        const employees = employeeContainer.querySelectorAll('.employee');
+        const employeesPerPage = 8; // Adjust this number as needed
+        let currentPage = 1;
+        const totalPages = Math.ceil(employees.length / employeesPerPage);
+
+        const prevButton = document.getElementById('prevPage');
+        const nextButton = document.getElementById('nextPage');
+        const pageInfo = document.getElementById('pageInfo');
+
+        function showPage(page) {
+            const start = (page - 1) * employeesPerPage;
+            const end = start + employeesPerPage;
+
+            employees.forEach((employee, index) => {
+                if (index >= start && index < end) {
+                    employee.style.display = '';
+                } else {
+                    employee.style.display = 'none';
+                }
+            });
+
+            pageInfo.textContent = `Page ${page} of ${totalPages}`;
+            prevButton.disabled = page === 1;
+            nextButton.disabled = page === totalPages;
+        }
+
+        prevButton.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                showPage(currentPage);
+            }
+        });
+
+        nextButton.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                showPage(currentPage);
+            }
+        });
+
+        // Initial page setup
+        showPage(1);
+
+        // Hide pagination if there's only one page
+        if (totalPages <= 1) {
+            document.querySelector('.loan-officers-pagination').style.display = 'none';
+        }
+    });
+</script>
+{% else %}
+<div class="grid-container">
+    <h3>No branch data available.</h3>
+</div>
+{% endif %}
+<!-- Last modified Sat Aug 30 10:04AM -->
+<!-- Last modified Tue Oct 21 12:39PM -->
