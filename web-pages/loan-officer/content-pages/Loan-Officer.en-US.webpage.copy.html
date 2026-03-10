@@ -193,59 +193,22 @@
             
             {% if cpCommValueRowCount > 0 %}                            {% comment %}     cpCommValueRowCount is set in FetchXml-Current-Period    {% endcomment %} 
 
-				<!-- JavaScript-based arithmetic to avoid DotLiquid bug -->
-				{% assign rawSetting = settings['LV/NumApprovalPeriods'] %}
-				{% if rawSetting == blank or rawSetting == empty or rawSetting == "" or rawSetting == nil %}
-					{% assign rawSetting = "0" %}
-				{% endif %}
-				
-				<script>
-					// Calculate minPeriodAllowedForApprovals using JavaScript
-					const settingNum = parseInt("{{rawSetting}}") || 0;
-					const sqNum = parseInt("{{sqAcctgPeriodNo}}") || 0;
-					const minPeriodAllowedForApprovals = sqNum - settingNum;
-					
-					// Store in window for use in conditional logic
-					window.minPeriodAllowedForApprovals = minPeriodAllowedForApprovals;
-					
-					// Debug output
-					console.log('JS Arithmetic:', {
-						rawSetting: "{{rawSetting}}",
-						settingNum: settingNum,
-						sqAcctgPeriodNo: "{{sqAcctgPeriodNo}}",
-						sqNum: sqNum,
-						minPeriodAllowedForApprovals: minPeriodAllowedForApprovals
-					});
-				</script>
-				
-				<!-- Set Liquid variable from JavaScript calculation -->
-				{% assign minPeriodAllowedForApprovals = -999 %}
-				{% comment %} This will be overridden by JavaScript {% endcomment %}
-
-
-
-				
 				<script>
 					// JavaScript-controlled approval section display
 					document.addEventListener('DOMContentLoaded', function() {
 						const sqUsingApprovals = {{sqUsingApprovals}};
-						const sqRecUISelPeriodNo = {{sqRecUISelPeriod.lv_periodno}};
 						const sqLOViewMode = "{{sqLOViewMode}}";
-						const minPeriodAllowedForApprovals = window.minPeriodAllowedForApprovals;
 						
 						console.log('Approval Check:', {
 							sqUsingApprovals: sqUsingApprovals,
-							sqRecUISelPeriodNo: sqRecUISelPeriodNo,
-							sqLOViewMode: sqLOViewMode,
-							minPeriodAllowedForApprovals: minPeriodAllowedForApprovals
+							sqLOViewMode: sqLOViewMode
 						});
 						
 						// Show or hide approval section based on conditions
 						const approvalDiv = document.getElementById('approvalSectionWrapper');
 						const condition1 = sqUsingApprovals === true;
-						const condition2 = sqRecUISelPeriodNo >= minPeriodAllowedForApprovals;
-						const condition3 = sqLOViewMode !== "ALL_LOAN_OFFICERS";
-						const allConditionsMet = condition1 && condition2 && condition3;
+						const condition2 = sqLOViewMode !== "ALL_LOAN_OFFICERS";
+						const allConditionsMet = condition1 && condition2;
 						
 						
 						if (allConditionsMet) {
@@ -403,23 +366,19 @@
 				<!-- Bulk approval functionality has been moved to the /Branch page -->
 				
 				<div id="approvalSectionElse" style="display: none;">
-					<!-- lodd:appr00.else Either we are NOT using approvals at all, or, the current period '{{sqRecUISelPeriod.lv_periodno}}' is not the open periodno '{{ sqAcctgPeriodNo }}' -->
+					<!-- lodd:appr00.else Either we are NOT using approvals at all, or this is an ALL_LOAN_OFFICERS view -->
 				</div>
 				
 				<script>
 					// Also handle the "else" case for approval section
 					document.addEventListener('DOMContentLoaded', function() {
 						const sqUsingApprovals = {{sqUsingApprovals}};
-						const sqRecUISelPeriodNo = {{sqRecUISelPeriod.lv_periodno}};
 						const sqLOViewMode = "{{sqLOViewMode}}";
-						const minPeriodAllowedForApprovals = window.minPeriodAllowedForApprovals;
 						
 						const approvalElseDiv = document.getElementById('approvalSectionElse');
 						
 						// Show else section if conditions are NOT met
-						if (!(sqUsingApprovals === true && 
-							  sqRecUISelPeriodNo >= minPeriodAllowedForApprovals && 
-							  sqLOViewMode !== "ALL_LOAN_OFFICERS")) {
+						if (!(sqUsingApprovals === true && sqLOViewMode !== "ALL_LOAN_OFFICERS")) {
 							approvalElseDiv.style.display = 'block';
 						}
 					});
